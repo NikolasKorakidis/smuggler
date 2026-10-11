@@ -41,6 +41,10 @@ func _walk_172() -> void:
 	FlightInput.set_throttle_keyboard(0.03)
 	await _s(8.0); _report("172 engine started")
 	await _before_takeoff(e, 0.72)
+	world.aircraft.set_flap_notch(1)
+	await _s(0.5)
+	FlightInput.parking_brake = false
+	await _s(0.5)
 	_finish("172")
 
 
@@ -89,9 +93,15 @@ func _swing(e: EngineSystems) -> void:
 func _finish(tag: String) -> void:
 	var done: int = cl._items.filter(func(i): return i.done).size()
 	_report(tag + " final")
-	if done != cl._items.size():
+	# Ground part only: everything up to and including BEFORE TAKEOFF must tick.
+	var ground: Array = cl._items.filter(func(i): return i.section in ["BEFORE START", "STARTING ENGINE", "AFTER START", "BEFORE TAKEOFF"])
+	var ground_done: int = ground.filter(func(i): return i.done and not i.skipped).size()
+	if ground_done != ground.size():
 		failures += 1
-		print("  FAIL %s: %d/%d" % [tag, done, cl._items.size()])
+		print("  FAIL %s: ground steps %d/%d" % [tag, ground_done, ground.size()])
+		for i in ground:
+			if i.skipped or not i.done:
+				print("    not ticked: %s %s" % [i.item, i.state])
 
 
 func _glow_check(target: String) -> void:

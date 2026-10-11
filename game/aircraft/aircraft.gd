@@ -60,6 +60,15 @@ func respawn() -> void:
 	respawned.emit()
 
 
+func set_flap_notch(n: int) -> void:
+	flap_notch = clampi(n, 0, maxi(definition.flap_detents.size() - 1, 0))
+
+
+func flap_notch_degrees(n: int) -> int:
+	# Notch index to the degrees printed on the switch (0/10/20/30 for the 172).
+	return int(round(definition.flap_detents[n] * 30.0)) if n < definition.flap_detents.size() else 0
+
+
 func eyepoint() -> Node3D:
 	return airframe.get_node("Eyepoint")
 
@@ -86,9 +95,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reset_aircraft"):
 		respawn()
 	elif event.is_action_pressed("flaps_down"):
-		flap_notch = mini(flap_notch + 1, maxi(definition.flap_detents.size() - 1, 0))
+		set_flap_notch(flap_notch + 1)
 	elif event.is_action_pressed("flaps_up"):
-		flap_notch = maxi(flap_notch - 1, 0)
+		set_flap_notch(flap_notch - 1)
 	# Exact matches so Shift+M / Ctrl+E don't also fire M / E.
 	elif event.is_action_pressed("magnetos_down", false, true):
 		engine.set_magnetos(engine.magnetos - 1)

@@ -10,6 +10,7 @@ var _wheels: Array[Node3D] = []
 var _wheel_rest: Array[Vector3] = []
 var _wheel_units: Array[int] = []
 var _prop: Node3D
+var _flaps: Array[Node3D] = []
 var _blades: Array[Node3D] = []
 var _disc: MeshInstance3D
 
@@ -59,6 +60,22 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 
 	# Wing (quarter chord on the aero reference point)
 	_box(Vector3(rp.x - 0.25 * chord, 0, rp.z), Vector3(rp.x + 0.75 * chord, 0, rp.z + 5.0), span, body)
+	# Flaps: inboard trailing-edge panels hinged at their front edge.
+	if not def.flap_detents.is_empty():
+		var flap_chord := 0.25 * chord
+		var hinge_x := rp.x + 0.75 * chord - flap_chord
+		for side in [-1.0, 1.0]:
+			var hinge := Node3D.new()
+			hinge.position = _p(hinge_x, side * span * 0.21, rp.z)
+			add_child(hinge)
+			var panel := MeshInstance3D.new()
+			var pb := BoxMesh.new()
+			pb.size = Vector3(span * 0.3, 2.5, flap_chord) * IN
+			panel.mesh = pb
+			panel.material_override = trim
+			panel.position = Vector3(0, -0.6 * IN, flap_chord * 0.5 * IN + 0.01)
+			hinge.add_child(panel)
+			_flaps.append(hinge)
 	for side in [-1.0, 1.0]:
 		_rod(Vector3(rp.x, side * 12.0, cabin_bottom + 4.0), Vector3(rp.x, side * span * 0.3, rp.z), 1.5, trim)
 
@@ -151,6 +168,9 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 func _process(delta: float) -> void:
 	if _fdm == null or _fdm.jsb == null:
 		return
+	var flap_deg := _fdm.prop_get("fcs/flap-pos-deg") if not _flaps.is_empty() else 0.0
+	for h in _flaps:
+		h.rotation.x = deg_to_rad(flap_deg)  # trailing edge (aft, +Z) down
 	var rpm := _fdm.prop_get("propulsion/engine/propeller-rpm")
 	var spinning := rpm > 350.0
 	_disc.visible = spinning

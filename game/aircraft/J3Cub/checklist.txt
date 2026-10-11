@@ -1,24 +1,55 @@
-# Tutorial plane (Cub-type) checklist: hand-propped, no electrics.
+# Tutorial plane (Cub-type): hand-propped, no electrics, no flaps.
 #   condition | ITEM | STATE | how to do it | cockpit part to highlight (optional)
 
-== BEFORE START
-parking_brake_on | BRAKES         | SET             | Press . (period) to set the brakes                                   |
-fuel:ON          | FUEL VALVE     | ON              | FUEL valve on the panel, right: click it, or press B                 | FuelValve
-throttle_closed  | THROTTLE       | CLOSED          | Throttle fully back: hold F, or pull the HOTAS lever back            |
-magnetos_off     | SWITCH         | OFF             | "Switch off!" The SWITCH knob on the panel, left, must read OFF      | Magnetos
-pulled_through   | PROPELLER      | PULL THROUGH    | Press Enter 3-4 times to pull the prop through and suck in fuel      |
+== BEFORE START | until:engine_running
+parking_brake_on | BRAKES         | SET             | Press . (period) to set the brakes                                     |
+fuel:ON          | FUEL VALVE     | ON              | FUEL valve on the panel, right: click it, or press B                   | FuelValve
+throttle_closed  | THROTTLE       | CLOSED          | Throttle fully back: hold F, or pull the HOTAS lever back              |
+magnetos_off     | SWITCH         | OFF             | "Switch off!" The SWITCH knob on the panel, left, must read OFF        | Magnetos
+pulled_through   | PROPELLER      | PULL THROUGH    | Press Enter 3-4 times to pull the prop through and suck in fuel        |
 
-== STARTING ENGINE
-throttle_cracked | THROTTLE       | CRACKED         | Throttle just above idle: tap R                                      |
-magnetos_both    | SWITCH         | BOTH            | "Contact!" Click the SWITCH 3 times, or press M 3 times              | Magnetos
-engine_running   | PROPELLER      | SWING           | Press Enter to swing the prop. Repeat until it fires                 |
-oil_pressure     | OIL PRESSURE   | RISING          | Watch the OIL PSI gauge, right side                                  | OilPressure
-idle:1100        | THROTTLE       | 900 RPM         | Settle the tachometer around 900                                     | Tachometer
+== STARTING ENGINE | until:engine_running
+throttle_cracked | THROTTLE       | CRACKED         | Throttle just above idle: tap R                                        |
+magnetos_both    | SWITCH         | BOTH            | "Contact!" Click the SWITCH 3 times, or press M 3 times                | Magnetos
+engine_running   | PROPELLER      | SWING           | Press Enter to swing the prop. Repeat until it fires                   |
 
-== BEFORE TAKEOFF
-controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                  |
-runup:1700       | THROTTLE       | 1700 RPM        | Brakes hold you. Add power to 1700 on the tachometer                 | Tachometer
-mag_check        | SWITCH         | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH                      | Magnetos
-carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again                                         | CarbHeat
-idle:1100        | THROTTLE       | IDLE            | Back to about 900 rpm                                                | Tachometer
-parking_brake_off| BRAKES         | RELEASE         | Press . (period). Taildragger: keep it straight with the pedals      |
+== AFTER START | until:moving
+oil_pressure     | OIL PRESSURE   | RISING          | Watch the OIL PSI gauge, right side                                    | OilPressure
+idle:1300        | THROTTLE       | ABOUT 1000 RPM  | Settle the tachometer around 1000                                      | Tachometer
+
+== BEFORE TAKEOFF | until:airborne
+controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                    |
+runup:1700       | THROTTLE       | 1700 RPM        | Brakes hold you. Add power to 1700 on the tachometer                   | Tachometer
+mag_check        | SWITCH         | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH                        | Magnetos
+carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again                                           | CarbHeat
+idle:1300        | THROTTLE       | IDLE            | Back to about 1000 rpm                                                 | Tachometer
+parking_brake_off| BRAKES         | RELEASE         | Press . (period)                                                       |
+
+== TAKEOFF | until:agl_above:300
+lined_up         | LINE UP        | ON THE STRIP    | Point the nose straight down the strip                                 |
+throttle_full    | THROTTLE       | FULL            | Full power. It will swing left: keep it straight with right pedal      | Tachometer
+kias_above:25    | TAIL UP        | 25 KNOTS        | Ease the stick slightly forward to lift the tail                       | Airspeed
+airborne         | LIFT OFF       | CLIMB AT 45 MPH | Let it fly off around 40 mph, climb at about 45 mph                    | Airspeed
+
+== AFTER TAKEOFF | until:near:tower:600
+agl_above:500    | CLIMB          | 500 FT          | Keep climbing. The Cub climbs slowly; be patient                       | Altimeter
+
+== FLY TO THE TOWER
+near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Fly to it |
+heading_to:strip:25 | TURN BACK   | TOWARDS STRIP   | Turn round the tower and point at the strip: {dist:strip}, {clock:strip} |
+
+== APPROACH AND LANDING | until:landed
+near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip}. Descend gently           | Altimeter
+carb_heat_on     | CARB HEAT      | ON              | Before reducing power: press V                                         | CarbHeat
+landed           | TOUCH DOWN     | ON THE STRIP    | Idle over the strip, hold it off, land on all three wheels at ~40 mph  | Airspeed
+
+== AFTER LANDING | until:parked
+carb_heat_off    | CARB HEAT      | COLD            | Press V                                                                | CarbHeat
+parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking}. Stop on the yellow square. Zig-zag: you can't see over the nose |
+
+== SHUTDOWN
+parking_brake_on | BRAKES         | SET             | Press . (period)                                                       |
+idle:1300        | THROTTLE       | IDLE            | Throttle fully back                                                    | Tachometer
+magnetos_off     | SWITCH         | OFF             | Shift+M to OFF: the engine stops                                       | Magnetos
+engine_stopped   | ENGINE         | STOPPED         | Wait for the propeller to stop                                         |
+fuel:OFF         | FUEL VALVE     | OFF             | Click the FUEL valve, or press B                                       | FuelValve

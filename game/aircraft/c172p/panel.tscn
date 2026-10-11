@@ -283,3 +283,25 @@ control = "parking_brake"
 label = "PARK BRAKE"
 knob_color = Color(0.1, 0.1, 0.1, 1)
 size_m = 0.026
+
+[node name="FlapSwitch" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "flaps"
+label = "FLAPS"
+knob_color = Color(0.85, 0.85, 0.82, 1)
+size_m = 0.03
+
+[node name="FlapIndicator" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, -0.305, -0.618)
+script = ExtResource("dial")
+diameter_m = 0.05
+title = "FLAPS"
+unit_label = "DEG"
+property = "fcs/flap-pos-deg"
+max_value = 30.0
+min_angle = -60.0
+max_angle = 60.0
+major_step = 10.0
+minor_step = 5.0
+label_step = 10.0

@@ -32,3 +32,7 @@
 | 2026-10-11 | On-screen checklist (top right) that ticks itself; optional, K hides | Teaches the start procedure; an aid like the assists, not a flight HUD |
 | 2026-10-11 | Checklist guidance: only the current section open, big NEXT STEP box, pulsing ring on the cockpit part to use (5th column in checklist.txt) | Nikolas: easier, more visual step-by-step help |
 | 2026-10-11 | Parking brake toggle (. key, bindable HOTAS button, 172 knob); checklists set and release it | Requested; frees the hands during run-up |
+| 2026-10-11 | The checklist doubles as the tutorial: sections can 'until:' a later event so skipped checks never block it | Cub list got stuck when a check was skipped and Nikolas took off |
+| 2026-10-11 | Tutorial navigation uses a real landmark (radio tower) plus distance/clock hints in the checklist, not a HUD marker | Keeps the no-HUD rule for flying; hints are part of the optional aid |
+| 2026-10-11 | Hangar apron is paved; parking square is the tutorial end point | Gives the taxi-in a clear target |
+| 2026-10-11 | Automated tutorial flight test with a scripted pilot for both aircraft | Proves the whole tutorial can be completed after every change |

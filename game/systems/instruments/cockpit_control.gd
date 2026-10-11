@@ -7,7 +7,7 @@ extends Node3D
 
 enum Style { ROTARY, TOGGLE, PUSH_PULL }
 
-## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake
+## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake, flaps
 @export var control := "magnetos"
 @export var label := ""
 @export var knob_color := Color(0.12, 0.12, 0.12)
@@ -30,7 +30,7 @@ func _ready() -> void:
 	match control:
 		"magnetos", "fuel_selector":
 			_style = Style.ROTARY
-		"master":
+		"master", "flaps":
 			_style = Style.TOGGLE
 		_:
 			_style = Style.PUSH_PULL
@@ -53,6 +53,9 @@ func hit(from: Vector3, dir: Vector3) -> float:
 func press(reverse: bool) -> void:
 	if control == "parking_brake":
 		FlightInput.parking_brake = not FlightInput.parking_brake
+		return
+	if control == "flaps":
+		aircraft.set_flap_notch(aircraft.flap_notch + (-1 if reverse else 1))
 		return
 	var e := _engine()
 	if e == null:
@@ -88,6 +91,9 @@ func release() -> void:
 
 
 func scroll(dir: int) -> void:
+	if control == "flaps":
+		aircraft.set_flap_notch(aircraft.flap_notch - dir)  # wheel up = flaps up
+		return
 	var e := _engine()
 	if e == null:
 		return
@@ -110,6 +116,8 @@ func set_hover(on: bool) -> void:
 func tooltip() -> String:
 	if control == "parking_brake":
 		return "%s: %s   (click, or press .)" % [label, "SET (pulled)" if FlightInput.parking_brake else "RELEASED"]
+	if control == "flaps":
+		return "%s: %d°   (click: down · shift+click: up · or G / T)" % [label, aircraft.flap_notch_degrees(aircraft.flap_notch)]
 	var e := _engine()
 	if e == null:
 		return label
@@ -158,6 +166,9 @@ func _process(delta: float) -> void:
 			_moving.position.z = size_m * 0.4 + (1.0 - e.mixture) * size_m * 1.2
 		"carb_heat":
 			_moving.position.z = size_m * 0.4 + (size_m * 1.2 if e.carb_heat else 0.0)
+		"flaps":
+			var n := maxi(aircraft.definition.flap_detents.size() - 1, 1)
+			_moving.position.y = size_m * (0.6 - 1.2 * aircraft.flap_notch / float(n))
 		"parking_brake":
 			_moving.position.z = size_m * 0.4 + (size_m * 1.2 if FlightInput.parking_brake else 0.0)
 		"primer":
@@ -214,8 +225,14 @@ func _build() -> void:
 			lever.material_override = _highlight
 			lever.position.z = r * 0.4
 			_moving.add_child(lever)
-			_add_label("ON", Vector2(0, r * 1.5), r * 0.55)
-			_add_label("OFF", Vector2(0, -r * 1.5), r * 0.55)
+			if control == "flaps":
+				var n := aircraft.definition.flap_detents.size() if aircraft else 1
+				for i in n:
+					var y := r * (1.2 - 2.4 * i / float(maxi(n - 1, 1)))
+					_add_label("%d" % (aircraft.flap_notch_degrees(i) if aircraft else 0), Vector2(r * 1.6, y), r * 0.45)
+			else:
+				_add_label("ON", Vector2(0, r * 1.5), r * 0.55)
+				_add_label("OFF", Vector2(0, -r * 1.5), r * 0.55)
 		Style.PUSH_PULL:
 			var shaft := _mesh_cyl(r * 0.2, size_m * 1.6, Color(0.6, 0.6, 0.6))
 			shaft.position.z = size_m * 0.8

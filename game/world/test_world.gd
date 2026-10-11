@@ -1,6 +1,7 @@
 extends Node3D
-## Phase 0 flat test world: one grass strip on open rough grass, scattered
-## trees and a hangar for height and speed cues. Ground is flat at sea level.
+## Flat test world: one grass strip on open rough grass, a hangar with a
+## paved apron and parking spot, a radio tower ~2 km out for the tutorial
+## circuit, and scattered trees for height and speed cues. Sea level.
 
 @export var origin_lat_deg := 24.0
 @export var origin_lon_deg := -78.0
@@ -10,6 +11,9 @@ extends Node3D
 @export var strip_heading_deg := 0.0
 ## Spawn with the engine running (true) or cold and dark (false).
 @export var start_engine_running := false
+## Tutorial turning point: distance and true bearing from the strip centre.
+@export var tower_distance_m := 2000.0
+@export var tower_bearing_deg := 30.0
 ## Aircraft available in the test world; N cycles through them.
 @export var aircraft_definitions: Array[AircraftDefinition] = []
 
@@ -24,6 +28,8 @@ func _ready() -> void:
 	$Strip.rotation.y = -deg_to_rad(strip_heading_deg)
 	_build_strip_markers()
 	_build_hangar()
+	_build_apron()
+	_build_tower()
 	_scatter_trees()
 
 	_spawn_aircraft(0)
@@ -55,7 +61,31 @@ func spawn_point() -> Dictionary:
 	return {"position": -_strip_dir() * (strip_length_m * 0.5 - 30.0), "heading_deg": strip_heading_deg}
 
 
+## Named places the checklist/tutorial refers to.
+func point(name: String) -> Vector3:
+	match name:
+		"tower":
+			var b := deg_to_rad(tower_bearing_deg)
+			return Vector3(sin(b), 0.0, -cos(b)) * tower_distance_m
+		"strip":
+			return Vector3.ZERO
+		"parking":
+			return _strip_basis() * _parking_local()
+	return Vector3.ZERO
+
+
+func strip_heading() -> float:
+	return strip_heading_deg
+
+
+func on_apron(p: Vector3) -> bool:
+	var local := _strip_basis().inverse() * p
+	return local.x > -33.5 and local.x < -strip_width_m * 0.5 and local.z > 315.0 and local.z < 365.0
+
+
 func surface_at(p: Vector3) -> StringName:
+	if on_apron(p):
+		return &"paved"
 	var along := p.dot(_strip_dir())
 	var across := p.dot(_strip_dir().cross(Vector3.UP))
 	if absf(along) <= strip_length_m * 0.5 and absf(across) <= strip_width_m * 0.5:
@@ -115,6 +145,81 @@ func _build_hangar() -> void:
 	add_child(hangar)
 
 
+func _parking_local() -> Vector3:
+	return Vector3(-25.0, 0.0, 340.0)
+
+
+# Paved apron between the hangar and the strip, with a yellow parking square.
+func _build_apron() -> void:
+	var b := _strip_basis()
+	var apron := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(-strip_width_m * 0.5 + 33.5, 50.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.42, 0.41, 0.39)
+	mat.roughness = 0.95
+	plane.material = mat
+	apron.mesh = plane
+	apron.name = "Apron"
+	apron.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	apron.transform = Transform3D(b, b * Vector3((-33.5 - strip_width_m * 0.5) * 0.5, 0.04, 340.0))
+	add_child(apron)
+	var yellow := StandardMaterial3D.new()
+	yellow.albedo_color = Color(0.95, 0.8, 0.15)
+	yellow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var c := _parking_local()
+	for side in [[Vector3(0, 0, -6), Vector3(12, 0.02, 0.4)], [Vector3(0, 0, 6), Vector3(12, 0.02, 0.4)],
+			[Vector3(-6, 0, 0), Vector3(0.4, 0.02, 12)], [Vector3(6, 0, 0), Vector3(0.4, 0.02, 12)]]:
+		var line := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = side[1]
+		box.material = yellow
+		line.mesh = box
+		line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		line.transform = Transform3D(b, b * (c + side[0] + Vector3(0, 0.06, 0)))
+		add_child(line)
+
+
+# Red-and-white radio mast with a blinking light: the tutorial turning point.
+func _build_tower() -> void:
+	var tower := Node3D.new()
+	tower.name = "RadioTower"
+	tower.position = point("tower")
+	add_child(tower)
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color(0.85, 0.15, 0.1)
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.95, 0.95, 0.92)
+	var band := 10.0
+	for i in 9:
+		var seg := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		var w := 3.0 - i * 0.2
+		box.size = Vector3(w, band, w)
+		box.material = red if i % 2 == 0 else white
+		seg.mesh = box
+		seg.position.y = band * (i + 0.5)
+		tower.add_child(seg)
+	var lamp := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 1.2
+	sphere.height = 2.4
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = Color(1, 0.1, 0.05)
+	glow.emission_enabled = true
+	glow.emission = Color(1, 0.1, 0.05)
+	glow.emission_energy_multiplier = 6.0
+	sphere.material = glow
+	lamp.mesh = sphere
+	lamp.position.y = band * 9 + 1.5
+	tower.add_child(lamp)
+	var blink := Timer.new()
+	blink.wait_time = 0.75
+	blink.autostart = true
+	blink.timeout.connect(func(): lamp.visible = not lamp.visible)
+	tower.add_child(blink)
+
+
 func _scatter_trees() -> void:
 	var cone := CylinderMesh.new()
 	cone.top_radius = 0.0
@@ -137,6 +242,9 @@ func _scatter_trees() -> void:
 		for t in rng.randi_range(6, 40):
 			var p := centre + Vector2.from_angle(rng.randf() * TAU) * radius * sqrt(rng.randf())
 			if absf(p.x) < strip_width_m * 0.5 + 60.0 and absf(p.y) < strip_length_m * 0.5 + 700.0:
+				continue
+			var world_p := b * Vector3(p.x, 0.0, p.y)
+			if Vector2(world_p.x, world_p.z).distance_to(Vector2(point("tower").x, point("tower").z)) < 80.0:
 				continue
 			var s := rng.randf_range(0.7, 1.6)
 			var pos := b * Vector3(p.x, cone.height * 0.5 * s, p.y)

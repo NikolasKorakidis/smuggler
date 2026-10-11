@@ -61,6 +61,9 @@ var button_bindings := {}
 
 ## False ignores all joysticks (headless tests with hardware plugged in).
 var joysticks_enabled := true
+## Test pilot: any of pitch/roll/rudder/throttle/brake_left/brake_right set
+## here replaces the pilot's input (dev tests only).
+var override := {}
 
 var _seen_axes := {}  # Vector2i(device, axis) that have reported real movement
 var _user_axes := {}  # bindings the player made (saved); the rest come from profiles
@@ -104,6 +107,9 @@ func _physics_process(delta: float) -> void:
 		or _pad_button(JOY_BUTTON_A) or parking_brake) else 0.0
 	brake_left = maxf(both, _axis("brake_left"))
 	brake_right = maxf(both, _axis("brake_right"))
+
+	for k in override:
+		set(k, override[k])
 
 	trim = 0.0
 	if Input.is_action_pressed("trim_up") or _button("trim_up") or _pad_button(JOY_BUTTON_DPAD_DOWN):
