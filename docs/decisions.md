@@ -36,3 +36,7 @@
 | 2026-10-11 | Tutorial navigation uses a real landmark (radio tower) plus distance/clock hints in the checklist, not a HUD marker | Keeps the no-HUD rule for flying; hints are part of the optional aid |
 | 2026-10-11 | Hangar apron is paved; parking square is the tutorial end point | Gives the taxi-in a clear target |
 | 2026-10-11 | Automated tutorial flight test with a scripted pilot for both aircraft | Proves the whole tutorial can be completed after every change |
+| 2026-10-11 | Merged parallel agent branches feature/engine-sound and feature/terrain-tile into phase1-172 | Work done in parallel worktrees; no file overlaps, all tests pass after merge |
+| 2026-10-11 | JSBSim ground contact via a Godot callback (height + normal per wheel) | Slopes and hills under each wheel; flat world unchanged |
+| 2026-10-11 | Terrain tile is the default world; flat test world kept for fast tests | Phase 1 goal; tutorial verified on both |
+| 2026-10-11 | Worlds share a tutorial interface: point(), strip_heading(), strip_length(), on_strip(); tower and parking square in world/landmarks.gd | Same checklist/tutorial works in any world |

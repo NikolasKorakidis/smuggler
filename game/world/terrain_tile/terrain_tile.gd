@@ -5,7 +5,8 @@ extends Node3D
 ## by JSBSim (wheels, friction) and the visuals.
 ##
 ## Same interface as the flat test world: geo, spawn_point(), surface_at(),
-## terrain_height(), plus ground_at() for slopes.
+## terrain_height(), point()/strip_heading()/strip_length()/on_strip() for the
+## tutorial, plus ground_at() for slopes.
 ## Start on the dirt strip with "-- --spawn=dirt".
 
 const AircraftScene := preload("res://aircraft/aircraft.tscn")
@@ -34,6 +35,9 @@ const PAINT := {&"paved": 0, &"dirt": 1, &"apron": 2, &"mown": 3}
 ## Ground steeper than this (normal.y below, about 20 degrees) is "rough":
 ## rock and scrub, both in the shader and in the physics.
 @export var rough_normal_y := 0.94
+## Tutorial turning point: distance and true bearing from the spawn strip centre.
+@export var tower_distance_m := 2200.0
+@export var tower_bearing_deg := 110.0
 ## Aircraft available here; N cycles through them.
 @export var aircraft_definitions: Array[AircraftDefinition] = []
 
@@ -64,6 +68,7 @@ func _ready() -> void:
 	_setup_material(mat)
 	$Terrain.build(heightfield, mat)
 	_build_buildings()
+	_build_tutorial_props()
 	_build_strip_markers()
 	_scatter_trees()
 	print("terrain tile: heights %d ms, visuals %d ms, %d chunks" % [
@@ -110,6 +115,40 @@ func terrain_height(p: Vector3) -> float:
 ## Vector4(height, normal.x, normal.y, normal.z) of the ground under p.
 func ground_at(p: Vector3) -> Vector4:
 	return heightfield.ground_at(p)
+
+
+## Named places the tutorial checklist refers to (spawn strip).
+func point(name: String) -> Vector3:
+	var s: Dictionary = strips[spawn_strip]
+	var xz: Vector2
+	match name:
+		"tower":
+			var b := deg_to_rad(tower_bearing_deg)
+			xz = s.centre + Vector2(sin(b), -cos(b)) * tower_distance_m
+		"parking":
+			# In front of the hangar door (valley) / beside the tin shed (ridge).
+			xz = _strip_xz(s, 210.0, -57.0) if spawn_strip == 0 else _strip_xz(s, -205.0, 30.0)
+		_:
+			xz = s.centre
+	return Vector3(xz.x, heightfield.height_at(xz.x, xz.y), xz.y)
+
+
+func strip_heading() -> float:
+	return strips[spawn_strip].heading_deg
+
+
+func strip_length() -> float:
+	return strips[spawn_strip].length_m
+
+
+## On a runway surface itself (any strip), for "lined up" and "landed".
+func on_strip(p: Vector3) -> bool:
+	var xz := Vector2(p.x, p.z)
+	for s in strips:
+		var d: Vector2 = xz - s.centre
+		if absf(d.dot(s.dir)) <= s.length_m * 0.5 and absf(d.dot(s.side)) <= s.width_m * 0.5:
+			return true
+	return false
 
 
 func surface_at(p: Vector3) -> StringName:
@@ -257,6 +296,12 @@ func _build_buildings() -> void:
 	var ridge: Dictionary = strips[1]
 	_add_shed("TinShed", ridge, -195.0, 36.0, Vector3(4.5, 2.6, 3.5), Color(0.5, 0.42, 0.36), Color(0.48, 0.3, 0.2))
 	_add_drums(ridge, -205.0, 24.0, 7)
+
+
+func _build_tutorial_props() -> void:
+	Landmarks.radio_tower(self, point("tower"))
+	var s: Dictionary = strips[spawn_strip]
+	Landmarks.parking_square(self, Transform3D(_strip_basis(s), point("parking")))
 
 
 func _add_shed(node_name: String, s: Dictionary, along: float, across: float, size: Vector3, wall: Color, roof: Color) -> void:

@@ -285,7 +285,7 @@ func _met(it: Dictionary) -> bool:
 		"moving":
 			return _ground_speed_kt() > 3.0
 		"lined_up":
-			return _on_ground() and aircraft.world.surface_at(aircraft.global_position) == &"grass_strip" \
+			return _on_ground() and aircraft.world.on_strip(aircraft.global_position) \
 				and _heading_error(aircraft.world.strip_heading()) < 15.0
 		"airborne":
 			return _seen.get("airborne", false)
@@ -299,7 +299,7 @@ func _met(it: Dictionary) -> bool:
 			return _heading_error(_bearing_to(aircraft.world.point(a[0]))) < float(a[1])
 		"landed":
 			return _seen.get("airborne", false) and _on_ground() and f.prop_get("velocities/vc-kts") < 35.0 \
-				and aircraft.world.surface_at(aircraft.global_position) == &"grass_strip"
+				and aircraft.world.on_strip(aircraft.global_position)
 		"parked":
 			return _horizontal_distance(aircraft.world.point("parking")) < 8.0 and _ground_speed_kt() < 1.0
 	return false

@@ -11,9 +11,9 @@ Gate: 172-type matches real stall, climb and takeoff figures; ground handling fe
 - [x] Tutorial flight in the checklist: start, takeoff (172: flaps 10°), radio tower ~2 km out and back, land on the strip, taxi to the hangar apron, shut down. Skipped steps don't block it.
 - [x] Flaps: 172 flap switch + position indicator in the cockpit; flaps move on the placeholder model.
 - [x] Self-ticking start-up / before-takeoff checklists per aircraft (top right, K toggles; text files in aircraft/<model>/checklist.txt).
-- [~] Engine sound driven by RPM and power. Placeholder synth in place (engine, wind, tyres, touchdown, 172 stall horn); recorded sounds later.
-- [ ] One real terrain tile with a dirt strip and a paved strip (replaces the flat test world as default).
-- [ ] Performance check at 1080p after cockpit and terrain.
+- [x] Engine sound driven by RPM and power: data-driven synth per aircraft (engine, prop, airframe, cabin/outside views). Recorded sounds can replace it later.
+- [x] One terrain tile (16 x 16 km): paved valley strip with hangar/apron, dirt ridge strip; JSBSim wheels follow real ground height and slope. Now the default world; tutorial runs on it.
+- [x] Performance check at 1080p: terrain 164-288 fps, 172 cockpit ~90 fps on flat world (M4).
 
 ## Nikolas
 - [ ] Fly the 172-type: compare stall, climb, takeoff and ground handling with what you know from MSFS.

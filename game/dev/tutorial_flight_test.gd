@@ -1,7 +1,7 @@
 extends Node
 ## Flies the whole tutorial with a scripted pilot and checks the checklist
 ## completes: start, take off, tower, back, land, taxi, shut down.
-##   godot --headless --path game --fixed-fps 120 res://dev/tutorial_flight_test.tscn -- --aircraft=1
+##   godot --headless --path game --fixed-fps 120 res://dev/tutorial_flight_test.tscn -- --aircraft=1 [--world=terrain]
 
 const P := {
 	"c172p": {"rotate": 55.0, "climb_kias": 70.0, "app_kias": 65.0, "flare_pitch": 6.0, "rot_pitch": 9.0, "cruise_thr": 0.75},
@@ -17,21 +17,36 @@ var t := 0.0
 var phase_t := 0.0
 var log_t := 0.0
 var pitch_trim := 4.0
+# Land opposite to the takeoff direction, coming back from the tower side.
+var takeoff_dir: Vector3
+var land_heading: float
+var threshold: Vector3
+var final_start: Vector3
 
 
 func _ready() -> void:
 	process_physics_priority = -50  # after FlightInput, before the aircraft
 	FlightInput.joysticks_enabled = false
-	world = load("res://world/test_world.tscn").instantiate()
-	add_child(world)
 	var idx := 0
+	var scene := "res://world/test_world.tscn"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--aircraft="):
 			idx = int(a.trim_prefix("--aircraft="))
+		if a == "--world=terrain":
+			scene = "res://world/terrain_tile/terrain_tile.tscn"
+	world = load(scene).instantiate()
+	add_child(world)
 	world._spawn_aircraft(idx)
 	ac = world.aircraft
 	cl = world.get_node("Checklist")
 	p = P[ac.definition.jsbsim_model]
+	var h := deg_to_rad(world.strip_heading())
+	takeoff_dir = Vector3(sin(h), 0, -cos(h))
+	land_heading = fposmod(world.strip_heading() + 180.0, 360.0)
+	var centre: Vector3 = world.point("strip")
+	threshold = centre + takeoff_dir * world.strip_length() * 0.5
+	final_start = centre + takeoff_dir * (world.strip_length() * 0.5 + 3000.0)
+	print("world %s, strip heading %.0f, landing heading %.0f" % [world.name, world.strip_heading(), land_heading])
 
 
 func _prop(n: String) -> float:
@@ -81,7 +96,7 @@ func _physics_process(delta: float) -> void:
 			if phase == "climb" or phase == "to_tower":
 				target = world.point("tower")
 			else:
-				target = Vector3(0, 0, -3400)  # on the extended centreline, well north
+				target = final_start  # on the extended centreline, well out
 			o = _fly(_bearing(target), p.climb_kias if agl < 950 else -1.0, 1000.0)
 			if phase == "climb" and agl > 300 and not ac.definition.flap_detents.is_empty():
 				ac.set_flap_notch(0)
@@ -110,7 +125,7 @@ func _physics_process(delta: float) -> void:
 				_go("rollout")
 		"rollout":
 			o = {"throttle": 0.0, "pitch": 0.5 if ac.definition.jsbsim_model == "J3Cub" else 0.0}
-			o.merge(_ground_steer(180.0))
+			o.merge(_ground_steer(land_heading))
 			if kias < 40:
 				o.brake_left = 0.7
 				o.brake_right = 0.7
@@ -122,8 +137,10 @@ func _physics_process(delta: float) -> void:
 		"taxi":
 			var park: Vector3 = world.point("parking")
 			var d := _dist(park)
-			# Taxi down the strip to abeam the apron, then turn in.
-			var target := Vector3(0, 0, park.z) if ac.global_position.z < park.z - 25 and d > 40 else park
+			# Taxi along the strip to abeam the parking spot, then turn in.
+			var centre: Vector3 = world.point("strip")
+			var abeam := centre + takeoff_dir * (park - centre).dot(takeoff_dir)
+			var target := abeam if _dist(abeam) > 20.0 and d > 40.0 else park
 			var want_gs := 8.0 if d > 30 else 3.0
 			o = {"throttle": clampf(0.25 + 0.08 * (want_gs - _gs()), 0.0, 0.65), "pitch": 0.5 if ac.definition.jsbsim_model == "J3Cub" else 0.0}
 			o.merge(_ground_steer(_bearing(target)))
@@ -205,15 +222,19 @@ func _fly(hdg: float, kias_t: float, alt_ft: float) -> Dictionary:
 		"rudder": clampf(-0.3 * rad_to_deg(_prop("velocities/r-rad_sec")) * 0.0 + _prop("accelerations/Ny") * -4.0, -0.5, 0.5)}
 
 
-# Southbound final onto the strip: track x = 0, 3.5° glide to a point past the threshold.
+# Final onto the strip: track the centreline, 3.5° glide to 100 m past the threshold.
 func _approach() -> Dictionary:
-	var aim := Vector3(0, 0, -300)
-	var x_err := ac.global_position.x
-	var hdg_t := 180.0 + clampf(x_err * 0.3, -35.0, 35.0)
+	var land_dir := -takeoff_dir
+	var aim := threshold + land_dir * 100.0
+	var hr := deg_to_rad(land_heading)
+	var right := Vector3(cos(hr), 0, sin(hr))
+	var off_right := (ac.global_position - aim).dot(right)
+	var hdg_t := land_heading - clampf(off_right * 0.3, -35.0, 35.0)
 	var err := wrapf(hdg_t - _prop("attitude/psi-deg"), -180.0, 180.0)
-	var dist := absf(aim.z - ac.global_position.z)
+	var dist := maxf((aim - ac.global_position).dot(land_dir), 0.0)
 	var glide_ft := tan(deg_to_rad(3.5)) * dist / 0.3048
-	var agl := _prop("position/h-agl-ft")
+	var strip_y: float = world.point("strip").y
+	var agl := (ac.global_position.y - strip_y) / 0.3048 - 4.0
 	var theta_t := clampf(-1.0 + 0.03 * (glide_ft - agl) - 0.1 * (_prop("velocities/h-dot-fps") + 6.0), -8.0, 8.0)
 	var thr := clampf(0.35 + 0.05 * (p.app_kias - _prop("velocities/vc-kts")), 0.0, 1.0)
 	return {"pitch": _pitch_cmd(theta_t), "roll": _roll_cmd(clampf(err * 1.2, -20.0, 20.0)), "throttle": thr,

@@ -78,6 +78,15 @@ func strip_heading() -> float:
 	return strip_heading_deg
 
 
+func strip_length() -> float:
+	return strip_length_m
+
+
+## On the runway surface itself (for "lined up" and "landed").
+func on_strip(p: Vector3) -> bool:
+	return surface_at(p) == &"grass_strip"
+
+
 func on_apron(p: Vector3) -> bool:
 	var local := _strip_basis().inverse() * p
 	return local.x > -33.5 and local.x < -strip_width_m * 0.5 and local.z > 315.0 and local.z < 365.0
@@ -164,60 +173,11 @@ func _build_apron() -> void:
 	apron.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	apron.transform = Transform3D(b, b * Vector3((-33.5 - strip_width_m * 0.5) * 0.5, 0.04, 340.0))
 	add_child(apron)
-	var yellow := StandardMaterial3D.new()
-	yellow.albedo_color = Color(0.95, 0.8, 0.15)
-	yellow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var c := _parking_local()
-	for side in [[Vector3(0, 0, -6), Vector3(12, 0.02, 0.4)], [Vector3(0, 0, 6), Vector3(12, 0.02, 0.4)],
-			[Vector3(-6, 0, 0), Vector3(0.4, 0.02, 12)], [Vector3(6, 0, 0), Vector3(0.4, 0.02, 12)]]:
-		var line := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = side[1]
-		box.material = yellow
-		line.mesh = box
-		line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		line.transform = Transform3D(b, b * (c + side[0] + Vector3(0, 0.06, 0)))
-		add_child(line)
+	Landmarks.parking_square(self, Transform3D(b, b * _parking_local()))
 
 
-# Red-and-white radio mast with a blinking light: the tutorial turning point.
 func _build_tower() -> void:
-	var tower := Node3D.new()
-	tower.name = "RadioTower"
-	tower.position = point("tower")
-	add_child(tower)
-	var red := StandardMaterial3D.new()
-	red.albedo_color = Color(0.85, 0.15, 0.1)
-	var white := StandardMaterial3D.new()
-	white.albedo_color = Color(0.95, 0.95, 0.92)
-	var band := 10.0
-	for i in 9:
-		var seg := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		var w := 3.0 - i * 0.2
-		box.size = Vector3(w, band, w)
-		box.material = red if i % 2 == 0 else white
-		seg.mesh = box
-		seg.position.y = band * (i + 0.5)
-		tower.add_child(seg)
-	var lamp := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = 1.2
-	sphere.height = 2.4
-	var glow := StandardMaterial3D.new()
-	glow.albedo_color = Color(1, 0.1, 0.05)
-	glow.emission_enabled = true
-	glow.emission = Color(1, 0.1, 0.05)
-	glow.emission_energy_multiplier = 6.0
-	sphere.material = glow
-	lamp.mesh = sphere
-	lamp.position.y = band * 9 + 1.5
-	tower.add_child(lamp)
-	var blink := Timer.new()
-	blink.wait_time = 0.75
-	blink.autostart = true
-	blink.timeout.connect(func(): lamp.visible = not lamp.visible)
-	tower.add_child(blink)
+	Landmarks.radio_tower(self, point("tower"))
 
 
 func _scatter_trees() -> void:
