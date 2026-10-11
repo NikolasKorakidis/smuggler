@@ -7,7 +7,7 @@ extends Node3D
 
 enum Style { ROTARY, TOGGLE, PUSH_PULL }
 
-## magnetos, master, primer, mixture, carb_heat, fuel_selector
+## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake
 @export var control := "magnetos"
 @export var label := ""
 @export var knob_color := Color(0.12, 0.12, 0.12)
@@ -51,6 +51,9 @@ func hit(from: Vector3, dir: Vector3) -> float:
 
 
 func press(reverse: bool) -> void:
+	if control == "parking_brake":
+		FlightInput.parking_brake = not FlightInput.parking_brake
+		return
 	var e := _engine()
 	if e == null:
 		return
@@ -105,6 +108,8 @@ func set_hover(on: bool) -> void:
 
 
 func tooltip() -> String:
+	if control == "parking_brake":
+		return "%s: %s   (click, or press .)" % [label, "SET (pulled)" if FlightInput.parking_brake else "RELEASED"]
 	var e := _engine()
 	if e == null:
 		return label
@@ -153,6 +158,8 @@ func _process(delta: float) -> void:
 			_moving.position.z = size_m * 0.4 + (1.0 - e.mixture) * size_m * 1.2
 		"carb_heat":
 			_moving.position.z = size_m * 0.4 + (size_m * 1.2 if e.carb_heat else 0.0)
+		"parking_brake":
+			_moving.position.z = size_m * 0.4 + (size_m * 1.2 if FlightInput.parking_brake else 0.0)
 		"primer":
 			_pull = maxf(_pull - delta * 3.0, 0.0)
 			_moving.position.z = size_m * 0.4 + sin(_pull * PI) * size_m * 1.5

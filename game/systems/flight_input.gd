@@ -13,13 +13,13 @@ const WRONG_MODE := {
 }
 const AXES := ["pitch", "roll", "rudder", "throttle", "mixture", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter"]
+const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter"]
 ## Bound joystick buttons that fire a one-shot action (like a key press).
-const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next"]
+const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next", "parking_brake"]
 const LABELS := {
 	"pitch": "Pitch (stick back = +)", "roll": "Roll (right = +)", "rudder": "Rudder (right pedal = +)",
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
-	"brakes": "Both brakes", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
+	"brakes": "Both brakes", "parking_brake": "Parking brake (toggle)", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
 	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
 	"camera_next": "Next camera", "mixture": "Mixture", "starter": "Starter / swing prop",
 }
@@ -36,7 +36,7 @@ const KEYS := {
 	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
-	"checklist": [KEY_K],
+	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second
@@ -51,6 +51,8 @@ var throttle := 0.0  # 0..1
 var brake_left := 0.0  # 0..1
 var brake_right := 0.0
 var trim := 0.0  # -1..1 rate command, +1 nose up
+## Parking brake: holds both brakes fully on until toggled off.
+var parking_brake := false
 
 ## control -> {guid, device_name, axis, invert, deadzone}
 var axis_bindings := {}
@@ -99,7 +101,7 @@ func _physics_process(delta: float) -> void:
 		throttle = _kb_throttle
 
 	var both := 1.0 if (Input.is_action_pressed("brakes") or _button("brakes")
-		or _pad_button(JOY_BUTTON_A)) else 0.0
+		or _pad_button(JOY_BUTTON_A) or parking_brake) else 0.0
 	brake_left = maxf(both, _axis("brake_left"))
 	brake_right = maxf(both, _axis("brake_right"))
 
@@ -108,6 +110,11 @@ func _physics_process(delta: float) -> void:
 		trim += 1.0
 	if Input.is_action_pressed("trim_down") or _button("trim_down") or _pad_button(JOY_BUTTON_DPAD_UP):
 		trim -= 1.0
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("parking_brake"):
+		parking_brake = not parking_brake
 
 
 func _input(event: InputEvent) -> void:

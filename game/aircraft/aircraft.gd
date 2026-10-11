@@ -53,6 +53,7 @@ func respawn() -> void:
 	engine.reset(world.start_engine_running)
 	trim = 0.0
 	flap_notch = 0
+	FlightInput.parking_brake = false
 	FlightInput.set_throttle_keyboard(0.0)
 	_place()
 	reset_physics_interpolation()

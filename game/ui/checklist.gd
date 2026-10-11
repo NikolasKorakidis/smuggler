@@ -1,49 +1,70 @@
 extends CanvasLayer
 ## Start-up / before-takeoff checklist, top right. Items come from the
 ## aircraft's checklist.txt and tick themselves in order as the pilot does
-## them. An optional aid (K toggles), not part of the no-HUD flying view.
+## them; the cockpit part for the current step glows. An optional aid
+## (K toggles), not part of the no-HUD flying view.
 
-const C_BG := Color(0.07, 0.08, 0.09, 0.82)
-const C_DONE := Color(0.5, 0.82, 0.5)
-const C_NEXT := Color(0.98, 0.78, 0.35)
-const C_TODO := Color(1, 1, 1, 0.55)
-const C_DIM := Color(1, 1, 1, 0.45)
+const C_BG := Color(0.06, 0.07, 0.08, 0.86)
+const C_NOW_BG := Color(0.95, 0.65, 0.2, 0.18)
+const C_DONE := Color(0.5, 0.85, 0.5)
+const C_NEXT := Color(1.0, 0.78, 0.35)
+const C_TODO := Color(1, 1, 1, 0.6)
+const C_DIM := Color(1, 1, 1, 0.5)
+const WIDTH := 500
 
 var aircraft: Aircraft
-var _items: Array[Dictionary] = []  # {section, cond, param, item, state, hint, done, row, mark, labels}
+var _items: Array[Dictionary] = []
+var _sections: Array[Dictionary] = []  # {title, header, rows: Array[Control], items}
 var _box: VBoxContainer
 var _title: Label
-var _hint: Label
+var _now_item: Label
+var _now_hint: Label
+var _now_panel: PanelContainer
 var _seen := {}  # run-up / control-check memory
+var _current := -2
+var _glow: MeshInstance3D
+var _glow_mat: StandardMaterial3D
+var _t := 0.0
 
 
 func _ready() -> void:
 	layer = 5
 	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = C_BG
-	style.set_corner_radius_all(8)
-	style.set_content_margin_all(14)
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", _style(C_BG, 16))
 	panel.anchor_left = 1.0
 	panel.anchor_right = 1.0
-	panel.offset_left = -400
+	panel.offset_left = -WIDTH - 16
 	panel.offset_right = -16
 	panel.offset_top = 16
 	add_child(panel)
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 2)
+	root.add_theme_constant_override("separation", 4)
 	panel.add_child(root)
-	_title = _label("", 17, Color.WHITE)
+	_title = _label("", 22, Color.WHITE)
 	root.add_child(_title)
-	root.add_child(_label("Ticks itself as you go · K hides", 12, C_DIM))
+	root.add_child(_label("Ticks itself as you go · glowing part = next step · K hides", 14, C_DIM))
 	_box = VBoxContainer.new()
-	_box.add_theme_constant_override("separation", 1)
+	_box.add_theme_constant_override("separation", 2)
 	root.add_child(_box)
-	_hint = _label("", 14, C_NEXT)
-	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_hint.custom_minimum_size = Vector2(360, 0)
-	root.add_child(_hint)
+
+	_now_panel = PanelContainer.new()
+	_now_panel.add_theme_stylebox_override("panel", _style(C_NOW_BG, 12))
+	root.add_child(_pad(_now_panel, 8))
+	var now := VBoxContainer.new()
+	_now_panel.add_child(now)
+	now.add_child(_label("NEXT STEP", 14, C_NEXT))
+	_now_item = _label("", 24, Color.WHITE)
+	now.add_child(_now_item)
+	_now_hint = _label("", 18, Color(1, 1, 1, 0.9))
+	_now_hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_now_hint.custom_minimum_size = Vector2(WIDTH - 60, 0)
+	now.add_child(_now_hint)
+
+	_glow_mat = StandardMaterial3D.new()
+	_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_glow_mat.albedo_color = C_NEXT
+	_glow_mat.no_depth_test = true
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -61,7 +82,10 @@ func reset() -> void:
 	for c in _box.get_children():
 		c.queue_free()
 	_items.clear()
+	_sections.clear()
 	_seen.clear()
+	_current = -2
+	_clear_glow()
 	if aircraft == null:
 		return
 	_title.text = "%s — checklist" % aircraft.definition.display_name.replace(" (placeholder)", "")
@@ -70,24 +94,31 @@ func reset() -> void:
 	if f == null:
 		_title.text = "No checklist for this aircraft"
 		return
-	var section := ""
+	var section: Dictionary = {}
 	while not f.eof_reached():
 		var line := f.get_line().strip_edges()
 		if line == "" or line.begins_with("#"):
 			continue
 		if line.begins_with("=="):
-			section = line.trim_prefix("==").strip_edges()
-			var h := _label(section, 13, C_NEXT.darkened(0.15))
-			_box.add_child(_pad(h, 6))
+			var title := line.trim_prefix("==").strip_edges()
+			var header := _label(title, 17, C_NEXT.darkened(0.1))
+			_box.add_child(_pad(header, 8))
+			section = {"title": title, "header": header, "rows": [], "items": []}
+			_sections.append(section)
 			continue
 		var parts := line.split("|")
 		if parts.size() < 3:
 			continue
 		var cond := parts[0].strip_edges()
-		var item := {"section": section, "cond": cond.get_slice(":", 0), "param": cond.get_slice(":", 1) if ":" in cond else "",
+		var item := {"section": section.get("title", ""), "cond": cond.get_slice(":", 0),
+			"param": cond.get_slice(":", 1) if ":" in cond else "",
 			"item": parts[1].strip_edges(), "state": parts[2].strip_edges(),
-			"hint": parts[3].strip_edges() if parts.size() > 3 else "", "done": false}
-		_add_row(item)
+			"hint": parts[3].strip_edges() if parts.size() > 3 else "",
+			"target": parts[4].strip_edges() if parts.size() > 4 else "", "done": false}
+		var row := _add_row(item)
+		if not section.is_empty():
+			section.rows.append(row)
+			section.items.append(item)
 		_items.append(item)
 	# Skip what's already true at spawn with the engine running (e.g. test flights).
 	if aircraft.engine.running():
@@ -96,7 +127,8 @@ func reset() -> void:
 				it.done = true
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_t += delta
 	if aircraft == null or aircraft.engine == null or _items.is_empty():
 		return
 	_remember()
@@ -114,8 +146,72 @@ func _process(_delta: float) -> void:
 		it.mark.text = "✓" if it.done else ("▶" if i == next else "·")
 		for l in [it.mark, it.name_label, it.state_label]:
 			l.add_theme_color_override("font_color", color)
-	_hint.text = ("→ " + _items[next].hint) if next >= 0 else "✓ Checklist complete. Have a good flight."
-	_hint.add_theme_color_override("font_color", C_NEXT if next >= 0 else C_DONE)
+	# Only the current section is open; done and upcoming ones fold to a line
+	# so the panel stays short and doesn't cover the cockpit.
+	var current_section: String = _items[next].section if next >= 0 else ""
+	for s in _sections:
+		var all_done: bool = s.items.all(func(x): return x.done)
+		var open: bool = s.title == current_section
+		for r in s.rows:
+			r.visible = open
+		if all_done:
+			s.header.text = "✓  " + s.title
+		elif open:
+			s.header.text = s.title
+		else:
+			s.header.text = "%s  (%d steps)" % [s.title, s.items.size()]
+		s.header.add_theme_color_override("font_color", C_DONE if all_done else (C_NEXT.darkened(0.1) if open else C_DIM))
+	if next != _current:
+		_current = next
+		_show_step(next)
+	if _glow:
+		_glow_mat.albedo_color.a = 0.45 + 0.4 * sin(_t * 6.0)
+		_glow.scale = Vector3.ONE * (1.0 + 0.08 * sin(_t * 6.0))
+
+
+func _show_step(i: int) -> void:
+	_clear_glow()
+	if i < 0:
+		_now_item.text = "Checklist complete"
+		_now_hint.text = "Have a good flight."
+		_now_item.add_theme_color_override("font_color", C_DONE)
+		return
+	var it: Dictionary = _items[i]
+	_now_item.text = "%s  →  %s" % [it.item, it.state]
+	_now_item.add_theme_color_override("font_color", Color.WHITE)
+	_now_hint.text = it.hint
+	if it.target != "" and aircraft.airframe:
+		var node := aircraft.airframe.find_child(it.target, true, false) as Node3D
+		if node:
+			_glow_at(node)
+
+
+# A pulsing ring around the cockpit part to use, drawn on top so it is
+# never hidden behind the panel.
+func _glow_at(node: Node3D) -> void:
+	var radius := 0.03
+	if node is GaugeBase:
+		radius = node.diameter_m * 0.62
+	elif node is CockpitControl:
+		radius = node.size_m * 1.1
+	var torus := TorusMesh.new()
+	torus.inner_radius = radius
+	torus.outer_radius = radius + 0.006
+	torus.rings = 32
+	torus.ring_segments = 8
+	_glow = MeshInstance3D.new()
+	_glow.mesh = torus
+	_glow.material_override = _glow_mat
+	_glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_glow.rotation.x = PI / 2
+	_glow.position.z = 0.004
+	node.add_child(_glow)
+
+
+func _clear_glow() -> void:
+	if _glow and is_instance_valid(_glow):
+		_glow.queue_free()
+	_glow = null
 
 
 # --- conditions ---------------------------------------------------------------
@@ -126,6 +222,10 @@ func _met(it: Dictionary) -> bool:
 	var rpm := f.prop_get("propulsion/engine/engine-rpm")
 	var thr := FlightInput.throttle
 	match it.cond:
+		"parking_brake_on":
+			return FlightInput.parking_brake
+		"parking_brake_off":
+			return not FlightInput.parking_brake
 		"fuel":
 			return e.definition.fuel_positions[e.fuel_selector] == it.param
 		"mixture_rich":
@@ -134,9 +234,7 @@ func _met(it: Dictionary) -> bool:
 			return not e.carb_heat
 		"master_on":
 			return e.master or not e.definition.has_master
-		"primed":
-			return e.prime >= 2.0 or e.warmth > 0.5
-		"pulled_through":
+		"primed", "pulled_through":
 			return e.prime >= 2.0 or e.warmth > 0.5
 		"throttle_closed":
 			return thr < 0.04
@@ -192,16 +290,16 @@ func _remember() -> void:
 
 # --- layout ---------------------------------------------------------------------
 
-func _add_row(it: Dictionary) -> void:
+func _add_row(it: Dictionary) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var mark := _label("·", 15, C_TODO)
-	mark.custom_minimum_size = Vector2(16, 0)
+	row.add_theme_constant_override("separation", 8)
+	var mark := _label("·", 20, C_TODO)
+	mark.custom_minimum_size = Vector2(22, 0)
 	row.add_child(mark)
-	var name_label := _label(it.item, 15, C_TODO)
+	var name_label := _label(it.item, 20, C_TODO)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
-	var state_label := _label(it.state, 15, C_TODO)
+	var state_label := _label(it.state, 20, C_TODO)
 	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(state_label)
 	if it.cond == "manual":
@@ -214,6 +312,7 @@ func _add_row(it: Dictionary) -> void:
 	it.mark = mark
 	it.name_label = name_label
 	it.state_label = state_label
+	return row
 
 
 func _tick_manual(it: Dictionary) -> void:
@@ -233,6 +332,14 @@ func _label(text: String, size: int, color: Color) -> Label:
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
 	l.add_theme_constant_override("outline_size", 3)
 	return l
+
+
+func _style(color: Color, margin: int) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = color
+	s.set_corner_radius_all(8)
+	s.set_content_margin_all(margin)
+	return s
 
 
 func _pad(c: Control, top: int) -> Control:

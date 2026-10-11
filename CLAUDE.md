@@ -20,6 +20,7 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Build bridge: `scripts/build_extension.sh` (rebuild after any change in `extensions/`)
 - Physics tests: `.venv/bin/pytest tests/fdm`
 - Godot smoke test (takeoff in-engine): `godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn -- --aircraft=0` (1 = 172)
+- Checklist walk (both aircraft): `godot --headless --path game --fixed-fps 120 res://dev/checklist_test.tscn`
 - Engine start tests: `godot --headless --path game --fixed-fps 120 res://dev/engine_test.tscn`
 - JSBSim sign conventions: elevator −1 = nose up, rudder +1 = nose LEFT, steering +1 = nose right. The input layer handles this once for all aircraft.
 

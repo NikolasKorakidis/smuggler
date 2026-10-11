@@ -18,6 +18,9 @@ func _ready() -> void:
 	cam.look_pitch = deg_to_rad(-14.0)
 func _process(_d: float) -> void:
 	f += 1
+	if f == 20 and "--primer-step" in OS.get_cmdline_user_args():
+		FlightInput.parking_brake = true
+		world.aircraft.engine.set_master(true)
 	if f == 40:
 		get_viewport().get_texture().get_image().save_png(out)
 		get_tree().quit()

@@ -13,7 +13,7 @@ roughness = 0.8
 
 [sub_resource type="BoxMesh" id="BoardMesh"]
 material = SubResource("PanelMat")
-size = Vector3(1.25, 0.32, 0.03)
+size = Vector3(1.25, 0.35, 0.03)
 
 [sub_resource type="BoxMesh" id="GlareShieldMesh"]
 material = SubResource("PanelMat")
@@ -34,7 +34,7 @@ size = Vector3(0.06, 0.32, 1.3)
 [node name="Panel172" type="Node3D"]
 
 [node name="Board" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.31, -0.23, -0.635)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.31, -0.245, -0.635)
 mesh = SubResource("BoardMesh")
 
 [node name="GlareShield" type="MeshInstance3D" parent="."]
@@ -275,3 +275,11 @@ control = "fuel_selector"
 label = "FUEL"
 knob_color = Color(0.3, 0.3, 0.3, 1)
 size_m = 0.04
+
+[node name="ParkingBrake" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.225, -0.365, -0.618)
+script = ExtResource("ctl")
+control = "parking_brake"
+label = "PARK BRAKE"
+knob_color = Color(0.1, 0.1, 0.1, 1)
+size_m = 0.026

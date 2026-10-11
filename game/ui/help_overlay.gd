@@ -7,6 +7,7 @@ A / D or Left / Right  roll
 Q / E                  rudder (also steers the tailwheel)
 R / F                  throttle up / down
 Space                  brakes (hold)
+.                      parking brake on / off
 [ / ]                  trim nose down / up
 G / T                  flaps down / up (one notch)
 N                      next aircraft (Cub / 172)

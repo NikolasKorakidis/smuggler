@@ -1,28 +1,30 @@
 # 172-type checklist. One item per line:
-#   condition | ITEM | STATE | how to do it
+#   condition | ITEM | STATE | how to do it | cockpit part to highlight (optional)
 # "== TITLE" starts a section. Items tick in order once their condition is met.
 # Conditions are defined in game/ui/checklist.gd; "manual" ticks when clicked.
 
 == BEFORE START
-fuel:BOTH        | FUEL SELECTOR  | BOTH            | Round knob lower right: click it, or press B
-mixture_rich     | MIXTURE        | RICH            | Red knob pushed in: click it, or hold X
-carb_heat_off    | CARB HEAT      | COLD            | White knob pushed in: click it, or press V
-master_on        | MASTER SWITCH  | ON              | Red switch lower left: click it, or press O
+parking_brake_on | PARKING BRAKE  | SET             | Press . (period), or click the PARK BRAKE knob, lower left                 | ParkingBrake
+fuel:BOTH        | FUEL SELECTOR  | BOTH            | Round knob lower right: click it, or press B                              | FuelSelector
+mixture_rich     | MIXTURE        | RICH            | Red knob pushed in: click it, or hold X                                   | Mixture
+carb_heat_off    | CARB HEAT      | COLD            | White knob pushed in: click it, or press V                                | CarbHeat
+master_on        | MASTER SWITCH  | ON              | Red switch, lower left: click it, or press O                              | Master
 
 == STARTING ENGINE
-primed           | PRIMER         | 2-3 STROKES     | Black PRIMER knob: click it, or press P (not needed when warm)
-throttle_cracked | THROTTLE       | OPEN 1/4 INCH   | Throttle just above idle (R / F, or the HOTAS lever)
-manual           | PROPELLER AREA | CLEAR           | Look outside, then click this line
-magnetos_both    | IGNITION KEY   | BOTH            | Round key switch right of the red MASTER: click 3 times (OFF-R-L-BOTH), or press M 3 times
-engine_running   | STARTER        | ENGAGE          | Click AND HOLD the ignition key (it turns to START), or hold Enter. Let go when it fires
-oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Oil pressure gauge, right side, within 30 seconds
-idle:1200        | THROTTLE       | 1000 RPM        | Bring the tachometer to about 1000
+primed           | PRIMER         | 3 STROKES       | Click the black PRIMER knob 3 times, or press P 3 times (not needed warm) | Primer
+throttle_cracked | THROTTLE       | OPEN A CRACK    | Throttle just above idle: tap R, or ease the HOTAS lever forward          |
+manual           | PROPELLER AREA | CLEAR           | Look outside, then click this line                                        |
+magnetos_both    | IGNITION KEY   | BOTH            | Click the IGNITION key 3 times (OFF-R-L-BOTH), or press M 3 times          | Ignition
+engine_running   | STARTER        | ENGAGE          | Click AND HOLD the IGNITION key (or hold Enter). Let go when it roars      | Ignition
+oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Watch the OIL PSI gauge come up into the green                            | OilPressure
+idle:1200        | THROTTLE       | 1000 RPM        | Set about 1000 on the tachometer                                          | Tachometer
 
 == BEFORE TAKEOFF
-controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Move stick fully in all directions and both pedals
-flaps:1          | FLAPS          | 0-10°           | G / T, one notch per press
-trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral
-runup:1800       | THROTTLE       | 1800 RPM        | Hold brakes (Space) and add power
-mag_check        | MAGNETOS       | CHECK L, R      | Shift+M to L, then R, then M back to BOTH. Drop under 125 rpm
-carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again
-idle:1200        | THROTTLE       | IDLE            | Back to about 1000 rpm. Ready for takeoff
+controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                       |
+flaps:1          | FLAPS          | 0-10°           | G / T, one notch per press                                                |
+trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral                                          |
+runup:1800       | THROTTLE       | 1800 RPM        | Parking brake holds you. Add power to 1800 on the tachometer              | Tachometer
+mag_check        | MAGNETOS       | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH (watch the rpm drop)      | Ignition
+carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again                                              | CarbHeat
+idle:1200        | THROTTLE       | IDLE            | Back to about 1000 rpm                                                    | Tachometer
+parking_brake_off| PARKING BRAKE  | RELEASE         | Press . (period) or click the PARK BRAKE knob. Ready to roll               | ParkingBrake

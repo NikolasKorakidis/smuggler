@@ -9,14 +9,14 @@ const GROUPS := [
 	["STICK", ["pitch", "roll"]],
 	["THROTTLE", ["throttle", "mixture"]],
 	["PEDALS", ["rudder", "brake_left", "brake_right"]],
-	["BUTTONS", ["trim_up", "trim_down", "flaps_down", "flaps_up", "starter", "camera_next", "brakes"]],
+	["BUTTONS", ["trim_up", "trim_down", "flaps_down", "flaps_up", "starter", "camera_next", "brakes", "parking_brake"]],
 ]
 const NAMES := {
 	"pitch": "Pitch", "roll": "Roll", "throttle": "Throttle", "rudder": "Rudder",
 	"brake_left": "Left toe brake", "brake_right": "Right toe brake", "brakes": "Both brakes",
 	"trim_up": "Trim nose up", "trim_down": "Trim nose down", "flaps_up": "Flaps up",
 	"flaps_down": "Flaps down", "camera_next": "Next camera", "mixture": "Mixture",
-	"starter": "Starter",
+	"starter": "Starter", "parking_brake": "Parking brake",
 }
 const HINTS := {
 	"pitch": "Pull back → bar moves right", "roll": "Stick right → bar moves right",
@@ -24,12 +24,12 @@ const HINTS := {
 	"brake_left": "Press → bar full", "brake_right": "Press → bar full",
 	"brakes": "Hold to brake", "trim_up": "Press and hold", "trim_down": "Press and hold",
 	"flaps_up": "One notch per press", "flaps_down": "One notch per press",
-	"camera_next": "Chase / cockpit", "mixture": "Forward → rich (optional)", "starter": "Hold to crank",
+	"camera_next": "Chase / cockpit", "mixture": "Forward → rich (optional)", "starter": "Hold to crank", "parking_brake": "Press to set / release",
 }
 const KEYBOARD := {
 	"pitch": "W / S", "roll": "A / D", "throttle": "R / F", "rudder": "Q / E",
 	"brakes": "Space", "trim_up": "]", "trim_down": "[", "flaps_up": "T", "flaps_down": "G",
-	"camera_next": "C", "mixture": "X / Z", "starter": "Enter",
+	"camera_next": "C", "mixture": "X / Z", "starter": "Enter", "parking_brake": ".",
 }
 
 const COL_NAME := 230

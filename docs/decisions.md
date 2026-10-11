@@ -30,3 +30,5 @@
 | 2026-10-11 | JSBSim gotcha: propulsion/set-running = N starts engine N; stop via propulsion/engine[i]/set-running = 0 | Cost a debugging round; documented in fdm.gd |
 | 2026-10-11 | Cockpit clicks hit-tested in aircraft space, not physics | Physics positions lag the interpolated camera by up to 0.5 m at cruise |
 | 2026-10-11 | On-screen checklist (top right) that ticks itself; optional, K hides | Teaches the start procedure; an aid like the assists, not a flight HUD |
+| 2026-10-11 | Checklist guidance: only the current section open, big NEXT STEP box, pulsing ring on the cockpit part to use (5th column in checklist.txt) | Nikolas: easier, more visual step-by-step help |
+| 2026-10-11 | Parking brake toggle (. key, bindable HOTAS button, 172 knob); checklists set and release it | Requested; frees the hands during run-up |
