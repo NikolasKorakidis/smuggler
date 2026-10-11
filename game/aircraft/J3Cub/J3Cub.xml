@@ -122,13 +122,14 @@
     <location unit="IN">
       <x> 189.37 </x>
       <y>   0.00 </y>
-      <z> -33.86 </z>
+      <z> -35.70 </z>
     </location>
     <static_friction>  0.80 </static_friction>
     <dynamic_friction> 0.50 </dynamic_friction>
     <rolling_friction> 0.02 </rolling_friction>
-    <spring_coeff  unit="LBS/FT">     220.00 </spring_coeff>
-    <damping_coeff unit="LBS/FT/SEC"> 110.00 </damping_coeff>
+    <!-- Leaf spring: ~1.2 in static deflection (was 220 lbs/ft, ~5 in). -->
+    <spring_coeff  unit="LBS/FT">     950.00 </spring_coeff>
+    <damping_coeff unit="LBS/FT/SEC"> 230.00 </damping_coeff>
     <max_steer unit="DEG"> -30.00 </max_steer>
     <brake_group> NONE </brake_group>
     <retractable> 0 </retractable>
@@ -138,14 +139,15 @@
     <location unit="IN">
       <x> -12.60 </x>
       <y> -35.83 </y>
-      <z> -77.17   </z>
+      <z> -74.18   </z>
     </location>
     <static_friction>  0.80 </static_friction>
     <dynamic_friction> 0.50 </dynamic_friction>
     <rolling_friction> 0.02 </rolling_friction>
-    <spring_coeff  unit="LBS/FT">     1000.00 </spring_coeff>
-    <damping_coeff unit="LBS/FT/SEC">  500.00 </damping_coeff>
-    <damping_coeff_rebound unit="LBS/FT/SEC">850</damping_coeff_rebound>
+    <!-- Bungee gear: ~2 in static deflection (was 1000 lbs/ft, ~5 in). -->
+    <spring_coeff  unit="LBS/FT">     2500.00 </spring_coeff>
+    <damping_coeff unit="LBS/FT/SEC">  800.00 </damping_coeff>
+    <damping_coeff_rebound unit="LBS/FT/SEC">1350</damping_coeff_rebound>
     <max_steer unit="DEG">0</max_steer>
     <brake_group> LEFT </brake_group>
     <retractable> 0 </retractable>
@@ -155,14 +157,15 @@
     <location unit="IN">
       <x>  -12.60 </x>
       <y>   35.83 </y>
-      <z>  -77.17 </z>
+      <z>  -74.18 </z>
     </location>
     <static_friction>  0.80 </static_friction>
     <dynamic_friction> 0.50 </dynamic_friction>
     <rolling_friction> 0.02 </rolling_friction>
-    <spring_coeff  unit="LBS/FT">     1000.00 </spring_coeff>
-    <damping_coeff unit="LBS/FT/SEC">  500.00 </damping_coeff>
-    <damping_coeff_rebound unit="LBS/FT/SEC">850</damping_coeff_rebound>
+    <!-- Bungee gear: ~2 in static deflection (was 1000 lbs/ft, ~5 in). -->
+    <spring_coeff  unit="LBS/FT">     2500.00 </spring_coeff>
+    <damping_coeff unit="LBS/FT/SEC">  800.00 </damping_coeff>
+    <damping_coeff_rebound unit="LBS/FT/SEC">1350</damping_coeff_rebound>
     <max_steer unit="DEG">0</max_steer>
     <brake_group> RIGHT </brake_group>
     <retractable> 0 </retractable>

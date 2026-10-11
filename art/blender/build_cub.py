@@ -172,16 +172,16 @@ def interp(table, y, col):
     return table[0][col] if y > table[0][0] else table[-1][col]
 
 
-def tube(mb, pts, r, mat, sides=8, cap=True):
-    """Round tube along a polyline."""
+def tube(mb, pts, r, mat, sides=8, cap=True, squash=1.0, flat_axis=None):
+    """Tube along a polyline. squash < 1 flattens it across `flat_axis` (default: vertical)."""
     pts = [Vector(p) for p in pts]
     rings = []
     for i, p in enumerate(pts):
         d = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
-        up = Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0))
+        up = Vector(flat_axis) if flat_axis else (Vector((0, 0, 1)) if abs(d.z) < 0.9 else Vector((1, 0, 0)))
         u = d.cross(up).normalized()
         w = d.cross(u).normalized()
-        rings.append(mb.ring([p + (u * math.cos(a) + w * math.sin(a)) * r
+        rings.append(mb.ring([p + (u * math.cos(a) + w * math.sin(a) * squash) * r
                               for a in [k * 2 * math.pi / sides for k in range(sides)]]))
     mb.loft(rings, mat, cap0=cap, cap1=cap)
 
@@ -233,8 +233,8 @@ FUS = [
     (-1.60, 0.58, -1.01, -0.10),
     (-2.50, 0.44, -0.93, -0.28),
     (-3.50, 0.27, -0.84, -0.46),
-    (-4.30, 0.13, -0.76, -0.565),
-    (-4.62, 0.035, -0.71, -0.60),
+    (-4.30, 0.13, -0.73, -0.565),
+    (-4.62, 0.035, -0.665, -0.60),
 ]
 FUS = [r if len(r) == 6 else r + (r[2] + 0.70 * (r[3] - r[2]), r[2] + 0.90 * (r[3] - r[2])) for r in FUS]
 EXTRA_Y = [0.97, 0.90, 0.70, 0.60, 0.50, 0.40, 0.36, 0.20, -0.15, -0.30, -0.34, -0.60,
@@ -460,8 +460,8 @@ def build_tail(root):
         return RUD_HINGE + 0.32 * math.sqrt(max(0.0, 1 - ((s - 0.80) / 0.18) ** 2))
 
     def rud_te(s):
-        if s < -0.05:
-            return lerp(-4.92, -5.00, (s + 0.13) / 0.08)
+        if s < -0.03:
+            return lerp(-4.94, -5.00, (s + 0.07) / 0.04)
         if s <= 0.55:
             return -5.02
         return RUD_HINGE - 0.40 * math.sqrt(max(0.0, 1 - ((s - 0.55) / 0.43) ** 2))
@@ -476,7 +476,7 @@ def build_tail(root):
     fs = [0.0, 0.2, 0.4, 0.6, 0.8, 0.86, 0.91, 0.95, 0.975, 0.979]
     surface(fb, [(s, fin_le(s), RUD_HINGE) for s in fs], 0.0, 1.0, slab(0.018, taper_back=False), vmap,
             "tex_tail", 10, side_uv, "cream")
-    rs = [-0.13, -0.05, 0.1, 0.3, 0.55, 0.65, 0.75, 0.84, 0.91, 0.95, 0.975, 0.979]
+    rs = [-0.07, -0.03, 0.1, 0.3, 0.55, 0.65, 0.75, 0.84, 0.91, 0.95, 0.975, 0.979]
     surface(rb, [(s, RUD_HINGE, rud_te(s)) for s in rs], 0.0, 1.0, slab(0.018, True), vmap,
             "tex_tail", 8, side_uv, "cream")
     obj("Fin", fb, root, smooth=50)
@@ -497,17 +497,23 @@ def build_struts(root):
         foot = Vector((side * 0.32, -0.10, -1.03))
         front = wing_bottom(side, 2.10, 0.15)
         rear = wing_bottom(side, 2.10, 0.65)
-        tube(mb, [foot, front], 0.019, "blue")
-        tube(mb, [foot + Vector((0, -0.04, 0)), rear], 0.019, "blue")
+        # Streamlined (teardrop-flat) section, long axis along the airflow.
+        tube(mb, [foot, front], 0.027, "blue", 10, squash=0.42)
+        tube(mb, [foot + Vector((0, -0.04, 0)), rear], 0.027, "blue", 10, squash=0.42)
+        for p in (front, rear):
+            box(mb, p + Vector((0, 0, -0.012)), (0.05, 0.06, 0.02), "steel")  # wing fittings
         for top, bot in ((front, foot), (rear, foot + Vector((0, -0.04, 0)))):
             mid = bot.lerp(top, 0.6)
             tube(mb, [mid, wing_bottom(side, 1.62, 0.15 if top is front else 0.65)], 0.008, "steel", 6)
     obj("Struts", mb, root, smooth=60)
 
 
-AXLE_Y, AXLE_Z, AXLE_X = 0.32, -1.705, 0.91
+# Uncompressed contact points from J3Cub.xml: mains z -74.18 in, tail z -35.70 in.
+AXLE_Y, AXLE_Z, AXLE_X = 0.32, -74.18 * 0.0254 + 0.255, 0.91
 TYRE_R, TYRE_W = 0.255, 0.18
-TAIL_AXLE = Vector((0, -4.81, -0.78))
+TAIL_R = 0.083
+TAIL_AXLE = Vector((0, -4.81, -35.70 * 0.0254 + TAIL_R))
+TAIL_PIVOT = Vector((0, -4.78, TAIL_AXLE.z + 0.075))
 
 
 def tyre(mb, r_out, width, sides=24, minor=10, hub_r=None):
@@ -527,36 +533,146 @@ def tyre(mb, r_out, width, sides=24, minor=10, hub_r=None):
           "steel", (0, 0, 0), "x", 16)
 
 
+def link(name, anchor, parent, build):
+    """A part that the game turns (and for Stretch-*, stretches) so it keeps reaching its
+    target node: name 'Link-<target>-<n>' or 'Stretch-<target>-<n>', origin = fixed end."""
+    e = empty(name, tuple(anchor), parent=parent)
+    mb = MB()
+    build(mb)
+    obj(name.replace("-", "_") + "_mesh", mb, e, smooth=60)
+    return e
+
+
 def build_gear(root):
     mb = MB()
     for side in (1, -1):
-        hub = Vector((side * (AXLE_X - 0.11), AXLE_Y, AXLE_Z))
-        top_f = Vector((side * 0.33, 0.52, -1.04))
-        tube(mb, [hub, top_f], 0.02, "blue")
-        tube(mb, [hub, Vector((side * 0.33, -0.12, -1.04))], 0.02, "blue")
-        tube(mb, [hub, Vector((side * 0.02, AXLE_Y, -1.13))], 0.022, "blue")
-        tube(mb, [hub.lerp(top_f, 0.62), hub.lerp(top_f, 0.88)], 0.038, "steel", 10)  # bungee housing
-    # Tail spring (fixed) up to the steering pivot.
-    tube(mb, [(0, -4.42, -0.735), (0, -4.62, -0.72), (0, -4.77, -0.70)], 0.012, "steel", 6)
-    obj("Gear", mb, root, smooth=60)
+        # Fittings on the fuselage and the centre hinge of the split axles.
+        for c in ((side * 0.33, 0.50, -1.04), (side * 0.33, -0.10, -1.04)):
+            box(mb, c, (0.03, 0.05, 0.03), "blue")
+    box(mb, (0, AXLE_Y, -1.13), (0.07, 0.06, 0.04), "steel")
+    # Tail post fitting for the leaf spring.
+    box(mb, (0, -4.40, -0.72), (0.04, 0.08, 0.03), "steel")
+    obj("Gear_fixed", mb, root, smooth=60)
 
     for side, tag in ((1, "R"), (-1, "L")):
-        w = empty("Wheel_" + tag, (side * AXLE_X, AXLE_Y, AXLE_Z), parent=root)
+        axle = Vector((side * AXLE_X, AXLE_Y, AXLE_Z))
+        inner = axle - Vector((side * 0.11, 0, 0))
+        w = empty("Wheel_" + tag, tuple(axle), parent=root)
         wb = MB()
         tyre(wb, TYRE_R, TYRE_W, hub_r=0.10)
-        wb.v = [tuple(Vector(p) + w.location) for p in wb.v]
+        for k in range(6):  # hub bolts
+            a = k * math.pi / 3
+            lathe(wb, [(0.0, 0), (0.0, 0.011), (0.012, 0.011), (0.012, 0)], "steel",
+                  (side * TYRE_W * 0.38, 0.06 * math.cos(a), 0.06 * math.sin(a)), "x", 6, side)
+        wb.v = [tuple(Vector(p) + axle) for p in wb.v]
         obj("Tyre_" + tag, wb, w, smooth=60)
+        empty("Axle_" + tag, tuple(inner), parent=w)  # on the spin axis, so spinning doesn't move it
 
-    steer = empty("Steer_tail", (0, -4.78, -0.70), parent=root)
+        hinge = Vector((side * 0.03, AXLE_Y, -1.13))
+        rear = Vector((side * 0.33, -0.10, -1.04))
+        top = Vector((side * 0.33, 0.50, -1.04))
+        link(f"Stretch-Axle_{tag}-1", hinge, root, lambda m: tube(m, [hinge, inner], 0.021, "blue"))
+        link(f"Stretch-Axle_{tag}-2", rear, root, lambda m: tube(m, [rear, inner], 0.019, "blue"))
+        # Shock strut: bungee sleeve at the top (turns), sliding rod below (turns + stretches).
+        def sleeve(m, top=top, inner=inner, side=side):
+            tube(m, [top.lerp(inner, 0.08), top.lerp(inner, 0.45)], 0.034, "blue", 10)
+            for f in (0.17, 0.23, 0.29, 0.35):  # bungee cord wraps
+                lathe(m, [(-0.012, 0), (-0.012, 0.042), (0.012, 0.042), (0.012, 0)], "tyre",
+                      top.lerp(inner, f), "x", 10)
+            if side > 0:  # step for climbing in, right side
+                box(m, top.lerp(inner, 0.55) + Vector((0.05, 0, 0)), (0.07, 0.05, 0.006), "steel")
+        link(f"Link-Axle_{tag}-3", top, root, sleeve)
+        link(f"Stretch-Axle_{tag}-4", top, root, lambda m, top=top, inner=inner: tube(m, [top, inner], 0.016, "steel"))
+        link(f"Stretch-Axle_{tag}-5", top + Vector((0, -0.03, 0)), root,  # brake line
+             lambda m, top=top, inner=inner: tube(m, [top + Vector((0, -0.03, 0)), inner + Vector((0, -0.04, 0.03))],
+                                                  0.004, "tyre", 5))
+
+    # Tailwheel: steering pivot carries the fork, wheel and steering horn; the leaf
+    # spring and the steering springs from the rudder horn follow it.
+    steer = empty("Steer_tail", tuple(TAIL_PIVOT), parent=root)
     fb = MB()
-    tube(fb, [(0, -4.78, -0.70), (0.03, -4.80, -0.75), (0.03, -4.81, -0.78)], 0.008, "steel", 6)
-    tube(fb, [(0, -4.78, -0.70), (-0.03, -4.80, -0.75), (-0.03, -4.81, -0.78)], 0.008, "steel", 6)
+    for sx in (0.028, -0.028):
+        tube(fb, [TAIL_PIVOT, TAIL_PIVOT + Vector((sx, -0.02, -0.04)), TAIL_AXLE + Vector((sx, 0, 0))], 0.007, "steel", 6)
+    lathe(fb, [(-0.02, 0), (-0.02, 0.014), (0.03, 0.014), (0.03, 0)], "steel", TAIL_PIVOT, "z", 8)
+    tube(fb, [TAIL_PIVOT + Vector((-0.07, 0.01, 0.02)), TAIL_PIVOT + Vector((0.07, 0.01, 0.02))], 0.006, "steel", 6)
     obj("Tail_fork", fb, steer, smooth=60)
+    for sx, tag in ((-0.07, "L"), (0.07, "R")):
+        empty("THorn_" + tag, tuple(TAIL_PIVOT + Vector((sx, 0.01, 0.02))), parent=steer)
     tw = empty("Wheel_T", tuple(TAIL_AXLE), parent=steer)
     tb = MB()
-    tyre(tb, 0.083, 0.04, 16, 8, hub_r=0.03)
+    tyre(tb, TAIL_R, 0.04, 16, 8, hub_r=0.03)
     tb.v = [tuple(Vector(p) + TAIL_AXLE) for p in tb.v]
     obj("Tyre_T", tb, tw, smooth=60)
+    leaf0 = Vector((0, -4.40, -0.735))
+    link("Stretch-Steer_tail-1", leaf0, root,
+         lambda m: tube(m, [leaf0, TAIL_PIVOT + Vector((0, 0, 0.02))], 0.022, "steel", 8, squash=0.3))
+
+
+def box(mb, c, size, mat):
+    c = Vector(c)
+    hx, hy, hz = (v / 2 for v in size)
+    vi = [mb.vert(c + Vector((sx * hx, sy * hy, sz * hz))) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+    for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+        mb.face([vi[i] for i in f], mat)
+
+
+def build_controls(root):
+    """Control horns, cables and tailwheel steering springs (all follow the moving parts)."""
+    O = bpy.data.objects
+    rud, elev = O["Hinge_rudder"], O["Hinge_elevator"]
+    hb = MB()
+    tube(hb, [(-0.09, -4.66, -0.672), (0.09, -4.66, -0.672)], 0.007, "steel", 6)  # rudder horn
+    obj("Rudder_horn", hb, rud, smooth=60)
+    eb = MB()
+    for dz in (0.06, -0.06):
+        tube(eb, [(0.10, -4.31, STAB_Z), (0.10, -4.28, STAB_Z + dz)], 0.006, "steel", 6)  # elevator horns
+    obj("Elevator_horns", eb, elev, smooth=60)
+    for sx, tag in ((-0.09, "L"), (0.09, "R")):
+        horn = Vector((sx, -4.66, -0.672))
+        e = empty("RHorn_" + tag, tuple(horn), parent=rud)
+        thorn = Vector((sx * 0.78, -4.77, TAIL_PIVOT.z + 0.02))
+        link(f"Stretch-THorn_{tag}-1", horn, rud,  # steering spring + chain
+             lambda m, horn=horn, thorn=thorn: tube(m, [horn, thorn], 0.006, "steel", 6))
+        fair = empty("Fair_rud_" + tag, (sx * 0.9, -3.95, -0.80), parent=root)
+        link(f"Stretch-RHorn_{tag}-2", fair.location, root,  # rudder cable into the fuselage
+             lambda m, a=fair.location.copy(), b=horn: tube(m, [a, b], 0.0025, "steel", 4))
+    for dz, tag in ((0.06, "T"), (-0.06, "B")):
+        tip = Vector((0.10, -4.28, STAB_Z + dz))
+        empty("EHorn_" + tag, tuple(tip), parent=elev)
+        a = Vector((0.06, -3.95, STAB_Z + dz * 0.8))
+        empty("Fair_elev_" + tag, tuple(a), parent=root)
+        link(f"Stretch-EHorn_{tag}-1", a, root, lambda m, a=a, tip=tip: tube(m, [a, tip], 0.0025, "steel", 4))
+
+
+def build_details(root):
+    """Small parts: tail brace wires, fuel gauge, intakes, pitot, tie-downs, door handle."""
+    mb = MB()
+    for side in (1, -1):
+        fin_pt = Vector((0, -4.42, FIN_Z0 + 0.52))
+        stab_top = Vector((side * 0.78, -4.15, STAB_Z + 0.02))
+        stab_bot = Vector((side * 0.78, -4.15, STAB_Z - 0.02))
+        fus_bot = Vector((side * 0.035, -4.38, -0.72))
+        tube(mb, [fin_pt, stab_top], 0.0035, "steel", 4)
+        tube(mb, [stab_bot, fus_bot], 0.0035, "steel", 4)
+        for p in (stab_top, stab_bot):
+            box(mb, p, (0.02, 0.02, 0.006), "steel")
+        # Tie-down ring under each wing.
+        lathe(mb, [(-0.004, 0.012), (-0.004, 0.022), (0.004, 0.022), (0.004, 0.012)], "steel",
+              wing_bottom(side, 3.0, 0.40) + Vector((0, 0, -0.03)), "y", 8)
+        # Nose bowl air intakes either side of the spinner.
+        lathe(mb, [(-0.002, 0), (-0.002, 0.042), (0.004, 0.042), (0.004, 0)], "engine",
+              (side * 0.085, 1.684, -0.57), "y", 12)
+    # Fuel tank cap with the cork-float wire gauge in front of the windscreen.
+    lathe(mb, [(0, 0), (0, 0.035), (0.022, 0.035), (0.022, 0)], "steel", (0, 0.93, -0.226), "z", 12)
+    tube(mb, [(0, 0.93, -0.20), (0, 0.93, 0.02), (0, 0.97, 0.02)], 0.003, "steel", 5)
+    # Carburettor air scoop under the cowl.
+    box(mb, (0, 1.30, -1.045), (0.12, 0.18, 0.06), "engine")
+    # Pitot tube under the left wing.
+    base = wing_bottom(-1, 3.4, 0.25)
+    tube(mb, [base, base + Vector((0, 0, -0.10)), base + Vector((0, 0.18, -0.10))], 0.006, "steel", 6)
+    # Door handle, right side.
+    box(mb, (0.336, -0.22, -0.62), (0.012, 0.07, 0.015), "steel")
+    obj("Details", mb, root, smooth=50)
 
 
 PROP = Vector((0, 1.75, -0.62))
@@ -897,6 +1013,8 @@ def build():
     build_tail(root)
     build_struts(root)
     build_gear(root)
+    build_controls(root)
+    build_details(root)
     build_engine(root)
     build_prop(root)
     build_registration(root)
