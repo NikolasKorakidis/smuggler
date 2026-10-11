@@ -43,6 +43,8 @@ func _ready() -> void:
 	time_of_day = TimeOfDay.new()
 	time_of_day.name = "TimeOfDay"
 	add_child(time_of_day)
+	time_of_day.weather = weather
+	time_of_day.camera = $CameraRig
 	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg)
 	_spawn_aircraft(0)
 

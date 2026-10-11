@@ -45,7 +45,7 @@ func build(ac: Aircraft) -> void:
 	_flood = OmniLight3D.new()
 	_flood.name = "PanelFlood"
 	_flood.position = _p(eye.x - 14.0, eye.y + 14.0, eye.z + 6.0)
-	_flood.omni_range = 0.9
+	_flood.omni_range = 0.7
 	_flood.light_color = Color(1.0, 0.35, 0.25)  # red cockpit light keeps night vision
 	_flood.light_energy = 0.0
 	add_child(_flood)
@@ -66,7 +66,7 @@ func _update() -> void:
 		b.visible = nav
 	# Beacon: a red flash about once a second.
 	_beacon.visible = nav and fmod(_t, 1.1) < 0.12
-	_flood.light_energy = 0.9 if aircraft.light_on("panel") else 0.0
+	_flood.light_energy = 0.3 if aircraft.light_on("panel") else 0.0
 
 
 func _bulb(pos: Vector3, color: Color) -> Node3D:

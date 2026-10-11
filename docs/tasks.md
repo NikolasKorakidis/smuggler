@@ -9,7 +9,9 @@ Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
 - [x] Barometric altimeter with Kollsman window and setting knob; "altimeter set" checklist step.
 - [x] Ground handling in tailwinds: no reversed-flow aero (JSBSim tables don't cover it).
 - [x] Day/night: compressed clock (4x, Y jumps), real sun path for date/latitude, custom sky (dusk colours, stars, moon), moonlight, night exposure. 172: landing/nav/panel light switches (need master), panel clock; gauges go dark at night without panel lights. Cub: no electrics. Hangar lamp at dusk; strips unlit.
-- [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction), simple cloud layer.
+- [x] Lighting overhaul: physically based sky, sunsets, hill shadows, haze, AgX/glow/SSAO, real moon phases, Milky Way, night vision.
+- [x] Wind feel recalibrated (smooth weather changes, gusts fade with height, Cub pitch inertia).
+- [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction); cloud layer exists (cover per weather), add cloud shadows / low cloud.
 - [ ] Weather menu / pick conditions before a flight (instead of U), and an 80s-style radio forecast.
 - [ ] Gate scenario: gusty crosswind at dusk on the valley strip; scripted-pilot test that it is landable.
 

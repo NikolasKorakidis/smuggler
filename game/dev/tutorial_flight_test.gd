@@ -38,7 +38,7 @@ func _ready() -> void:
 	add_child(world)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--weather="):
-			world.weather.set_preset(int(a.trim_prefix("--weather=")))
+			world.weather.set_preset(int(a.trim_prefix("--weather=")), true)
 	print("weather: ", world.weather.summary())
 	world._spawn_aircraft(idx)
 	ac = world.aircraft

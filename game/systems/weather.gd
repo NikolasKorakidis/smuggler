@@ -15,15 +15,15 @@ const HPA_TO_PSF := 2.0885434
 ## 0..1, sea-level temperature (°C) and QNH (hPa).
 const PRESETS := [
 	{"name": "Calm", "wind_dir": 0.0, "wind_kt": 0.0, "gust_kt": 0.0, "aloft_kt": 5.0, "veer": 10.0,
-		"turbulence": 0.0, "temp_c": 15.0, "qnh": 1013.0},
+		"turbulence": 0.0, "temp_c": 15.0, "qnh": 1013.0, "clouds": 0.1},
 	{"name": "Light breeze", "wind_dir": 60.0, "wind_kt": 7.0, "gust_kt": 0.0, "aloft_kt": 15.0, "veer": 20.0,
-		"turbulence": 0.1, "temp_c": 22.0, "qnh": 1016.0},
+		"turbulence": 0.1, "temp_c": 22.0, "qnh": 1016.0, "clouds": 0.3},
 	{"name": "Gusty crosswind", "wind_dir": 150.0, "wind_kt": 14.0, "gust_kt": 10.0, "aloft_kt": 28.0, "veer": 25.0,
-		"turbulence": 0.45, "temp_c": 24.0, "qnh": 1006.0},
+		"turbulence": 0.45, "temp_c": 24.0, "qnh": 1006.0, "clouds": 0.5},
 	{"name": "Hot afternoon", "wind_dir": 110.0, "wind_kt": 9.0, "gust_kt": 6.0, "aloft_kt": 18.0, "veer": 15.0,
-		"turbulence": 0.35, "temp_c": 38.0, "qnh": 1009.0},
+		"turbulence": 0.35, "temp_c": 38.0, "qnh": 1009.0, "clouds": 0.2},
 	{"name": "Low pressure, windy", "wind_dir": 210.0, "wind_kt": 20.0, "gust_kt": 12.0, "aloft_kt": 38.0, "veer": 30.0,
-		"turbulence": 0.6, "temp_c": 12.0, "qnh": 992.0},
+		"turbulence": 0.6, "temp_c": 12.0, "qnh": 992.0, "clouds": 0.7},
 ]
 
 @export var preset := 0
@@ -35,9 +35,14 @@ const PRESETS := [
 @export_range(0.0, 1.0) var turbulence := 0.0
 @export var temp_c := 15.0
 @export var qnh_hpa := 1013.0
+## Fair-weather cloud cover, 0 clear .. 1 overcast (visual for now).
+@export_range(0.0, 1.0) var cloud_cover := 0.1
 @export var seed := 1985
+## Seconds to blend from one weather to the next (wind never jumps).
+@export var transition_s := 20.0
 
 var _rng := RandomNumberGenerator.new()
+var _target := {}  # preset being blended towards
 var _gust := 0.0  # current gust, 0..1 of gust_kt
 var _gust_dir := 0.0  # direction wobble during a gust, degrees
 var _gust_phase := 0  # 0 waiting, 1 rising, 2 holding, 3 falling
@@ -49,7 +54,7 @@ var _gust_peak_dir := 0.0
 
 func _ready() -> void:
 	_rng.seed = seed
-	set_preset(preset)
+	set_preset(preset, true)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -57,18 +62,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		set_preset((preset + 1) % PRESETS.size())
 
 
-func set_preset(i: int) -> void:
+## Change weather; blends over transition_s unless `instant`.
+func set_preset(i: int, instant := false) -> void:
 	preset = i
-	var p: Dictionary = PRESETS[i]
-	wind_dir_deg = p.wind_dir
-	wind_kt = p.wind_kt
-	gust_kt = p.gust_kt
-	aloft_kt = p.aloft_kt
-	veer_deg = p.veer
-	turbulence = p.turbulence
-	temp_c = p.temp_c
-	qnh_hpa = p.qnh
+	_target = PRESETS[i]
+	if instant:
+		_apply_fields(_target, 1.0)
 	changed.emit()
+
+
+func _apply_fields(p: Dictionary, k: float) -> void:
+	# Direction blends the short way round.
+	wind_dir_deg = fposmod(wind_dir_deg + wrapf(p.wind_dir - wind_dir_deg, -180.0, 180.0) * k, 360.0)
+	wind_kt = lerpf(wind_kt, p.wind_kt, k)
+	gust_kt = lerpf(gust_kt, p.gust_kt, k)
+	aloft_kt = lerpf(aloft_kt, p.aloft_kt, k)
+	veer_deg = lerpf(veer_deg, p.veer, k)
+	turbulence = lerpf(turbulence, p.turbulence, k)
+	temp_c = lerpf(temp_c, p.temp_c, k)
+	qnh_hpa = lerpf(qnh_hpa, p.qnh, k)
+	cloud_cover = lerpf(cloud_cover, p.get("clouds", 0.2), k)
 
 
 func preset_name() -> String:
@@ -88,11 +101,16 @@ func mean_wind(agl_m: float) -> Vector2:
 	return Vector2(dir, speed)
 
 
+## Gust strength at a height: gusts come from the air churning near the
+## ground, so they are full strength low down and fade with height.
+func gust_scale(agl_m: float) -> float:
+	return lerpf(1.0, 0.3, clampf((agl_m - 50.0) / 950.0, 0.0, 1.0))
+
+
 ## Air movement (the way the air blows, m/s) in world axes, gusts included.
 func air_velocity(agl_m: float) -> Vector3:
 	var w := mean_wind(agl_m)
-	var scale := w.y / maxf(wind_kt, 0.1) if wind_kt > 0.1 else 1.0
-	var speed_kt := w.y + _gust * gust_kt * scale
+	var speed_kt := w.y + _gust * gust_kt * gust_scale(agl_m)
 	var from := deg_to_rad(w.x + _gust_dir)
 	# FROM north means air moving south (+Z); east = +X.
 	return Vector3(-sin(from), 0.0, cos(from)) * speed_kt * 0.514444
@@ -130,6 +148,8 @@ func _no_reverse_flow(fdm: FDM, wind_fps: Vector3) -> Vector3:
 
 
 func _physics_process(delta: float) -> void:
+	if not _target.is_empty():
+		_apply_fields(_target, clampf(delta * 3.0 / maxf(transition_s, 0.01), 0.0, 1.0))
 	_step_gusts(delta)
 
 
@@ -147,30 +167,30 @@ func _step_gusts(delta: float) -> void:
 			if _gust_t >= _gust_len:
 				_gust_phase = 1
 				_gust_t = 0.0
-				_gust_len = _rng.randf_range(0.8, 2.0)
+				_gust_len = _rng.randf_range(1.5, 4.0)
 				_gust_peak = _rng.randf_range(0.5, 1.0)
-				_gust_peak_dir = _rng.randf_range(-15.0, 15.0)
+				_gust_peak_dir = _rng.randf_range(-8.0, 8.0)
 		1:
-			var k := _gust_t / _gust_len
+			var k := smoothstep(0.0, 1.0, _gust_t / _gust_len)
 			_gust = _gust_peak * k
 			_gust_dir = _gust_peak_dir * k
 			if _gust_t >= _gust_len:
 				_gust_phase = 2
 				_gust_t = 0.0
-				_gust_len = _rng.randf_range(0.5, 2.5)
+				_gust_len = _rng.randf_range(1.0, 3.0)
 		2:
 			if _gust_t >= _gust_len:
 				_gust_phase = 3
 				_gust_t = 0.0
-				_gust_len = _rng.randf_range(1.5, 3.0)
+				_gust_len = _rng.randf_range(2.5, 5.0)
 		3:
-			var k := 1.0 - _gust_t / _gust_len
+			var k := 1.0 - smoothstep(0.0, 1.0, _gust_t / _gust_len)
 			_gust = _gust_peak * k
 			_gust_dir = _gust_peak_dir * k
 			if _gust_t >= _gust_len:
 				_gust_phase = 0
 				_gust_t = 0.0
-				_gust_len = _rng.randf_range(2.0, 9.0)
+				_gust_len = _rng.randf_range(3.0, 12.0)
 
 
 func summary() -> String:
