@@ -97,7 +97,7 @@
 
  <mass_balance>
    <ixx unit="SLUG*FT2">    538.01 </ixx>
-   <iyy unit="SLUG*FT2">    386.81 </iyy>
+   <iyy unit="SLUG*FT2">    520.00 </iyy> <!-- Smuggler: stock 386.81 is low for a J-3 (radius-of-gyration estimate ~520); made it twitchy in pitch -->
    <izz unit="SLUG*FT2">    871.03 </izz>
    <emptywt unit="LBS" >    765.00 </emptywt>
    <location name="CG" unit="IN">

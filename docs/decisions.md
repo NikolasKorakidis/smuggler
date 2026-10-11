@@ -54,3 +54,5 @@
 | 2026-10-11 | Custom sky shader instead of PhysicalSkyMaterial | PhysicalSky's night-sky texture can't fade, so stars showed in daylight |
 | 2026-10-11 | Aircraft lights only on aircraft with electrics (has_master); positions from JSBSim data | Cub stays period-correct; real models can keep the same light points |
 | 2026-10-11 | Instrument faces dim with darkness unless panel lights are on; needles stay faintly luminous | Night flying needs the panel lights, like the real 172 |
+| 2026-10-11 | Weather changes blend over 20 s; gusts rise over 1.5-4 s with ±8° direction swing; gust strength fades with height (full below 50 m, 30% above 1000 m) | Nikolas: the plane felt too light in wind. Instant wind changes and gusts scaled up aloft drove ±30° pitch swings; now ±1-3° at cruise with a pilot, gusty near the ground |
+| 2026-10-11 | Cub pitch inertia Iyy 520 slug·ft² (stock 387) | Stock value low for a J-3 by radius-of-gyration estimate; made it twitchy. 172 inertias are Roskam's published values (unchanged) |

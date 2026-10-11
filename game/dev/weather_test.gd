@@ -32,13 +32,13 @@ func _run() -> void:
 	var f := ac.fdm
 	# Wind into JSBSim. Light breeze from 060: ahead of a plane facing north,
 	# so the ground tailwind guard leaves it alone.
-	w.set_preset(1)
+	w.set_preset(1, true)
 	await _s(1.0)
 	var n := f.prop_get("atmosphere/wind-north-fps")
 	var e := f.prop_get("atmosphere/wind-east-fps")
 	var from := fposmod(rad_to_deg(atan2(-e, -n)), 360.0)
 	_check("JSBSim wind direction near the ground", absf(wrapf(from - 60.0, -180, 180)) < 10.0, "%.0f°" % from)
-	w.set_preset(2)  # gusty crosswind, from 150°
+	w.set_preset(2, true)  # gusty crosswind, from 150°
 	await _s(1.0)
 	# Stronger and veered aloft.
 	var low := w.mean_wind(10.0)
@@ -72,12 +72,12 @@ func _run() -> void:
 	_check("QNH 1006: altimeter reads ~200 ft high until set", wrong > 150.0 and absf(right) < 30.0,
 		"at 29.92: %.0f ft, at %.2f: %.0f ft (field 0)" % [wrong, ac.altimeter_setting_inhg, right])
 	# Hot day: density altitude well above the field.
-	w.set_preset(3)
+	w.set_preset(3, true)
 	await _s(0.5)
 	_check("hot afternoon: density altitude high", f.prop_get("atmosphere/density-altitude") > 2000.0,
 		"%.0f ft at a sea-level field" % f.prop_get("atmosphere/density-altitude"))
 	# Parked in strong gusty wind with brakes: stays put.
-	w.set_preset(4)
+	w.set_preset(4, true)
 	FlightInput.parking_brake = true
 	var p0 := ac.global_position
 	await _s(20.0)
