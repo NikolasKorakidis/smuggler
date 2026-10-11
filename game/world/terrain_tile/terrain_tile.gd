@@ -43,6 +43,7 @@ const PAINT := {&"paved": 0, &"dirt": 1, &"apron": 2, &"mown": 3}
 
 var geo: Geo
 var aircraft: Aircraft
+var weather: Weather
 var heightfield: TerrainHeightfield
 ## Set to {"position": Vector3, "heading_deg": float} to spawn somewhere else (tests).
 var spawn_override := {}
@@ -60,6 +61,9 @@ func _ready() -> void:
 					spawn_strip = i
 	var t0 := Time.get_ticks_msec()
 	geo = Geo.new(origin_lat_deg, origin_lon_deg)
+	weather = Weather.new()
+	weather.name = "Weather"
+	add_child(weather)
 	_build_heightfield()
 	geo.terrain = heightfield.ground_at
 	var t1 := Time.get_ticks_msec()
@@ -302,6 +306,11 @@ func _build_tutorial_props() -> void:
 	Landmarks.radio_tower(self, point("tower"))
 	var s: Dictionary = strips[spawn_strip]
 	Landmarks.parking_square(self, Transform3D(_strip_basis(s), point("parking")))
+	for st in strips:
+		# Beside each strip, a third of the way down, clear of the runway.
+		var p := _strip_point(st, -st.length_m * 0.2, st.width_m * 0.5 + SHOULDER_M + 6.0)
+		p.y = st.elevation
+		Landmarks.windsock(self, p, weather)
 
 
 func _add_shed(node_name: String, s: Dictionary, along: float, across: float, size: Vector3, wall: Color, roof: Color) -> void:

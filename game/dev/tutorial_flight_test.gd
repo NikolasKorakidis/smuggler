@@ -36,6 +36,10 @@ func _ready() -> void:
 			scene = "res://world/terrain_tile/terrain_tile.tscn"
 	world = load(scene).instantiate()
 	add_child(world)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--weather="):
+			world.weather.set_preset(int(a.trim_prefix("--weather=")))
+	print("weather: ", world.weather.summary())
 	world._spawn_aircraft(idx)
 	ac = world.aircraft
 	cl = world.get_node("Checklist")
@@ -78,6 +82,7 @@ func _physics_process(delta: float) -> void:
 			_go("warmup")
 		"warmup":
 			o = {"throttle": 0.05}
+			ac.altimeter_setting_inhg = snappedf(world.weather.qnh_hpa * 0.02953, 0.01)
 			if e.running() and phase_t > 6.0:
 				for i in cl._items:
 					if i.cond == "manual":
@@ -142,7 +147,8 @@ func _physics_process(delta: float) -> void:
 			var abeam := centre + takeoff_dir * (park - centre).dot(takeoff_dir)
 			var target := abeam if _dist(abeam) > 20.0 and d > 40.0 else park
 			var want_gs := 8.0 if d > 30 else 3.0
-			o = {"throttle": clampf(0.25 + 0.08 * (want_gs - _gs()), 0.0, 0.65), "pitch": 0.5 if ac.definition.jsbsim_model == "J3Cub" else 0.0}
+			# Like a pilot: a burst of power to get rolling from a stop on grass.
+			o = {"throttle": clampf(0.3 + 0.12 * (want_gs - _gs()), 0.0, 0.85), "pitch": 0.5 if ac.definition.jsbsim_model == "J3Cub" else 0.0}
 			o.merge(_ground_steer(_bearing(target)))
 			if _gs() > want_gs + 2:
 				o.brake_left = 0.5

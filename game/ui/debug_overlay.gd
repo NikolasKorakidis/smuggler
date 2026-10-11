@@ -39,6 +39,11 @@ func _process(delta: float) -> void:
 			f.prop_get("propulsion/engine/engine-rpm"), i.throttle * 100.0, aircraft.trim,
 			"RUNNING" if f.engine_running() else "STOPPED"],
 		aircraft.engine.status_text(),
+		aircraft.world.weather.summary() if aircraft.world.get("weather") else "",
+		"WIND HERE %03d° %d kt   DENSITY ALT %d ft   PRESS ALT %d ft" % [
+			int(fposmod(rad_to_deg(atan2(-f.prop_get("atmosphere/total-wind-east-fps"), -f.prop_get("atmosphere/total-wind-north-fps"))), 360.0)),
+			int(Vector2(f.prop_get("atmosphere/total-wind-north-fps"), f.prop_get("atmosphere/total-wind-east-fps")).length() / 1.68781),
+			int(f.prop_get("atmosphere/density-altitude")), int(f.prop_get("atmosphere/pressure-altitude"))],
 		"STICK p%+.2f r%+.2f  RUD %+.2f  BRK %.1f/%.1f" % [i.pitch, i.roll, i.rudder, i.brake_left, i.brake_right],
 		"FLAPS %2.0f°   FUEL %3.0f lb   WEIGHT %4.0f lb" % [
 			f.prop_get("fcs/flap-pos-deg"), f.prop_get("propulsion/total-fuel-lbs"), f.prop_get("inertia/weight-lbs")],

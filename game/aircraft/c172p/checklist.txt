@@ -27,6 +27,7 @@ idle:1200        | THROTTLE       | 1000 RPM        | Set about 1000 on the tach
 == BEFORE TAKEOFF | until:airborne | target:strip
 controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                        |
 trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral                                           |
+altimeter_set    | ALTIMETER      | SET             | Mouse wheel over the small knob at the altimeter's lower left until it reads field elevation, {field} | AltimeterKnob
 runup:1800       | THROTTLE       | 1800 RPM        | The parking brake holds you. Add power to 1800 on the tachometer           | Tachometer
 mag_check        | MAGNETOS       | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH (watch the rpm drop)       | Ignition
 carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again                                               | CarbHeat

@@ -11,7 +11,7 @@ const SETTLE_SECONDS := 2.0
 const SURFACES := {
 	&"paved": {"rolling": 1.0, "static": 1.0, "bumpiness": 0.0},
 	&"grass_strip": {"rolling": 2.5, "static": 0.75, "bumpiness": 0.1},
-	&"grass_rough": {"rolling": 4.0, "static": 0.6, "bumpiness": 0.3},
+	&"grass_rough": {"rolling": 3.0, "static": 0.6, "bumpiness": 0.3},  # open pasture
 	&"dirt": {"rolling": 1.8, "static": 0.8, "bumpiness": 0.2},
 	&"rough": {"rolling": 6.0, "static": 0.55, "bumpiness": 0.6},
 }

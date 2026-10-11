@@ -60,3 +60,13 @@ static func parking_square(parent: Node3D, xform: Transform3D) -> void:
 		line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		line.transform = xform * Transform3D(Basis.IDENTITY, side[0] + Vector3(0, 0.06, 0))
 		parent.add_child(line)
+
+
+## Windsock on a pole at `pos`, driven by `weather`.
+static func windsock(parent: Node3D, pos: Vector3, weather: Weather) -> Node3D:
+	var sock: Node3D = preload("res://world/windsock.gd").new()
+	sock.name = "Windsock"
+	sock.position = pos
+	sock.weather = weather
+	parent.add_child(sock)
+	return sock

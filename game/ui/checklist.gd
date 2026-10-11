@@ -253,6 +253,7 @@ func _show_step(i: int) -> void:
 func _fill(text: String) -> String:
 	if not "{" in text:
 		return text
+	text = text.replace("{field}", "%s ft" % _thousands(int(snappedf(_field_elevation_ft(), 10.0))))
 	var rx := RegEx.create_from_string("\\{alt:(\\d+)\\}")
 	for m in rx.search_all(text):
 		var reading := snappedf(_field_elevation_ft() + float(m.get_string(1)), 50.0)
@@ -339,6 +340,9 @@ func _met(it: Dictionary) -> bool:
 			return _seen.get("airborne", false)
 		"agl_above":
 			return f.prop_get("position/h-agl-ft") > float(a[0])
+		"altimeter_set":  # on the ground, altimeter shows field elevation
+			var indicated := f.prop_get("atmosphere/pressure-altitude") + (aircraft.altimeter_setting_inhg - 29.92) * 1000.0
+			return absf(indicated - _field_elevation_ft()) < 40.0
 		"above_field":  # height above the airfield, what the pattern altitude means
 			return _above_field_ft() > float(a[0]) - 30.0
 		"kias_above":
