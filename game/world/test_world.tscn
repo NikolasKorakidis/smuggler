@@ -1,0 +1,135 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://world/test_world.gd" id="1_world"]
+[ext_resource type="Script" path="res://systems/camera_rig.gd" id="2_cam"]
+[ext_resource type="Script" path="res://ui/debug_overlay.gd" id="3_debug"]
+[ext_resource type="Script" path="res://ui/axis_tester.gd" id="4_axis"]
+[ext_resource type="Script" path="res://ui/help_overlay.gd" id="5_help"]
+[ext_resource type="Resource" path="res://aircraft/J3Cub/j3cub.tres" id="6_cub"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.22, 0.42, 0.72, 1)
+sky_horizon_color = Color(0.68, 0.76, 0.84, 1)
+ground_bottom_color = Color(0.18, 0.2, 0.16, 1)
+ground_horizon_color = Color(0.68, 0.76, 0.84, 1)
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.68, 0.76, 0.84, 1)
+fog_density = 0.00008
+fog_sky_affect = 0.2
+
+[sub_resource type="FastNoiseLite" id="GroundNoise"]
+frequency = 0.012
+fractal_octaves = 6
+
+[sub_resource type="Gradient" id="GroundGrad"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0.16, 0.24, 0.09, 1, 0.27, 0.33, 0.13, 1, 0.42, 0.40, 0.22, 1)
+
+[sub_resource type="NoiseTexture2D" id="GroundTex"]
+width = 1024
+height = 1024
+seamless = true
+color_ramp = SubResource("GroundGrad")
+noise = SubResource("GroundNoise")
+
+[sub_resource type="FastNoiseLite" id="DetailNoise"]
+frequency = 0.08
+fractal_octaves = 3
+
+[sub_resource type="Gradient" id="DetailGrad"]
+colors = PackedColorArray(0.7, 0.7, 0.7, 1, 1, 1, 1, 1)
+
+[sub_resource type="NoiseTexture2D" id="DetailTex"]
+width = 512
+height = 512
+seamless = true
+color_ramp = SubResource("DetailGrad")
+noise = SubResource("DetailNoise")
+
+[sub_resource type="StandardMaterial3D" id="GroundMat"]
+albedo_texture = SubResource("GroundTex")
+roughness = 0.95
+detail_enabled = true
+detail_blend_mode = 3
+detail_uv_layer = 1
+detail_albedo = SubResource("DetailTex")
+uv1_scale = Vector3(0.0025, 0.0025, 0.0025)
+uv1_triplanar = true
+uv1_world_triplanar = true
+uv2_scale = Vector3(0.06, 0.06, 0.06)
+uv2_triplanar = true
+uv2_world_triplanar = true
+texture_filter = 5
+
+[sub_resource type="PlaneMesh" id="GroundMesh"]
+size = Vector2(40000, 40000)
+
+[sub_resource type="Gradient" id="StripGrad"]
+colors = PackedColorArray(0.33, 0.42, 0.17, 1, 0.45, 0.50, 0.24, 1)
+
+[sub_resource type="NoiseTexture2D" id="StripTex"]
+width = 512
+height = 512
+seamless = true
+color_ramp = SubResource("StripGrad")
+noise = SubResource("DetailNoise")
+
+[sub_resource type="StandardMaterial3D" id="StripMat"]
+albedo_texture = SubResource("StripTex")
+roughness = 0.9
+uv1_scale = Vector3(0.05, 0.05, 0.05)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 5
+
+[sub_resource type="PlaneMesh" id="StripMesh"]
+size = Vector2(25, 800)
+
+[node name="TestWorld" type="Node3D"]
+script = ExtResource("1_world")
+aircraft_definition = ExtResource("6_cub")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.383798, -0.426250, 0.000000, 0.743145, 0.669131, 0.573576, -0.548120, 0.608749, 0, 0, 0)
+light_energy = 1.1
+shadow_enabled = true
+directional_shadow_max_distance = 600.0
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("GroundMesh")
+surface_material_override/0 = SubResource("GroundMat")
+
+[node name="Strip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+cast_shadow = 0
+mesh = SubResource("StripMesh")
+surface_material_override/0 = SubResource("StripMat")
+
+[node name="CameraRig" type="Camera3D" parent="."]
+near = 0.05
+far = 40000.0
+fov = 70.0
+script = ExtResource("2_cam")
+
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("3_debug")
+
+[node name="AxisTester" type="CanvasLayer" parent="."]
+script = ExtResource("4_axis")
+
+[node name="Help" type="CanvasLayer" parent="."]
+script = ExtResource("5_help")

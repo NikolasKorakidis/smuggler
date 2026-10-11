@@ -21,6 +21,13 @@ From then on: open the folder, open Claude Code, say what you want. Godot runs i
 3. Fly what Claude asks you to test. Give feedback like: "at 55 kt with full flaps the nose drops too fast."
 4. Claude ends with a short summary of what changed and what's next.
 
+## Build, test, run
+```
+scripts/build_extension.sh        # JSBSim + Godot extension -> game/bin (first build ~3 min)
+.venv/bin/pytest tests/fdm        # headless flight-model tests
+godot --path game                 # run the game (or open game/project.godot in Godot)
+```
+
 ## Layout
 ```
 CLAUDE.md          brief Claude Code reads every session
@@ -29,7 +36,7 @@ docs/roadmap.md    phases and gates
 docs/tasks.md      current phase task list
 docs/decisions.md  decision log
 scripts/           setup and tooling
-game/              Godot project (created in Phase 0)
-extensions/        JSBSim ↔ Godot bridge (Phase 0)
-tests/fdm/         headless flight-model tests (Phase 0)
+game/              Godot project; aircraft data in game/aircraft/<Model>/
+extensions/        JSBSim ↔ Godot bridge (GDExtension, C++)
+tests/fdm/         headless flight-model tests (Python + JSBSim)
 ```

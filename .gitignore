@@ -10,3 +10,6 @@ export/
 .venv/
 smuggler-starter.zip
 .pytest_cache/
+.sconsign.dblite
+*.os
+*.o

@@ -16,6 +16,12 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - **Dev machine:** MacBook (macOS 26), Apple Silicon. Project lives on an external drive.
 - **Input:** Thrustmaster HOTAS (T.Flight HOTAS 4/5 class), Thrustmaster rudder pedals, keyboard/mouse, PS4/PS5 pads
 
+## Commands
+- Build bridge: `scripts/build_extension.sh` (rebuild after any change in `extensions/`)
+- Physics tests: `.venv/bin/pytest tests/fdm`
+- Godot smoke test (takeoff in-engine): `godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn`
+- JSBSim sign conventions: elevator −1 = nose up, rudder +1 = nose LEFT, steering +1 = nose right. The input layer handles this once for all aircraft.
+
 ## Source of truth
 - `docs/design.md` — game design decisions (from Nikolas's kickoff answers)
 - `docs/roadmap.md` — phases and gates
