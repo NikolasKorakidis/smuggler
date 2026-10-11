@@ -14,3 +14,6 @@ smuggler-starter.zip
 *.os
 *.o
 .claude/worktrees/
+
+# Original full-size images (kept locally, not committed)
+docs/images/source/
