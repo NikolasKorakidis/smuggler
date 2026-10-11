@@ -9,3 +9,4 @@ __pycache__/
 export/
 .venv/
 smuggler-starter.zip
+.pytest_cache/

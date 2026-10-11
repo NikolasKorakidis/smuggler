@@ -1,0 +1,6 @@
+[submodule "extensions/jsbsim_gd/thirdparty/godot-cpp"]
+	path = extensions/jsbsim_gd/thirdparty/godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git
+[submodule "extensions/jsbsim_gd/thirdparty/jsbsim"]
+	path = extensions/jsbsim_gd/thirdparty/jsbsim
+	url = https://github.com/JSBSim-Team/jsbsim.git
