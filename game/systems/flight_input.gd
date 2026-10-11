@@ -13,7 +13,7 @@ const WRONG_MODE := {
 }
 const AXES := ["pitch", "roll", "rudder", "throttle", "mixture", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter"]
+const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter", "look_target"]
 ## Bound joystick buttons that fire a one-shot action (like a key press).
 const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next", "parking_brake"]
 const LABELS := {
@@ -21,7 +21,7 @@ const LABELS := {
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
 	"brakes": "Both brakes", "parking_brake": "Parking brake (toggle)", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
 	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
-	"camera_next": "Next camera", "mixture": "Mixture", "starter": "Starter / swing prop",
+	"camera_next": "Next camera", "look_target": "Look at objective (hold)", "mixture": "Mixture", "starter": "Starter / swing prop",
 }
 
 const KEYS := {
@@ -36,7 +36,7 @@ const KEYS := {
 	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
-	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD],
+	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD], "look_target": [KEY_L],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second
@@ -145,6 +145,10 @@ func mixture_axis():
 ## Keyboard mixture change per second (-1 lean .. +1 rich).
 func mixture_key_rate() -> float:
 	return (Input.get_action_strength("mixture_rich") - Input.get_action_strength("mixture_lean")) * MIXTURE_KEY_RATE
+
+
+func look_target_held() -> bool:
+	return Input.is_action_pressed("look_target") or _button("look_target")
 
 
 func starter_held() -> bool:

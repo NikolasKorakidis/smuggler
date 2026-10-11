@@ -5,7 +5,7 @@ var f := 0
 var out := "user://cockpit.png"
 func _ready() -> void:
 	FlightInput.joysticks_enabled = false
-	world = load("res://world/test_world.tscn").instantiate()
+	world = load("res://world/terrain_tile/terrain_tile.tscn" if "--terrain" in OS.get_cmdline_user_args() else "res://world/test_world.tscn").instantiate()
 	add_child(world)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--aircraft="):
@@ -28,6 +28,15 @@ func _process(_d: float) -> void:
 				cam.orbit_yaw = deg_to_rad(150.0)
 				cam.orbit_pitch = deg_to_rad(20.0)
 				cam.chase_distance = 9.0
+	if "--look" in OS.get_cmdline_user_args():
+		if f == 10:
+			var cl = world.get_node("Checklist")
+			for it in cl._items:
+				if it.section == "FLY TO THE TOWER":
+					break
+				it.done = true
+		if f == 30:
+			Input.action_press("look_target")
 	if f == 20 and "--primer-step" in OS.get_cmdline_user_args():
 		FlightInput.parking_brake = true
 		world.aircraft.engine.set_master(true)

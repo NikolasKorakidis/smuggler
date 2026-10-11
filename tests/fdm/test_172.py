@@ -59,3 +59,33 @@ def test_nosewheel_tracks_straight_with_feet_off():
     s["fcs/throttle-cmd-norm"] = 1.0
     s.step(10.0)
     assert abs(sim.wrap180(s["attitude/psi-deg"])) < 10
+
+
+def test_flaps_balloon_and_slow_down():
+    """Full flaps at 80 KIAS, stick held still: the nose comes up and it slows."""
+    s = sim.Sim(MODEL, agl_ft=3000, kcas=80, fuel_frac=0.5, payload={1: 170})
+    h_ref, theta, thr = s["position/h-sl-ft"], 1.0, 0.55
+    while s.t < 60:  # trim level at 80 kt
+        thr = min(1.0, max(0.0, thr + sim.DT * 0.02 * (80 - sim.kcas(s))))
+        s["fcs/throttle-cmd-norm"] = thr
+        theta += sim.DT * 0.02 * (h_ref - s["position/h-sl-ft"])
+        s.hold(theta + 0.05 * (h_ref - s["position/h-sl-ft"]) - 0.2 * s["velocities/h-dot-fps"])
+        s.step()
+    elevator, v0, th0 = s["fcs/elevator-cmd-norm"], sim.kcas(s), s["attitude/theta-deg"]
+    s["fcs/flap-cmd-norm"] = 1.0
+    max_theta = th0
+    while s.t < 66:
+        s["fcs/elevator-cmd-norm"] = elevator
+        s.step()
+        max_theta = max(max_theta, s["attitude/theta-deg"])
+    assert max_theta - th0 > 4.0, max_theta - th0
+    assert v0 - sim.kcas(s) > 15.0, v0 - sim.kcas(s)
+
+
+def test_full_flap_idle_descent_is_steeper():
+    def descent(flaps):
+        s = sim.Sim(MODEL, agl_ft=4000, kcas=65, **MAX_GROSS)
+        s["fcs/flap-cmd-norm"] = flaps
+        s.step(1.0)
+        return -sim.climb_rate_at(s, 65.0)
+    assert descent(1.0) > 1.3 * descent(0.0)

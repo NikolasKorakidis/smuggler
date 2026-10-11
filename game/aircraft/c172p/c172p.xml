@@ -489,7 +489,7 @@
                 </product>
             </function>
             <function name="aero/coefficient/CDDf">
-                <description>Delta_drag_due_to_flap_deflection</description>
+                <description>Delta_drag_due_to_flap_deflection (Smuggler: raised to Fowler-flap values; stock 0.007/0.012/0.018 felt like nothing)</description>
                 <product>
                     <property>aero/qbar-psf</property>
                     <property>metrics/Sw-sqft</property>
@@ -498,9 +498,9 @@
                           <independentVar>fcs/flap-pos-deg</independentVar>
                           <tableData>
                               0.0000	0.0000
-                              10.0000	0.0070
-                              20.0000	0.0120
-                              30.0000	0.0180
+                              10.0000	0.0200
+                              20.0000	0.0450
+                              30.0000	0.0750
                           </tableData>
                       </table>
                 </product>
@@ -792,6 +792,7 @@
         </axis>
 
         <axis name="PITCH">
+            
             <function name="aero/coefficient/Cmo">
                 <description>Pitching_moment_at_zero_alpha</description>
                 <product>
@@ -844,7 +845,7 @@
                 </product>
             </function>
             <function name="aero/coefficient/Cmdf">
-                <description>Delta_pitching_moment_due_to_flap_deflection</description>
+                <description>Delta_pitching_moment_due_to_flap_deflection (Smuggler: less nose-down so flaps balloon like a real 172; stock -0.065/-0.098/-0.114)</description>
                 <product>
                     <property>aero/qbar-psf</property>
                     <property>metrics/Sw-sqft</property>
@@ -853,9 +854,9 @@
                           <independentVar>fcs/flap-pos-deg</independentVar>
                           <tableData>
                               0.0000	0.0000
-                              10.0000	-0.0654
-                              20.0000	-0.0981
-                              30.0000	-0.1140
+                              10.0000	-0.0354
+                              20.0000	-0.0481
+                              30.0000	-0.0540
                           </tableData>
                       </table>
                 </product>

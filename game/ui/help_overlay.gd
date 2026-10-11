@@ -21,6 +21,7 @@ V                      carb heat on / off
 B                      fuel selector
 Left click             cockpit switches · wheel over a knob turns it
 C                      chase / cockpit camera
+L (hold)               look at the objective (tower, strip, hangar)
 Right mouse            look around    Wheel: zoom    Middle: recentre
 Backspace              back to the start of the strip
 K                      checklist on / off

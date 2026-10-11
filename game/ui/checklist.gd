@@ -24,6 +24,9 @@ var _now_item: Label
 var _now_hint: Label
 var _seen := {}  # things that happened at some point (run-up checks, airborne...)
 var _current := -2
+var _toast: Label
+var _toast_t := 0.0
+var _chime: AudioStreamPlayer
 var _glow: MeshInstance3D
 var _glow_mat: StandardMaterial3D
 var _t := 0.0
@@ -61,6 +64,21 @@ func _ready() -> void:
 	_now_hint.autowrap_mode = TextServer.AUTOWRAP_WORD
 	_now_hint.custom_minimum_size = Vector2(WIDTH - 60, 0)
 	now.add_child(_now_hint)
+
+	_toast = _label("", 30, C_DONE)
+	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.offset_top = 70
+	_toast.offset_left = -400
+	_toast.offset_right = 400
+	_toast.add_theme_constant_override("outline_size", 6)
+	_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_toast.modulate.a = 0.0
+	add_child(_toast)
+	_chime = AudioStreamPlayer.new()
+	_chime.stream = _make_chime()
+	_chime.volume_db = -10.0
+	add_child(_chime)
 
 	_glow_mat = StandardMaterial3D.new()
 	_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -104,11 +122,18 @@ func reset() -> void:
 		if line.begins_with("=="):
 			var head := line.trim_prefix("==").split("|")
 			var title := head[0].strip_edges()
-			var until := head[1].strip_edges().trim_prefix("until:") if head.size() > 1 else ""
+			var until := ""
+			var target := ""
+			for opt in head.slice(1):
+				opt = opt.strip_edges()
+				if opt.begins_with("until:"):
+					until = opt.trim_prefix("until:")
+				elif opt.begins_with("target:"):
+					target = opt.trim_prefix("target:")
 			var header := _label(title, 17, C_NEXT.darkened(0.1))
 			_box.add_child(_pad(header, 8))
-			section = {"title": title, "until": _parse_cond(until) if until != "" else {}, "header": header,
-				"rows": [], "items": []}
+			section = {"title": title, "until": _parse_cond(until) if until != "" else {}, "target": target,
+				"header": header, "rows": [], "items": []}
 			_sections.append(section)
 			continue
 		var parts := line.split("|")
@@ -168,8 +193,12 @@ func _process(delta: float) -> void:
 			s.header.text = "%s  (%d steps)" % [s.title, s.items.size()]
 		s.header.add_theme_color_override("font_color", C_DONE if all_done else (C_NEXT.darkened(0.1) if open else C_DIM))
 	if next != _current:
+		if _current >= 0 and visible:
+			_celebrate(_items[_current], next)
 		_current = next
 		_show_step(next)
+	_toast_t = maxf(_toast_t - delta, 0.0)
+	_toast.modulate.a = clampf(_toast_t / 0.6, 0.0, 1.0)
 	if next >= 0:
 		_now_hint.text = _fill(_items[next].hint)  # live distances / directions
 	if _glow:
@@ -189,6 +218,20 @@ func _advance() -> int:
 	return -1
 
 
+## Where the pilot should be heading now: "tower", "strip", "parking" or "".
+func current_target() -> String:
+	if _current < 0 or _current >= _items.size():
+		return ""
+	var it: Dictionary = _items[_current]
+	for name in ["tower", "strip", "parking"]:
+		if (":%s}" % name) in it.hint:
+			return name
+	for sec in _sections:
+		if sec.title == it.section:
+			return sec.target
+	return ""
+
+
 func _show_step(i: int) -> void:
 	_clear_glow()
 	if i < 0:
@@ -205,10 +248,15 @@ func _show_step(i: int) -> void:
 			_glow_at(node)
 
 
-# "{dist:tower}" and "{clock:tower}" in hints become live values.
+# "{dist:tower}", "{clock:tower}" and "{alt:1000}" (altimeter reading for
+# 1000 ft above the field) in hints become live values.
 func _fill(text: String) -> String:
 	if not "{" in text:
 		return text
+	var rx := RegEx.create_from_string("\\{alt:(\\d+)\\}")
+	for m in rx.search_all(text):
+		var reading := snappedf(_field_elevation_ft() + float(m.get_string(1)), 50.0)
+		text = text.replace(m.get_string(), "%s ft" % _thousands(int(reading)))
 	for name in ["tower", "strip", "parking"]:
 		var p: Vector3 = aircraft.world.point(name)
 		text = text.replace("{dist:%s}" % name, _distance_text(_horizontal_distance(p)))
@@ -291,6 +339,8 @@ func _met(it: Dictionary) -> bool:
 			return _seen.get("airborne", false)
 		"agl_above":
 			return f.prop_get("position/h-agl-ft") > float(a[0])
+		"above_field":  # height above the airfield, what the pattern altitude means
+			return _above_field_ft() > float(a[0]) - 30.0
 		"kias_above":
 			return f.prop_get("velocities/vc-kts") > float(a[0])
 		"near":  # near:<place>:<metres>
@@ -327,6 +377,14 @@ func _remember() -> void:
 		_seen["airborne"] = true
 
 
+func _field_elevation_ft() -> float:
+	return aircraft.world.point("strip").y / 0.3048
+
+
+func _above_field_ft() -> float:
+	return aircraft.fdm.prop_get("position/h-sl-ft") - _field_elevation_ft()
+
+
 func _on_ground() -> bool:
 	var f := aircraft.fdm
 	for w in f.wheels():
@@ -359,11 +417,50 @@ func _clock(p: Vector3) -> int:
 	return 12 if c == 0 else c
 
 
+func _thousands(n: int) -> String:
+	var t := str(absi(n))
+	var out := ""
+	while t.length() > 3:
+		out = "," + t.substr(t.length() - 3) + out
+		t = t.substr(0, t.length() - 3)
+	return ("-" if n < 0 else "") + t + out
+
+
 func _distance_text(m: float) -> String:
 	return "%.1f km" % (m / 1000.0) if m >= 1000.0 else "%d m" % int(round(m / 10.0) * 10)
 
 
 # --- glow -----------------------------------------------------------------------
+
+# "✓ CLIMB → 1000 FT" across the top for a moment, plus a soft chime.
+func _celebrate(done: Dictionary, next: int) -> void:
+	if done.skipped:
+		return
+	var section_done: bool = next < 0 or _items[next].section != done.section
+	_toast.text = ("✓  %s complete" % done.section) if section_done else ("✓  %s  →  %s" % [done.item, done.state])
+	_toast.add_theme_color_override("font_color", C_DONE)
+	_toast_t = 2.6
+	_chime.pitch_scale = 1.25 if section_done else 1.0
+	_chime.play()
+
+
+func _make_chime() -> AudioStreamWAV:
+	var rate := 22050
+	var data := PackedByteArray()
+	var n := int(rate * 0.45)
+	data.resize(n * 2)
+	for i in n:
+		var t := float(i) / rate
+		var f := 880.0 if t < 0.12 else 1318.5
+		var env := exp(-(t if t < 0.12 else t - 0.12) * 9.0) * minf(t * 400.0, 1.0)
+		var v := int(clampf(sin(TAU * f * t) * env * 0.5, -1.0, 1.0) * 32767.0)
+		data.encode_s16(i * 2, v)
+	var w := AudioStreamWAV.new()
+	w.format = AudioStreamWAV.FORMAT_16_BITS
+	w.mix_rate = rate
+	w.data = data
+	return w
+
 
 # A pulsing ring around the cockpit part to use, drawn on top so it is
 # never hidden behind the panel.

@@ -17,7 +17,7 @@ engine_running   | PROPELLER      | SWING           | Press Enter to swing the p
 oil_pressure     | OIL PRESSURE   | RISING          | Watch the OIL PSI gauge, right side                                    | OilPressure
 idle:1300        | THROTTLE       | ABOUT 1000 RPM  | Settle the tachometer around 1000                                      | Tachometer
 
-== BEFORE TAKEOFF | until:airborne
+== BEFORE TAKEOFF | until:airborne | target:strip
 controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                    |
 runup:1700       | THROTTLE       | 1700 RPM        | Brakes hold you. Add power to 1700 on the tachometer                   | Tachometer
 mag_check        | SWITCH         | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH                        | Magnetos
@@ -25,27 +25,27 @@ carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off aga
 idle:1300        | THROTTLE       | IDLE            | Back to about 1000 rpm                                                 | Tachometer
 parking_brake_off| BRAKES         | RELEASE         | Press . (period)                                                       |
 
-== TAKEOFF | until:agl_above:300
+== TAKEOFF | until:above_field:300 | target:strip
 lined_up         | LINE UP        | ON THE STRIP    | Point the nose straight down the strip                                 |
 throttle_full    | THROTTLE       | FULL            | Full power. It will swing left: keep it straight with right pedal      | Tachometer
 kias_above:25    | TAIL UP        | 25 KNOTS        | Ease the stick slightly forward to lift the tail                       | Airspeed
 airborne         | LIFT OFF       | CLIMB AT 45 MPH | Let it fly off around 40 mph, climb at about 45 mph                    | Airspeed
 
-== AFTER TAKEOFF | until:near:tower:600
-agl_above:500    | CLIMB          | 500 FT          | Keep climbing. The Cub climbs slowly; be patient                       | Altimeter
+== AFTER TAKEOFF | until:near:tower:600 | target:tower
+above_field:500  | CLIMB          | 500 FT          | 500 ft above the field: altimeter {alt:500}. The Cub climbs slowly. Tower {dist:tower} at {clock:tower} (hold L) | Altimeter
 
-== FLY TO THE TOWER
-near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Fly to it |
+== FLY TO THE TOWER | target:tower
+near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Hold L to look at it |
 heading_to:strip:25 | TURN BACK   | TOWARDS STRIP   | Turn round the tower and point at the strip: {dist:strip}, {clock:strip} |
 
-== APPROACH AND LANDING | until:landed
-near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip}. Descend gently           | Altimeter
+== APPROACH AND LANDING | until:landed | target:strip
+near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip} (hold L). Descend gently  | Altimeter
 carb_heat_on     | CARB HEAT      | ON              | Before reducing power: press V                                         | CarbHeat
 landed           | TOUCH DOWN     | ON THE STRIP    | Idle over the strip, hold it off, land on all three wheels at ~40 mph  | Airspeed
 
-== AFTER LANDING | until:parked
+== AFTER LANDING | until:parked | target:parking
 carb_heat_off    | CARB HEAT      | COLD            | Press V                                                                | CarbHeat
-parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking}. Stop on the yellow square. Zig-zag: you can't see over the nose |
+parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking} (hold L). Stop on the yellow square. Zig-zag: you can't see over the nose |
 
 == SHUTDOWN
 parking_brake_on | BRAKES         | SET             | Press . (period)                                                       |

@@ -40,3 +40,7 @@
 | 2026-10-11 | JSBSim ground contact via a Godot callback (height + normal per wheel) | Slopes and hills under each wheel; flat world unchanged |
 | 2026-10-11 | Terrain tile is the default world; flat test world kept for fast tests | Phase 1 goal; tutorial verified on both |
 | 2026-10-11 | Worlds share a tutorial interface: point(), strip_heading(), strip_length(), on_strip(); tower and parking square in world/landmarks.gd | Same checklist/tutorial works in any world |
+| 2026-10-11 | 172 flaps: drag 0.020/0.045/0.075 (stock 0.007/0.012/0.018), flap pitch moment less nose-down (-0.035/-0.048/-0.054) | Nikolas: flaps at 80 kt felt like nothing. Now ~+7° nose-up balloon and ~-20 kt at full flaps hands-off; tests added |
+| 2026-10-11 | Tutorial altitudes are 'above the field' and hints give the altimeter reading | AGL over hills never matched the altimeter; the 1000 ft step didn't tick |
+| 2026-10-11 | 'Look at objective' (L / bindable button, hold): view turns to tower/strip/hangar with name + distance label | Nikolas: how do I know where the tower is? Tutorial aid, not a flight HUD |
+| 2026-10-11 | Step-done toast + chime in the checklist | Clearer feedback that a step ticked |

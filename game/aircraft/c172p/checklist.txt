@@ -3,7 +3,8 @@
 #   condition | ITEM | STATE | how to do it | cockpit part to highlight (optional)
 # "== TITLE | until:<condition>": once that is true, what's left of the
 # section (and earlier ones) is marked skipped. Conditions: game/ui/checklist.gd.
-# Hints may use {dist:tower} {clock:tower} (also strip, parking).
+# Hints may use {dist:tower} {clock:tower} (also strip, parking) and {alt:1000}
+# (altimeter reading for 1000 ft above the field). "target:" is what L looks at.
 
 == BEFORE START | until:engine_running
 parking_brake_on | PARKING BRAKE  | SET             | Press . (period), or click the PARK BRAKE knob, lower left                  | ParkingBrake
@@ -23,7 +24,7 @@ engine_running   | STARTER        | ENGAGE          | Click AND HOLD the IGNITIO
 oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Watch the OIL PSI gauge come up into the green                             | OilPressure
 idle:1200        | THROTTLE       | 1000 RPM        | Set about 1000 on the tachometer                                           | Tachometer
 
-== BEFORE TAKEOFF | until:airborne
+== BEFORE TAKEOFF | until:airborne | target:strip
 controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                        |
 trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral                                           |
 runup:1800       | THROTTLE       | 1800 RPM        | The parking brake holds you. Add power to 1800 on the tachometer           | Tachometer
@@ -33,31 +34,31 @@ idle:1200        | THROTTLE       | IDLE            | Back to about 1000 rpm    
 flaps_set:1      | FLAPS          | 10°             | Click the FLAPS switch once, or press G once                               | FlapSwitch
 parking_brake_off| PARKING BRAKE  | RELEASE         | Press . (period) or click the PARK BRAKE knob                              | ParkingBrake
 
-== TAKEOFF | until:agl_above:300
+== TAKEOFF | until:above_field:300 | target:strip
 lined_up         | LINE UP        | ON THE STRIP    | Point the nose straight down the strip                                     |
 throttle_full    | THROTTLE       | FULL            | Smoothly full power. Keep it straight with the pedals                      | Tachometer
 kias_above:55    | ROTATE         | 55 KNOTS        | Watch the airspeed. At 55 kt ease the stick back                           | Airspeed
 airborne         | LIFT OFF       | CLIMB AT 65 KT  | Let it fly off, then hold about 65 knots                                   | Airspeed
 
-== AFTER TAKEOFF | until:near:tower:600
-agl_above:300    | CLIMB          | 300 FT          | Keep climbing at 65-70 knots                                               | Altimeter
+== AFTER TAKEOFF | until:near:tower:600 | target:tower
+above_field:300  | CLIMB          | 300 FT          | 300 ft above the field: altimeter {alt:300}. Climb at 65-70 knots          | Altimeter
 flaps_set:0      | FLAPS          | UP              | Click the FLAPS switch with Shift, or press T                              | FlapSwitch
-agl_above:1000   | CLIMB          | 1000 FT         | Climb to 1000 ft, then lower the nose and reduce to about 2300 rpm         | Altimeter
+above_field:1000 | CLIMB          | 1000 FT         | 1000 ft above the field: altimeter {alt:1000}. Then level off, ~2300 rpm. Tower {dist:tower} at {clock:tower} (hold L to look) | Altimeter
 
-== FLY TO THE TOWER
-near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Fly to it    |
+== FLY TO THE TOWER | target:tower
+near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Hold L to look at it |
 heading_to:strip:25 | TURN BACK   | TOWARDS STRIP   | Turn round the tower and point at the strip: {dist:strip}, {clock:strip}   | Heading
 
-== APPROACH AND LANDING | until:landed
-near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip}. Descend towards 500 ft      | Altimeter
+== APPROACH AND LANDING | until:landed | target:strip
+near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip} (hold L). Descend to 500 ft above it: altimeter {alt:500} | Altimeter
 carb_heat_on     | CARB HEAT      | ON              | Before reducing power: press V                                             | CarbHeat
 flaps_at_least:2 | FLAPS          | 20° OR MORE     | Below 85 knots: press G twice. Aim for 65 knots on final                   | FlapSwitch
 landed           | TOUCH DOWN     | ON THE STRIP    | Power to idle over the strip, flare gently, hold the nose up               | Airspeed
 
-== AFTER LANDING | until:parked
+== AFTER LANDING | until:parked | target:parking
 flaps_set:0      | FLAPS          | UP              | Shift+click the FLAPS switch or press T until up                           | FlapSwitch
 carb_heat_off    | CARB HEAT      | COLD            | Press V                                                                    | CarbHeat
-parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking}. Stop on the yellow square    |
+parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking} (hold L). Stop on the yellow square |
 
 == SHUTDOWN
 parking_brake_on | PARKING BRAKE  | SET             | Press . (period)                                                           | ParkingBrake
