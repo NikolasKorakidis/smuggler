@@ -48,3 +48,5 @@
 | 2026-10-11 | Wind model: power-law boundary layer (alpha 0.143) to 300 m, blending to the wind aloft by ~1000 m, veering with height; gusts as discrete events (rise 1-2 s, hold, decay) | Simple, believable, testable; JSBSim Dryden turbulence on top |
 | 2026-10-11 | On the ground the relative wind is never allowed to come from behind | JSBSim aero tables only cover forward flow; a parked 172 flipped in a 20 kt tailwind |
 | 2026-10-11 | Altimeter reads pressure altitude + (setting - 29.92) x 1000 ft; starts at 29.92 each flight | Teaches setting the altimeter; matters with low/high pressure presets |
+| 2026-10-11 | Cub brake strength 0.3 (weak J-3 heel brakes); per-aircraft brake_strength | Stock JSBSim Cub noses over above ~30% braking; full brakes now stop it without flipping |
+| 2026-10-11 | Open pasture rolling friction 3x paved (was 4x) | The Cub couldn't taxi on open grass at half power |

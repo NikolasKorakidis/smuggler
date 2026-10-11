@@ -178,6 +178,11 @@ func _physics_process(delta: float) -> void:
 			if phase_t > 25.0:
 				_finish()
 	FlightInput.override = o
+	if OS.get_cmdline_user_args().has("--trace-taxi") and phase in ["rollout", "taxi"] and int(t * 120) % 30 == 0:  # TRACE_TAXI
+		print("    %.2f %s gs %.1f hdg %.0f pitch %.1f roll %.1f thr %.2f brk %.1f rud %.2f wow %d%d%d alpha %.0f beta %.0f wind %.1f,%.1f" % [t, phase, _gs(), fposmod(_prop("attitude/psi-deg"), 360),
+			_prop("attitude/theta-deg"), _prop("attitude/phi-deg"), FlightInput.throttle, FlightInput.brake_left, FlightInput.rudder,
+			_prop("gear/unit[0]/WOW"), _prop("gear/unit[1]/WOW"), _prop("gear/unit[2]/WOW"), _prop("aero/alpha-deg"), _prop("aero/beta-deg"),
+			_prop("atmosphere/wind-north-fps"), _prop("atmosphere/wind-east-fps")])
 	if t - log_t > 15.0:
 		log_t = t
 		print("  t=%5.1f %-10s kias %5.1f agl %6.0f hdg %5.1f pos (%.0f, %.0f) gs %.1f rpm %.0f thr %.2f %s" % [

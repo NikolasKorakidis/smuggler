@@ -129,8 +129,8 @@ func _apply_controls(delta: float) -> void:
 	fdm.prop("fcs/rudder-cmd-norm", -i.rudder)
 	fdm.prop("fcs/steer-cmd-norm", i.rudder)
 	fdm.prop("fcs/throttle-cmd-norm", i.throttle)
-	fdm.prop("fcs/left-brake-cmd-norm", i.brake_left)
-	fdm.prop("fcs/right-brake-cmd-norm", i.brake_right)
+	fdm.prop("fcs/left-brake-cmd-norm", i.brake_left * definition.brake_strength)
+	fdm.prop("fcs/right-brake-cmd-norm", i.brake_right * definition.brake_strength)
 	trim = clampf(trim + i.trim * TRIM_RATE * delta, -1.0, 1.0)
 	fdm.prop("fcs/pitch-trim-cmd-norm", -trim)
 	if not definition.flap_detents.is_empty():
