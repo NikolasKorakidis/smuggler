@@ -1,9 +1,12 @@
 [gd_resource type="Resource" script_class="AircraftDefinition" format=3]
 
 [ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://aircraft/J3Cub/panel.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
 jsbsim_model = "J3Cub"
 display_name = "Tutorial plane (placeholder)"
 prop_diameter_m = 1.83
+panel_scene = ExtResource("2")
+cockpit_look_pitch_deg = -3.0

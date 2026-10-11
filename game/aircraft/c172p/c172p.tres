@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="AircraftDefinition" format=3]
 
 [ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://aircraft/c172p/panel.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -10,3 +11,5 @@ flap_detents = PackedFloat32Array(0, 0.333, 0.667, 1)
 prop_diameter_m = 1.9
 body_color = Color(0.92, 0.92, 0.9, 1)
 trim_color = Color(0.15, 0.25, 0.5, 1)
+panel_scene = ExtResource("2")
+cockpit_look_pitch_deg = -6.0

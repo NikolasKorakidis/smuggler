@@ -19,3 +19,5 @@
 | 2026-10-11 | Physics tests for the 172 run at 2400 lb max gross | Published figures are at max gross |
 | 2026-10-11 | Joystick axes ignored until they first move | macOS reports unmoved axes as centred: throttle read 50%, toe brakes 50% at start-up |
 | 2026-10-11 | Flap notches defined per aircraft in its .tres | Aircraft are data; Cub has none, 172 has 0/10/20/30° |
+| 2026-10-11 | Instruments: dial faces drawn once into textures + 3D needles; horizon/turn/compass faces redraw per frame. One panel scene per aircraft, positioned from the eyepoint | Crisp, cheap, and every aircraft's panel is data |
+| 2026-10-11 | 172 eyepoint moved to the left seat (y −14 in) | Stock JSBSim had it on the centreline |

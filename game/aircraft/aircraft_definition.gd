@@ -7,6 +7,11 @@ extends Resource
 ## Optional imported model, authored in the JSBSim structural frame
 ## converted to Godot axes (see Geo.struct_to_local). Empty = placeholder.
 @export var visual_scene: PackedScene
+## Instrument panel, authored relative to the pilot's eye (origin = eyepoint,
+## looking down -Z). Empty = plain placeholder panel.
+@export var panel_scene: PackedScene
+## Default cockpit camera pitch, degrees (negative = looking down at the panel).
+@export var cockpit_look_pitch_deg := -4.0
 ## Flap command (0..1) at each notch, first = up. Empty = no flaps.
 @export var flap_detents: PackedFloat32Array = []
 @export_group("Placeholder")

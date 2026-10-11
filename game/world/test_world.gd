@@ -42,6 +42,7 @@ func _spawn_aircraft(index: int) -> void:
 	add_child(aircraft)
 	if aircraft.setup(self):
 		$CameraRig.target = aircraft
+		$CameraRig.recentre()
 		$DebugOverlay.aircraft = aircraft
 
 

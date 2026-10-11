@@ -27,16 +27,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("camera_next"):
 		mode = Mode.COCKPIT if mode == Mode.CHASE else Mode.CHASE
 		fov = cockpit_fov if mode == Mode.COCKPIT else 70.0
+		if mode == Mode.COCKPIT:
+			recentre()
 	elif event is InputEventMouseButton:
 		match event.button_index:
 			MOUSE_BUTTON_RIGHT:
 				_looking = event.pressed
 			MOUSE_BUTTON_MIDDLE:
 				if event.pressed:
-					orbit_yaw = 0.0
-					orbit_pitch = deg_to_rad(10.0)
-					look_yaw = 0.0
-					look_pitch = 0.0
+					recentre()
 			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
 				var dir := -1.0 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0
 				if mode == Mode.CHASE:
@@ -52,6 +51,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			look_yaw = clampf(look_yaw - d.x, deg_to_rad(-160.0), deg_to_rad(160.0))
 			look_pitch = clampf(look_pitch - d.y, deg_to_rad(-60.0), deg_to_rad(80.0))
+
+
+func recentre() -> void:
+	orbit_yaw = 0.0
+	orbit_pitch = deg_to_rad(10.0)
+	look_yaw = 0.0
+	look_pitch = deg_to_rad(target.definition.cockpit_look_pitch_deg) if target else 0.0
 
 
 func _process(delta: float) -> void:
