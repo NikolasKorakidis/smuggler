@@ -2,6 +2,34 @@
 
 [ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="1"]
 [ext_resource type="PackedScene" path="res://aircraft/J3Cub/panel.tscn" id="2"]
+[ext_resource type="Script" path="res://audio/aircraft_sound.gd" id="3"]
+
+[sub_resource type="Resource" id="Sound"]
+script = ExtResource("3")
+rated_hp = 65.0
+idle_rpm = 700.0
+exhaust_hz = 210.0
+exhaust_ring = 0.75
+bark = 0.9
+rasp = 0.6
+pulse_deg = 35.0
+body_hz = 150.0
+body_ring = 0.75
+body_volume = 0.8
+cylinder_spread = 0.25
+jitter = 0.16
+wear = 0.012
+valve_clatter = 0.6
+afterfire = 0.5
+cabin_cutoff_hz = 1800.0
+personality_seed = 65
+cabin_wind = 1.6
+whistle = 0.5
+whistle_hz_per_kt = 7.0
+gear_rattle = 0.7
+prop_imbalance = 0.15
+engine_volume = 1.8
+buffet_alpha_deg = 13.0
 
 [resource]
 script = ExtResource("1")
@@ -15,3 +43,4 @@ has_starter = false
 has_primer = false
 has_mixture = false
 checklist = "res://aircraft/J3Cub/checklist.txt"
+sound = SubResource("Sound")

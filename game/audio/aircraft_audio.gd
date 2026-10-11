@@ -1,131 +1,222 @@
 extends Node
-## Placeholder aircraft sounds, synthesised live from the FDM: piston engine
-## (firing pulses + prop), wind, tyre rumble, touchdown thump and stall horn.
-## Replaced by recorded sounds later; the inputs (rpm, power, speed) stay.
+## Aircraft sounds, synthesised live (audio/aircraft_synth.gd). This node reads
+## the FDM, engine systems and camera every frame, turns them into synth
+## inputs and streams the result. Replaced by recorded sounds later; the
+## inputs (rpm, load, roughness, speed) stay.
 
-const MIX_RATE := 22050.0
+const MIX_RATE := AircraftSynth.RATE
+const CATCH_S := 1.6  # rough running right after the engine catches
 
 var fdm: FDM
 var definition: AircraftDefinition
 var engine: EngineSystems
+var synth: AircraftSynth
+## Dev: render into `captured` at the game clock instead of playing.
+var capture := false
+var captured := PackedVector2Array()
+## Dev: force the listening position (0 chase, 1 cockpit), -1 = follow camera.
+var force_view := -1.0
+## Measured synth cost, microseconds per sample (running average, worker).
+var cost_us_per_sample := 0.0
+## Measured main-thread cost of this node, microseconds per frame.
+var main_us_per_frame := 0.0
+var frames_rendered := 0
 
 var _player: AudioStreamPlayer
 var _playback: AudioStreamGeneratorPlayback
-var _rng := RandomNumberGenerator.new()
+var _buf := PackedVector2Array()
+var _capture_frac := 0.0
+var _task := -1  # synth rendering on a worker thread
+var _task_frames := 0
 
-# Smoothed inputs (updated per frame, used per sample)
 var _rpm := 0.0
-var _power := 0.0
-var _throttle := 0.0
-var _wind := 0.0
-var _roll := 0.0
-var _horn := 0.0
-var _firing := false  # combustion (JSBSim running), not just turning
-var _crank := 0.0  # starter motor engaged
-var _whine_phase := 0.0
-
-# Oscillator / filter state
-var _fire_phase := 0.0
-var _pulse_gain := 1.0
-var _engine_lp := 0.0
-var _wind_lp := 0.0
-var _wind_lp2 := 0.0
-var _rumble_lp := 0.0
-var _horn_phase := 0.0
-var _thump := 0.0
-var _thump_phase := 0.0
+var _load := 0.0
+var _thrust := 0.0
+var _kias := 0.0
+var _view := 0.0
 var _was_on_ground := true
+var _was_firing := false
+var _was_cranking := false
+var _catch_t := 99.0
+var _spun := false
 
 
 func _ready() -> void:
+	synth = AircraftSynth.new(definition.sound if definition else null)
+	if capture:
+		return
 	var stream := AudioStreamGenerator.new()
 	stream.mix_rate = MIX_RATE
 	stream.buffer_length = 0.1
 	_player = AudioStreamPlayer.new()
 	_player.stream = stream
-	_player.volume_db = -6.0
+	_player.volume_db = -3.0
 	add_child(_player)
 	_player.play()
 	_playback = _player.get_stream_playback()
 
 
 func _process(delta: float) -> void:
-	if fdm == null or fdm.jsb == null or _playback == null:
+	if fdm == null or fdm.jsb == null or synth == null:
 		return
-	var k := 1.0 - exp(-delta / 0.08)
-	_rpm = lerpf(_rpm, fdm.prop_get("propulsion/engine/engine-rpm"), k)
-	_power = lerpf(_power, clampf(fdm.prop_get("propulsion/engine/power-hp") / 160.0, 0.0, 1.2), k)
-	_throttle = lerpf(_throttle, fdm.prop_get("fcs/throttle-pos-norm"), k)
-	_firing = fdm.prop_get("propulsion/engine/set-running") > 0.5
-	var starter_on := engine != null and engine.cranking() and engine.definition.has_starter
-	_crank = lerpf(_crank, 1.0 if starter_on else 0.0, 1.0 - exp(-delta / 0.05))
-	var kias := maxf(fdm.prop_get("velocities/vc-kts"), 0.0)
-	_wind = lerpf(_wind, clampf(pow(kias / 110.0, 2.0), 0.0, 1.5), k)
+	if capture:
+		# Dev: render in step with the game clock, on this thread.
+		_finish_task()
+		_update_inputs(delta)
+		_capture_frac += delta * MIX_RATE
+		_task_frames = int(_capture_frac)
+		_capture_frac -= _task_frames
+		_render()
+		captured.append_array(_buf)
+		return
+	if _playback == null:
+		return
+	var t0 := Time.get_ticks_usec()
+	# The synth renders on a worker thread while the frame goes on; its
+	# output is pushed next frame (one frame of extra latency).
+	if _finish_task():
+		_playback.push_buffer(_buf)
+	_update_inputs(delta)
+	_task_frames = _playback.get_frames_available()
+	if _task_frames > 0:
+		frames_rendered += _task_frames
+		_task = WorkerThreadPool.add_task(_render, false, "aircraft audio")
+	main_us_per_frame = lerpf(main_us_per_frame, float(Time.get_ticks_usec() - t0), 0.05)
 
+
+func _exit_tree() -> void:
+	_finish_task()
+
+
+func _finish_task() -> bool:
+	if _task < 0:
+		return false
+	WorkerThreadPool.wait_for_task_completion(_task)
+	_task = -1
+	return true
+
+
+func _render() -> void:
+	if _task_frames <= 0:
+		_buf.resize(0)
+		return
+	var t0 := Time.get_ticks_usec()
+	synth.render(_task_frames, _buf)
+	var us := float(Time.get_ticks_usec() - t0) / _task_frames
+	cost_us_per_sample = us if cost_us_per_sample == 0.0 else lerpf(cost_us_per_sample, us, 0.02)
+
+
+func _update_inputs(delta: float) -> void:
+	var s := synth
+	var p := s.profile
+	var k := 1.0 - exp(-delta / 0.06)
+	var rpm := fdm.prop_get("propulsion/engine/engine-rpm")
+	_rpm = lerpf(_rpm, rpm, 1.0 - exp(-delta / 0.03))
+	s.rpm = _rpm
+	s.prop_rpm = _rpm * _gear_ratio()
+	var running := fdm.engine_running()
+	var mags := engine.magnetos if engine else 3
+	var firing := running and mags != 0
+	s.firing = firing
+	_load = lerpf(_load, clampf(fdm.prop_get("propulsion/engine/power-hp") / p.rated_hp, 0.0, 1.2) if firing else 0.0, k)
+	s.load = _load
+
+	# Catching, spool-down clunk.
+	if firing and not _was_firing:
+		_catch_t = 0.0
+	_catch_t += delta
+	if firing and rpm > 300.0:
+		_spun = true
+	if not firing and _spun and rpm < 45.0:
+		_spun = false
+		s.clunk(0.5)
+	_was_firing = firing
+
+	s.roughness = _roughness(firing)
+
+	# Starter.
+	var cranking := engine != null and engine.cranking() and definition.has_starter
+	if cranking != _was_cranking:
+		s.clunk(0.35 if cranking else 0.12)
+	_was_cranking = cranking
+	s.cranking = 1.0 if cranking else 0.0
+	s.cough_chance = 0.0
+	if engine and engine.cranking() and not firing and engine.magnetos != 0 \
+			and engine.fuel_line_fraction() > 0.0 and engine.mixture > 0.4:
+		s.cough_chance = 0.1 * engine.start_quality()
+
+	# Propeller.
+	s.tip_mach = fdm.prop_get("propulsion/engine/helical-tip-Mach")
+	var static_thrust := p.rated_hp * 2.8  # lbf, rough static thrust of a fixed-pitch single
+	_thrust = lerpf(_thrust, clampf(fdm.prop_get("propulsion/engine/thrust-lbs") / static_thrust, 0.0, 1.0), k)
+	s.thrust = _thrust
+
+	# Airflow.
+	_kias = lerpf(_kias, maxf(fdm.prop_get("velocities/vc-kts"), 0.0), k)
+	s.airspeed_kt = _kias
+	s.alpha_deg = fdm.prop_get("aero/alpha-deg")
+	s.slip_deg = fdm.prop_get("aero/beta-deg")
+	s.flaps = fdm.prop_get("fcs/flap-pos-norm") if fdm.jsb.has_property("fcs/flap-pos-norm") else 0.0
+
+	# Ground.
 	var on_ground := false
 	for i in int(fdm.prop_get("gear/num-units")):
 		if fdm.jsb.has_property("gear/unit[%d]/WOW" % i) and fdm.prop_get("gear/unit[%d]/WOW" % i) > 0.5:
 			on_ground = true
-	var gs_kt := fdm.prop_get("velocities/vg-fps") * 0.5925
-	_roll = lerpf(_roll, clampf(gs_kt / 35.0, 0.0, 1.0) if on_ground else 0.0, k)
+	s.on_ground = on_ground
+	s.surface = fdm.surface
+	s.ground_speed_kt = fdm.prop_get("velocities/vg-fps") * 0.5925
 	if on_ground and not _was_on_ground:
-		var sink := -fdm.prop_get("velocities/v-down-fps") if fdm.jsb.has_property("velocities/v-down-fps") else 0.0
-		_thump = clampf(0.4 + absf(sink) / 8.0, 0.4, 1.0)
-		_thump_phase = 0.0
+		var sink := absf(fdm.prop_get("velocities/v-down-fps"))
+		s.touchdown(clampf(0.25 + sink / 8.0, 0.25, 1.0))
 	_was_on_ground = on_ground
 
 	var warn := definition.stall_warning_alpha_deg
-	var horn_on := warn > 0.0 and not on_ground and fdm.prop_get("aero/alpha-deg") > warn
-	_horn = lerpf(_horn, 1.0 if horn_on else 0.0, 1.0 - exp(-delta / 0.05))
+	s.horn = warn > 0.0 and not on_ground and s.alpha_deg > warn
 
-	_fill(_playback.get_frames_available())
+	# Listening position.
+	var target := force_view
+	var dist := 12.0
+	if target < 0.0:
+		target = 0.0
+		var cam := get_viewport().get_camera_3d()
+		if cam != null:
+			if cam.get("mode") == 1:  # camera_rig.gd Mode.COCKPIT
+				target = 1.0
+			var d = cam.get("chase_distance")
+			if d != null:
+				dist = d
+	_view = move_toward(_view, target, delta / 0.15)
+	s.view = _view
+	s.distance_m = dist
 
 
-func _fill(frames: int) -> void:
-	var dt := 1.0 / MIX_RATE
-	# Four-cylinder four-stroke: two firing pulses per crank revolution.
-	var fire_hz := _rpm / 30.0
-	var turning := _rpm > 30.0
-	# Firing: full exhaust note. Just turning (cranking, windmilling): soft
-	# compression chuffs, so you can hear the difference when it catches.
-	var engine_gain := (0.25 + 0.55 * _power + 0.2 * _throttle) if _firing else (0.12 if turning else 0.0)
-	var brightness := clampf(0.08 + 0.35 * _throttle + 0.2 * _power, 0.05, 0.6)
-	var wind_cut := clampf(0.02 + 0.12 * _wind, 0.02, 0.25)
-	for i in frames:
-		var s := 0.0
-		# Engine: decaying exhaust pulse per firing, slightly uneven per cylinder.
-		if turning:
-			_fire_phase += fire_hz * dt
-			if _fire_phase >= 1.0:
-				_fire_phase -= 1.0
-				_pulse_gain = 0.8 + 0.4 * _rng.randf()
-			var p := 1.0 - _fire_phase
-			var pulse := (p * p * p * p * 2.0 - 0.4) * _pulse_gain + (_rng.randf() - 0.5) * 0.25 * p
-			if not _firing:
-				pulse = p * p * 1.2 - 0.4  # dull compression stroke, no bang
-			_engine_lp += brightness * (pulse - _engine_lp)
-			s += _engine_lp * engine_gain
-		# Starter motor whine.
-		if _crank > 0.001:
-			_whine_phase = fmod(_whine_phase + (380.0 + _rpm * 1.6) * dt, 1.0)
-			s += (absf(_whine_phase * 2.0 - 1.0) * 2.0 - 1.0) * 0.07 * _crank
-		# Wind: band-limited noise rising with airspeed.
-		var n := _rng.randf() * 2.0 - 1.0
-		_wind_lp += wind_cut * (n - _wind_lp)
-		_wind_lp2 += wind_cut * (_wind_lp - _wind_lp2)
-		s += _wind_lp2 * 2.2 * _wind
-		# Tyres: low rumble on the ground.
-		if _roll > 0.001:
-			_rumble_lp += 0.01 * ((_rng.randf() * 2.0 - 1.0) - _rumble_lp)
-			s += _rumble_lp * 6.0 * _roll
-		# Touchdown thump: short low sine burst.
-		if _thump > 0.001:
-			_thump_phase += 55.0 * dt
-			s += sin(TAU * _thump_phase) * _thump
-			_thump *= 0.9993
-		# Stall horn: reedy tone.
-		if _horn > 0.001:
-			_horn_phase = fmod(_horn_phase + 950.0 * dt, 1.0)
-			s += (_horn_phase * 2.0 - 1.0) * 0.18 * _horn
-		s = clampf(s * 0.6, -1.0, 1.0)
-		_playback.push_frame(Vector2(s, s))
+## How badly the engine is running, 0..1 (about the chance of a misfire).
+func _roughness(firing: bool) -> float:
+	if not firing:
+		return 0.0
+	var p := synth.profile
+	var r := p.wear * lerpf(1.0, 0.25, clampf(_load, 0.0, 1.0))
+	var afr := fdm.prop_get("propulsion/engine/AFR")
+	if is_finite(afr):
+		r += 0.85 * smoothstep(15.0, 18.8, afr)  # too lean: misfiring
+		r += 0.3 * smoothstep(10.0, 7.5, afr)  # too rich: rough, sooty
+	if engine:
+		if engine.magnetos == 1 or engine.magnetos == 2:
+			r += 0.04  # one magneto: slower burn, a worn plug shows up
+		r += 0.12 * (1.0 - engine.warmth)  # cold engine
+		if engine.carb_heat:
+			r += 0.03
+		r += 0.9 * smoothstep(0.3, 0.0, engine.fuel_line_fraction())  # fuel starvation
+	if _catch_t < CATCH_S:
+		r += 0.5 * (1.0 - _catch_t / CATCH_S)
+	if _rpm < p.idle_rpm * 0.85:
+		r += 0.15 * smoothstep(p.idle_rpm * 0.85, p.idle_rpm * 0.5, _rpm)
+	return clampf(r, 0.0, 1.0)
+
+
+func _gear_ratio() -> float:
+	var e := fdm.prop_get("propulsion/engine/engine-rpm")
+	if e < 50.0:
+		return 1.0
+	return fdm.prop_get("propulsion/engine/propeller-rpm") / e

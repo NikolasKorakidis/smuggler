@@ -30,6 +30,8 @@ extends Resource
 @export var stall_warning_alpha_deg := 0.0
 ## Flap command (0..1) at each notch, first = up. Empty = no flaps.
 @export var flap_detents: PackedFloat32Array = []
+## Engine, propeller and airframe sound character. Empty = generic.
+@export var sound: AircraftSound
 @export_group("Placeholder")
 @export var prop_diameter_m := 1.9
 @export var body_color := Color(0.86, 0.82, 0.70)
