@@ -82,6 +82,16 @@ func powered() -> bool:
 	return master or not definition.has_master
 
 
+## How well a start would go right now (0 flooded/dry .. 1 good). For sound.
+func start_quality() -> float:
+	return _start_quality()
+
+
+## Fuel left in the lines after the supply is cut (1 = fed normally, 0 = dry).
+func fuel_line_fraction() -> float:
+	return _fuel_line_t / FUEL_LINE_S
+
+
 # --- controls (from keys, HOTAS buttons and cockpit clicks) -------------------
 
 func set_master(on: bool) -> void:
