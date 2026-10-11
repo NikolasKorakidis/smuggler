@@ -4,7 +4,7 @@
 
 ### Fly low. Stay quiet. Get paid.
 
-**A flight game about running cargo in tired old airplanes, in a world that never quite existed.**
+**A flight game about running cargo in tired old airplanes, through the real skies of the 1980s.**
 
 <img src="https://img.shields.io/badge/status-early%20development-orange" alt="Status: early development">
 <img src="https://img.shields.io/badge/engine-Godot%204.7-478cbf" alt="Engine: Godot 4.7">
@@ -76,13 +76,13 @@ Everything you know comes from the gauges in front of you and the map on your kn
 Start with something cheap and tired. Work your way up to bigger, faster, more capable aircraft, and fit them out for the job: long-range tanks, short-field kits, better radios, a fresh registration.
 
 ### A world with attitude
-1978–1988. Fictional islands and coastlines with realistic terrain: jungle strips, beaches, farms and forgotten airfields. Grounded, with a streak of dark comedy. Closer to an 80s crime show than a flight lesson.
+1978–1988, in real places: islands, coastlines, jungle strips, beaches, farms and forgotten airfields. Grounded, with a streak of dark comedy. Closer to an 80s crime show than a flight lesson.
 
 </td>
 </tr>
 </table>
 
-> All aircraft, places, companies and people in Smuggler are fictional.
+> Smuggler uses real places and real aircraft types. Brand names are changed, and all people and companies are fictional.
 
 ---
 
@@ -149,7 +149,7 @@ You don't need to write code to make a real difference:
 3. Got an idea or found a bug? [Open an issue](https://github.com/NikolasKorakidis/smuggler/issues).
 
 **Three simple rules**
-- **Keep it fictional.** No real manufacturer names, logos, companies, places or people.
+- **Real types, changed names.** Real aircraft and real places are welcome. No real brand names, logos or real people.
 - **Physics wins.** If a change makes the game prettier but the flying less honest, it won't go in.
 - **Only submit your own work**, or work that's clearly licensed for use in a commercial game.
 
