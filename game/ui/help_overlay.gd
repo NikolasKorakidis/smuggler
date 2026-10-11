@@ -22,6 +22,7 @@ Left click             cockpit switches · wheel over a knob turns it
 C                      chase / cockpit camera
 Right mouse            look around    Wheel: zoom    Middle: recentre
 Backspace              back to the start of the strip
+K                      checklist on / off
 J  (or Fn+F2)          joystick setup: bind HOTAS / pedals
 I  (or Fn+F3)          flight data (dev builds)
 H  (or Fn+F1)          this help"""

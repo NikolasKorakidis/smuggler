@@ -3,6 +3,8 @@ extends Node3D
 ## A flyable aircraft: JSBSim FDM + visuals. Generic for every aircraft; the
 ## specifics come from the AircraftDefinition and the JSBSim XML.
 
+signal respawned
+
 const FT := 0.3048
 const TRIM_RATE := 0.25  # full trim travel in 4 s
 
@@ -53,6 +55,7 @@ func respawn() -> void:
 	FlightInput.set_throttle_keyboard(0.0)
 	_place()
 	reset_physics_interpolation()
+	respawned.emit()
 
 
 func eyepoint() -> Node3D:

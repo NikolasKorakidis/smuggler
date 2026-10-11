@@ -12,6 +12,8 @@ extends Resource
 @export var panel_scene: PackedScene
 ## Default cockpit camera pitch, degrees (negative = looking down at the panel).
 @export var cockpit_look_pitch_deg := -4.0
+## Start-up checklist (text file, see aircraft/<model>/checklist.txt).
+@export_file("*.txt") var checklist := ""
 @export_group("Engine")
 ## Battery master switch; without one nothing is electric (Cub).
 @export var has_master := true

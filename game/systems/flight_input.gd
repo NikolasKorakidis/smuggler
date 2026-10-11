@@ -36,6 +36,7 @@ const KEYS := {
 	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
+	"checklist": [KEY_K],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second

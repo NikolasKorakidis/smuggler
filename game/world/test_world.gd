@@ -43,6 +43,8 @@ func _spawn_aircraft(index: int) -> void:
 	aircraft.definition = aircraft_definitions[index]
 	add_child(aircraft)
 	if aircraft.setup(self):
+		$Checklist.set_aircraft(aircraft)
+		aircraft.respawned.connect($Checklist.reset)
 		$CameraRig.target = aircraft
 		$CameraRig.recentre()
 		$DebugOverlay.aircraft = aircraft

@@ -1,0 +1,28 @@
+# 172-type checklist. One item per line:
+#   condition | ITEM | STATE | how to do it
+# "== TITLE" starts a section. Items tick in order once their condition is met.
+# Conditions are defined in game/ui/checklist.gd; "manual" ticks when clicked.
+
+== BEFORE START
+fuel:BOTH        | FUEL SELECTOR  | BOTH            | Round knob lower right: click it, or press B
+mixture_rich     | MIXTURE        | RICH            | Red knob pushed in: click it, or hold X
+carb_heat_off    | CARB HEAT      | COLD            | White knob pushed in: click it, or press V
+master_on        | MASTER SWITCH  | ON              | Red switch lower left: click it, or press O
+
+== STARTING ENGINE
+primed           | PRIMER         | 2-3 STROKES     | Black PRIMER knob: click it, or press P (not needed when warm)
+throttle_cracked | THROTTLE       | OPEN 1/4 INCH   | Throttle just above idle (R / F, or the HOTAS lever)
+manual           | PROPELLER AREA | CLEAR           | Look outside, then click this line
+magnetos_both    | MAGNETOS       | BOTH            | Key switch: click to step OFF-R-L-BOTH, or press M
+engine_running   | STARTER        | ENGAGE          | Hold click on the key (START), or hold Enter, until it fires
+oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Oil pressure gauge, right side, within 30 seconds
+idle:1200        | THROTTLE       | 1000 RPM        | Bring the tachometer to about 1000
+
+== BEFORE TAKEOFF
+controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Move stick fully in all directions and both pedals
+flaps:1          | FLAPS          | 0-10°           | G / T, one notch per press
+trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral
+runup:1800       | THROTTLE       | 1800 RPM        | Hold brakes (Space) and add power
+mag_check        | MAGNETOS       | CHECK L, R      | Shift+M to L, then R, then M back to BOTH. Drop under 125 rpm
+carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again
+idle:1200        | THROTTLE       | IDLE            | Back to about 1000 rpm. Ready for takeoff

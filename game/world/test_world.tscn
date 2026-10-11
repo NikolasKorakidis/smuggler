@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://aircraft/J3Cub/j3cub.tres" id="6_cub"]
 [ext_resource type="Resource" path="res://aircraft/c172p/c172p.tres" id="7_c172"]
 [ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="8_def"]
+[ext_resource type="Script" path="res://ui/checklist.gd" id="9_check"]
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
 sky_top_color = Color(0.22, 0.42, 0.72, 1)
@@ -135,3 +136,6 @@ script = ExtResource("4_axis")
 
 [node name="Help" type="CanvasLayer" parent="."]
 script = ExtResource("5_help")
+
+[node name="Checklist" type="CanvasLayer" parent="."]
+script = ExtResource("9_check")

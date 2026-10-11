@@ -1,0 +1,23 @@
+# Tutorial plane (Cub-type) checklist: hand-propped, no electrics.
+#   condition | ITEM | STATE | how to do it
+
+== BEFORE START
+fuel:ON          | FUEL VALVE     | ON              | Valve on the panel, right: click it, or press B
+throttle_closed  | THROTTLE       | CLOSED          | Throttle fully back (F, or the HOTAS lever)
+magnetos_off     | SWITCH         | OFF             | "Switch off!" Knob on the panel, left
+pulled_through   | PROPELLER      | PULL THROUGH    | Press Enter 3-4 times to draw fuel into the cylinders
+
+== STARTING ENGINE
+brakes_held      | BRAKES         | HOLD            | Hold Space (or both toe brakes) so it can't run away
+throttle_cracked | THROTTLE       | CRACKED         | Just above idle
+magnetos_both    | SWITCH         | BOTH            | "Contact!" Click the switch, or press M three times
+engine_running   | PROPELLER      | SWING           | Press Enter to swing the prop until it fires
+oil_pressure     | OIL PRESSURE   | RISING          | Oil pressure gauge, right side
+idle:1100        | THROTTLE       | 900 RPM         | Settle the tachometer around 900
+
+== BEFORE TAKEOFF
+controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Move stick fully in all directions and both pedals
+runup:1700       | THROTTLE       | 1700 RPM        | Hold brakes and add power
+mag_check        | SWITCH         | CHECK L, R      | Shift+M to L, then R, then M back to BOTH
+carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again
+idle:1100        | THROTTLE       | IDLE            | Ready for takeoff. Taildragger: keep it straight with the pedals

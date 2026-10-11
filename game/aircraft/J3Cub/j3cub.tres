@@ -14,3 +14,4 @@ has_master = false
 has_starter = false
 has_primer = false
 has_mixture = false
+checklist = "res://aircraft/J3Cub/checklist.txt"

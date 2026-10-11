@@ -17,3 +17,4 @@ stall_warning_alpha_deg = 11.5
 fuel_positions = PackedStringArray("OFF", "LEFT", "BOTH", "RIGHT")
 fuel_tanks = Array[PackedInt32Array]([PackedInt32Array(), PackedInt32Array(0), PackedInt32Array(0, 1), PackedInt32Array(1)])
 fuel_default = 2
+checklist = "res://aircraft/c172p/checklist.txt"
