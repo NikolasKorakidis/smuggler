@@ -12,6 +12,8 @@ const SURFACES := {
 	&"paved": {"rolling": 1.0, "static": 1.0, "bumpiness": 0.0},
 	&"grass_strip": {"rolling": 2.5, "static": 0.75, "bumpiness": 0.1},
 	&"grass_rough": {"rolling": 4.0, "static": 0.6, "bumpiness": 0.3},
+	&"dirt": {"rolling": 1.8, "static": 0.8, "bumpiness": 0.2},
+	&"rough": {"rolling": 6.0, "static": 0.55, "bumpiness": 0.6},
 }
 
 @export_dir var aircraft_dir := "res://aircraft"
@@ -34,14 +36,16 @@ func load_model(model: String) -> bool:
 ## engine stopped (EngineSystems decides). Gear settling runs instantly.
 func spawn(world_geo: Geo, local_pos: Vector3, heading_deg: float, terrain_m: float) -> void:
 	geo = world_geo
+	_connect_ground()
 	var g := geo.to_geo(local_pos)
 	prop("ic/lat-geod-deg", g.x)
 	prop("ic/long-gc-deg", g.y)
 	prop("ic/terrain-elevation-ft", terrain_m / FT)
 	prop("ic/h-agl-ft", _gear_height_ft())
 	prop("ic/psi-true-deg", heading_deg)
-	prop("ic/theta-deg", 0.0)
-	prop("ic/phi-deg", 0.0)
+	var tilt := _ground_tilt_deg(local_pos, heading_deg)
+	prop("ic/theta-deg", tilt.x)
+	prop("ic/phi-deg", tilt.y)
 	prop("ic/vc-kts", 0.0)
 	jsb.run_ic()
 	prop("position/terrain-elevation-asl-ft", terrain_m / FT)
@@ -121,6 +125,36 @@ func wheels() -> Array[Dictionary]:
 			out.append({"index": i, "pos": Vector3(
 				prop_get(base + "x-position"), prop_get(base + "y-position"), prop_get(base + "z-position"))})
 	return out
+
+
+# Real terrain under every contact point when the world provides it.
+func _connect_ground() -> void:
+	if not jsb.has_method("set_ground_callback"):
+		if geo.terrain.is_valid():
+			push_warning("JSBSim bridge is out of date: run scripts/build_extension.sh. Ground will be flat.")
+		return
+	jsb.set_ground_callback(_ground_query if geo.terrain.is_valid() else Callable())
+
+
+# (pitch, roll) in degrees that lay the aircraft parallel to the ground at a
+# spawn point, so no wheel starts buried on a slope. Level without terrain.
+func _ground_tilt_deg(local_pos: Vector3, heading_deg: float) -> Vector2:
+	if not geo.terrain.is_valid():
+		return Vector2.ZERO
+	var g: Vector4 = geo.terrain.call(local_pos)
+	var n := Vector3(g.y, g.z, g.w)
+	var h := deg_to_rad(heading_deg)
+	var fwd := Vector3(sin(h), 0.0, -cos(h))
+	var right := Vector3(cos(h), 0.0, sin(h))
+	# Ground rising ahead = nose up; rising to the right = right wing up (negative roll).
+	return Vector2(rad_to_deg(atan(-n.dot(fwd) / n.y)), -rad_to_deg(atan(-n.dot(right) / n.y)))
+
+
+# Called by JSBSim for each ground contact. Returns elevation (m) and the
+# surface normal as (east, north, up).
+func _ground_query(lat_deg: float, lon_deg: float) -> Vector4:
+	var g: Vector4 = geo.terrain.call(geo.to_local(lat_deg, lon_deg, 0.0))
+	return Vector4(g.x, g.y, -g.w, g.z)
 
 
 # CG height above ground with the lowest wheel just touching.

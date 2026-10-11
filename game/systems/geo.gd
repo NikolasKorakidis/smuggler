@@ -9,6 +9,11 @@ const FT := 0.3048
 
 var lat0_deg: float
 var lon0_deg: float
+## Optional ground source for worlds with real terrain: takes a local position
+## and returns Vector4(height_m, normal.x, normal.y, normal.z) in local axes.
+## The FDM hands it to JSBSim so every wheel meets the ground under it.
+## Empty = flat ground at the height the world reports for the aircraft.
+var terrain := Callable()
 var _m_per_rad_lat: float
 var _m_per_rad_lon: float
 

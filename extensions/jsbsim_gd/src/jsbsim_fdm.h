@@ -3,12 +3,15 @@
 #include <memory>
 
 #include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 namespace JSBSim {
 class FGFDMExec;
 }
+
+class GodotGroundCallback;
 
 namespace godot {
 
@@ -18,6 +21,7 @@ class JSBSimFDM : public RefCounted {
 	GDCLASS(JSBSimFDM, RefCounted)
 
 	std::unique_ptr<JSBSim::FGFDMExec> exec;
+	GodotGroundCallback *ground = nullptr; // owned by exec's FGInertial
 	String model_name;
 
 protected:
@@ -45,6 +49,12 @@ public:
 	void set_property(const String &name, double value);
 	bool has_property(const String &name) const;
 	PackedStringArray list_properties(const String &filter) const;
+
+	// Terrain source for every ground contact (wheels, structure, AGL).
+	// callback(lat_deg: float, lon_deg: float) -> Vector4(elevation_m, normal_east,
+	// normal_north, normal_up). An empty Callable restores JSBSim's default: a
+	// level ground at position/terrain-elevation-asl-ft.
+	void set_ground_callback(const Callable &callback);
 
 	static void set_debug_level(int level);
 };
