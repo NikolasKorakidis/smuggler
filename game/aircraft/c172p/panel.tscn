@@ -240,7 +240,7 @@ size_m = 0.028
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -0.305, -0.618)
 script = ExtResource("ctl")
 control = "magnetos"
-label = "MAGNETOS"
+label = "IGNITION / START"
 knob_color = Color(0.1, 0.1, 0.1, 1)
 size_m = 0.034
 

@@ -13,8 +13,8 @@ master_on        | MASTER SWITCH  | ON              | Red switch lower left: cli
 primed           | PRIMER         | 2-3 STROKES     | Black PRIMER knob: click it, or press P (not needed when warm)
 throttle_cracked | THROTTLE       | OPEN 1/4 INCH   | Throttle just above idle (R / F, or the HOTAS lever)
 manual           | PROPELLER AREA | CLEAR           | Look outside, then click this line
-magnetos_both    | MAGNETOS       | BOTH            | Key switch: click to step OFF-R-L-BOTH, or press M
-engine_running   | STARTER        | ENGAGE          | Hold click on the key (START), or hold Enter, until it fires
+magnetos_both    | IGNITION KEY   | BOTH            | Round key switch right of the red MASTER: click 3 times (OFF-R-L-BOTH), or press M 3 times
+engine_running   | STARTER        | ENGAGE          | Click AND HOLD the ignition key (it turns to START), or hold Enter. Let go when it fires
 oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Oil pressure gauge, right side, within 30 seconds
 idle:1200        | THROTTLE       | 1000 RPM        | Bring the tachometer to about 1000
 
