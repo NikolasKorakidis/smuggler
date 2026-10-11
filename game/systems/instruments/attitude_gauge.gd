@@ -6,6 +6,7 @@ extends GaugeBase
 const PX_PER_DEG := 0.04  # fraction of the face radius per degree of pitch
 
 var _face: AttitudeFace
+var _erect := false
 
 
 class AttitudeFace extends Control:
@@ -54,9 +55,20 @@ class AttitudeFace extends Control:
 func _build() -> void:
 	_face = AttitudeFace.new()
 	add_face(_face, true)
+	_face.pitch_deg = 8.0
+	_face.roll_deg = 25.0
 
 
-func _process(_delta: float) -> void:
-	_face.pitch_deg = prop("attitude/theta-deg")
-	_face.roll_deg = prop("attitude/phi-deg")
+func _process(delta: float) -> void:
+	# Vacuum gyro: erects in a few seconds with the engine running, slowly
+	# topples when it stops.
+	var target_pitch := prop("attitude/theta-deg") if vacuum() else 8.0
+	var target_roll := prop("attitude/phi-deg") if vacuum() else 25.0
+	var k := 1.0 - exp(-delta / (0.05 if vacuum() and _erect else (3.0 if vacuum() else 40.0)))
+	_face.pitch_deg = lerpf(_face.pitch_deg, target_pitch, k)
+	_face.roll_deg = lerpf(_face.roll_deg, target_roll, k)
+	if not vacuum():
+		_erect = false
+	elif absf(_face.roll_deg - target_roll) < 1.0 and absf(_face.pitch_deg - target_pitch) < 1.0:
+		_erect = true  # stays locked while the vacuum pump turns
 	_face.queue_redraw()

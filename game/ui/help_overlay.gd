@@ -10,7 +10,15 @@ Space                  brakes (hold)
 [ / ]                  trim nose down / up
 G / T                  flaps down / up (one notch)
 N                      next aircraft (Cub / 172)
-M                      engine off / on
+Ctrl+E                 automatic engine start (assist)
+O                      master switch (172)
+M / Shift+M            magnetos up / down (OFF R L BOTH)
+Enter (hold)           starter (172) · swing the prop (Cub)
+P                      primer stroke (172)
+X / Z                  mixture richer / leaner (hold)
+V                      carb heat on / off
+B                      fuel selector
+Left click             cockpit switches · wheel over a knob turns it
 C                      chase / cockpit camera
 Right mouse            look around    Wheel: zoom    Middle: recentre
 Backspace              back to the start of the strip

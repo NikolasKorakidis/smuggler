@@ -46,8 +46,10 @@ func _build() -> void:
 
 
 func _process(delta: float) -> void:
-	var rate := rad_to_deg(prop("velocities/psidot-rad_sec"))
-	_face.tilt_deg = clampf(rate / 3.0 * STANDARD_RATE_TILT, -35.0, 35.0)
+	# Electric gyro: runs down to level when the master is off.
+	var rate := rad_to_deg(prop("velocities/psidot-rad_sec")) if powered() else 0.0
+	_face.tilt_deg = lerpf(_face.tilt_deg, clampf(rate / 3.0 * STANDARD_RATE_TILT, -35.0, 35.0),
+		1.0 - exp(-delta / (0.15 if powered() else 3.0)))
 	_ball = lerpf(_ball, clampf(prop("accelerations/Ny") * 4.0, -1.0, 1.0), 1.0 - exp(-delta / 0.25))
 	_face.ball = _ball
 	_face.queue_redraw()

@@ -29,6 +29,16 @@ func prop(name: String) -> float:
 	return aircraft.fdm.prop_get(name)
 
 
+## Electrical bus has power (always true for aircraft without a master switch).
+func powered() -> bool:
+	return aircraft == null or aircraft.engine == null or aircraft.engine.powered()
+
+
+## Engine-driven vacuum pump turning: gyros spin.
+func vacuum() -> bool:
+	return prop("propulsion/engine/engine-rpm") > 500.0
+
+
 func has_prop(name: String) -> bool:
 	return aircraft != null and aircraft.fdm.jsb != null and aircraft.fdm.jsb.has_property(name)
 

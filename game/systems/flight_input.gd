@@ -11,9 +11,9 @@ const PROFILES_PATH := "res://systems/input_profiles.cfg"
 const WRONG_MODE := {
 	"1103:46715": "HOTAS is in PlayStation mode (blue LED). Hold MODE 3 s, press MODE until the LED is green.",
 }
-const AXES := ["pitch", "roll", "rudder", "throttle", "brake_left", "brake_right"]
+const AXES := ["pitch", "roll", "rudder", "throttle", "mixture", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next"]
+const BUTTONS := ["brakes", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter"]
 ## Bound joystick buttons that fire a one-shot action (like a key press).
 const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next"]
 const LABELS := {
@@ -21,7 +21,7 @@ const LABELS := {
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
 	"brakes": "Both brakes", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
 	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
-	"camera_next": "Next camera",
+	"camera_next": "Next camera", "mixture": "Mixture", "starter": "Starter / swing prop",
 }
 
 const KEYS := {
@@ -30,13 +30,17 @@ const KEYS := {
 	"rudder_left": [KEY_Q], "rudder_right": [KEY_E],
 	"throttle_up": [KEY_R], "throttle_down": [KEY_F],
 	"brakes": [KEY_SPACE], "trim_up": [KEY_BRACKETRIGHT], "trim_down": [KEY_BRACKETLEFT],
-	"camera_next": [KEY_C], "reset_aircraft": [KEY_BACKSPACE], "engine_toggle": [KEY_M],
+	"camera_next": [KEY_C], "reset_aircraft": [KEY_BACKSPACE],
+	"magnetos_up": [KEY_M], "magnetos_down": [KEY_M | KEY_MASK_SHIFT], "starter": [KEY_ENTER],
+	"primer": [KEY_P], "mixture_rich": [KEY_X], "mixture_lean": [KEY_Z], "carb_heat": [KEY_V],
+	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second
 const THROTTLE_KEY_RATE := 0.5
+const MIXTURE_KEY_RATE := 0.4
 
 ## Outputs, read by the aircraft every physics tick.
 var pitch := 0.0  # +1 full aft stick
@@ -70,7 +74,9 @@ func _ready() -> void:
 			InputMap.add_action(action)
 		for key in KEYS[action]:
 			var ev := InputEventKey.new()
-			ev.physical_keycode = key
+			ev.physical_keycode = key & KEY_CODE_MASK
+			ev.shift_pressed = key & KEY_MASK_SHIFT != 0
+			ev.ctrl_pressed = key & KEY_MASK_CTRL != 0
 			InputMap.action_add_event(action, ev)
 	_profiles.load(PROFILES_PATH)
 	load_bindings()
@@ -115,6 +121,20 @@ func _input(event: InputEvent) -> void:
 				ev.action = action
 				ev.pressed = true
 				Input.parse_input_event(ev)
+
+
+## Mixture lever from a bound axis, or null when not bound (keys/clicks set it).
+func mixture_axis():
+	return _axis("mixture") if _bound("mixture") else null
+
+
+## Keyboard mixture change per second (-1 lean .. +1 rich).
+func mixture_key_rate() -> float:
+	return (Input.get_action_strength("mixture_rich") - Input.get_action_strength("mixture_lean")) * MIXTURE_KEY_RATE
+
+
+func starter_held() -> bool:
+	return Input.is_action_pressed("starter") or _button("starter")
 
 
 func set_throttle_keyboard(value: float) -> void:
@@ -294,7 +314,9 @@ func _update_keyboard(delta: float) -> void:
 		Input.get_action_strength("pitch_back") - Input.get_action_strength("pitch_fwd"), delta)
 	_kb.roll = _approach(_kb.roll,
 		Input.get_action_strength("roll_right") - Input.get_action_strength("roll_left"), delta)
-	_kb.rudder = _approach(_kb.rudder,
+	# Ctrl+E is auto-start, not right rudder.
+	var ctrl := Input.is_key_pressed(KEY_CTRL)
+	_kb.rudder = _approach(_kb.rudder, 0.0 if ctrl else
 		Input.get_action_strength("rudder_right") - Input.get_action_strength("rudder_left"), delta)
 	var t := Input.get_action_strength("throttle_up") - Input.get_action_strength("throttle_down")
 	_kb_throttle = clampf(_kb_throttle + t * THROTTLE_KEY_RATE * delta, 0.0, 1.0)

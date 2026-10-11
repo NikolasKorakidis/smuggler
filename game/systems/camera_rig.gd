@@ -16,11 +16,22 @@ var look_pitch := 0.0
 var cockpit_fov := 70.0
 var _heading := 0.0
 var _looking := false
+var _hovered: CockpitControl
+var _pressed: CockpitControl
+var _tooltip: Label
 
 
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	current = true
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	_tooltip = Label.new()
+	_tooltip.add_theme_font_size_override("font_size", 16)
+	_tooltip.add_theme_color_override("font_outline_color", Color.BLACK)
+	_tooltip.add_theme_constant_override("outline_size", 5)
+	_tooltip.visible = false
+	layer.add_child(_tooltip)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -29,6 +40,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		fov = cockpit_fov if mode == Mode.COCKPIT else 70.0
 		if mode == Mode.COCKPIT:
 			recentre()
+	elif event is InputEventMouseButton and mode == Mode.COCKPIT and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed and _hovered:
+			_hovered.press(event.shift_pressed)
+			_pressed = _hovered
+			get_viewport().set_input_as_handled()
+		elif not event.pressed and _pressed:
+			_pressed.release()
+			_pressed = null
+	elif event is InputEventMouseButton and event.pressed and mode == Mode.COCKPIT and _hovered \
+			and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		_hovered.scroll(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton:
 		match event.button_index:
 			MOUSE_BUTTON_RIGHT:
@@ -77,3 +100,33 @@ func _process(delta: float) -> void:
 		var eye := target.eyepoint().get_global_transform_interpolated()
 		global_transform = eye * Transform3D(
 			Basis(Vector3.UP, look_yaw) * Basis(Vector3.RIGHT, look_pitch), Vector3.ZERO)
+	_update_hover()
+
+
+# Mouse ray against cockpit controls, done in aircraft space so the
+# interpolated camera and the controls agree exactly.
+func _update_hover() -> void:
+	var found: CockpitControl = null
+	if mode == Mode.COCKPIT and not _looking:
+		var mouse := get_viewport().get_mouse_position()
+		var to_aircraft := target.get_global_transform_interpolated().affine_inverse()
+		var from := to_aircraft * project_ray_origin(mouse)
+		var dir := (to_aircraft.basis * project_ray_normal(mouse)).normalized()
+		var aircraft_inv := target.global_transform.affine_inverse()
+		var best := INF
+		for c in target.find_children("*", "CockpitControl", true, false):
+			var local: Transform3D = (aircraft_inv * c.global_transform).affine_inverse()
+			var d: float = c.hit(local * from, (local.basis * dir).normalized())
+			if d >= 0.0 and d < best:
+				best = d
+				found = c
+	if found != _hovered:
+		if _hovered and is_instance_valid(_hovered):
+			_hovered.set_hover(false)
+		_hovered = found
+		if _hovered:
+			_hovered.set_hover(true)
+	_tooltip.visible = _hovered != null
+	if _hovered:
+		_tooltip.text = _hovered.tooltip()
+		_tooltip.position = get_viewport().get_mouse_position() + Vector2(18, 14)

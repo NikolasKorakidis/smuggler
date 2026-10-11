@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://systems/instruments/heading_gauge.gd" id="hdg"]
 [ext_resource type="Script" path="res://systems/instruments/turn_coordinator.gd" id="tc"]
 [ext_resource type="Script" path="res://systems/instruments/compass_gauge.gd" id="cmp"]
+[ext_resource type="Script" path="res://systems/instruments/cockpit_control.gd" id="ctl"]
 
 [sub_resource type="StandardMaterial3D" id="PanelMat"]
 albedo_color = Color(0.13, 0.13, 0.14, 1)
@@ -116,3 +117,27 @@ arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.035, -0.74)
 script = ExtResource("cmp")
 diameter_m = 0.065
+
+[node name="Magnetos" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.205, -0.17, -0.758)
+script = ExtResource("ctl")
+control = "magnetos"
+label = "SWITCH"
+knob_color = Color(0.1, 0.1, 0.1, 1)
+size_m = 0.026
+
+[node name="CarbHeat" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13, -0.175, -0.758)
+script = ExtResource("ctl")
+control = "carb_heat"
+label = "CARB HEAT"
+knob_color = Color(0.85, 0.85, 0.82, 1)
+size_m = 0.022
+
+[node name="FuelValve" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.205, -0.17, -0.758)
+script = ExtResource("ctl")
+control = "fuel_selector"
+label = "FUEL"
+knob_color = Color(0.3, 0.3, 0.3, 1)
+size_m = 0.026

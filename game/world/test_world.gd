@@ -8,6 +8,8 @@ extends Node3D
 @export var strip_width_m := 25.0
 ## True heading of the strip, degrees.
 @export var strip_heading_deg := 0.0
+## Spawn with the engine running (true) or cold and dark (false).
+@export var start_engine_running := false
 ## Aircraft available in the test world; N cycles through them.
 @export var aircraft_definitions: Array[AircraftDefinition] = []
 

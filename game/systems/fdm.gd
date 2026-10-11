@@ -31,7 +31,7 @@ func load_model(model: String) -> bool:
 
 
 ## Places the aircraft at rest on its gear at a local position and heading,
-## engine running. The first seconds of gear settling run instantly.
+## engine stopped (EngineSystems decides). Gear settling runs instantly.
 func spawn(world_geo: Geo, local_pos: Vector3, heading_deg: float, terrain_m: float) -> void:
 	geo = world_geo
 	var g := geo.to_geo(local_pos)
@@ -46,20 +46,23 @@ func spawn(world_geo: Geo, local_pos: Vector3, heading_deg: float, terrain_m: fl
 	jsb.run_ic()
 	prop("position/terrain-elevation-asl-ft", terrain_m / FT)
 	set_surface(surface)
-	start_engine()
+	stop_engines()
 	prop("fcs/left-brake-cmd-norm", 1.0)
 	prop("fcs/right-brake-cmd-norm", 1.0)
 	jsb.step_n(int(SETTLE_SECONDS * Engine.physics_ticks_per_second))
 
 
-func start_engine() -> void:
-	prop("propulsion/magneto_cmd", 3)
-	prop("fcs/mixture-cmd-norm", 1.0)
+## Note: "propulsion/set-running" = N *starts* engine N (-1 = all), so
+## stopping goes through each engine's own set-running.
+func start_engines() -> void:
 	prop("propulsion/set-running", -1)
 
 
-func stop_engine() -> void:
-	prop("propulsion/magneto_cmd", 0)
+func stop_engines() -> void:
+	var i := 0
+	while jsb.has_property("propulsion/engine[%d]/set-running" % i):
+		prop("propulsion/engine[%d]/set-running" % i, 0)
+		i += 1
 
 
 func engine_running() -> bool:

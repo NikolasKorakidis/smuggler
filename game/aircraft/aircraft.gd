@@ -10,6 +10,7 @@ const TRIM_RATE := 0.25  # full trim travel in 4 s
 
 var world: Node3D  # TestWorld (provides geo, spawn_point, surface_at, terrain_height)
 var airframe: Node3D
+var engine: EngineSystems
 var trim := 0.0
 var flap_notch := 0
 
@@ -21,6 +22,10 @@ func setup(world_node: Node3D) -> bool:
 	if not fdm.load_model(definition.jsbsim_model):
 		push_error("Could not load JSBSim model '%s'" % definition.jsbsim_model)
 		return false
+	engine = EngineSystems.new()
+	engine.name = "Engine"
+	engine.setup(definition, fdm)
+	add_child(engine)
 	if definition.visual_scene:
 		airframe = definition.visual_scene.instantiate()
 	else:
@@ -42,6 +47,7 @@ func respawn() -> void:
 	var sp: Dictionary = world.spawn_point()
 	fdm.surface = world.surface_at(sp.position)
 	fdm.spawn(world.geo, sp.position, sp.heading_deg, world.terrain_height(sp.position))
+	engine.reset(world.start_engine_running)
 	trim = 0.0
 	flap_notch = 0
 	FlightInput.set_throttle_keyboard(0.0)
@@ -62,6 +68,7 @@ func _physics_process(delta: float) -> void:
 	if surface != fdm.surface:
 		fdm.set_surface(surface)
 	fdm.prop("position/terrain-elevation-asl-ft", world.terrain_height(here) / FT)
+	engine.apply(delta)
 	fdm.step()
 	if not fdm.is_valid():
 		push_warning("FDM diverged, respawning")
@@ -77,11 +84,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		flap_notch = mini(flap_notch + 1, maxi(definition.flap_detents.size() - 1, 0))
 	elif event.is_action_pressed("flaps_up"):
 		flap_notch = maxi(flap_notch - 1, 0)
-	elif event.is_action_pressed("engine_toggle"):
-		if fdm.engine_running():
-			fdm.stop_engine()
-		else:
-			fdm.start_engine()
+	# Exact matches so Shift+M / Ctrl+E don't also fire M / E.
+	elif event.is_action_pressed("magnetos_down", false, true):
+		engine.set_magnetos(engine.magnetos - 1)
+	elif event.is_action_pressed("magnetos_up", false, true):
+		engine.set_magnetos(engine.magnetos + 1)
+	elif event.is_action_pressed("auto_start", false, true):
+		engine.auto_start()
+	elif event.is_action_pressed("primer"):
+		engine.stroke_primer()
+	elif event.is_action_pressed("carb_heat"):
+		engine.set_carb_heat(not engine.carb_heat)
+	elif event.is_action_pressed("fuel_selector"):
+		engine.set_fuel_selector((engine.fuel_selector + 1) % definition.fuel_positions.size())
+	elif event.is_action_pressed("master"):
+		engine.set_master(not engine.master)
 
 
 func _apply_controls(delta: float) -> void:

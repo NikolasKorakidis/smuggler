@@ -23,3 +23,9 @@
 | 2026-10-11 | 172 eyepoint moved to the left seat (y −14 in) | Stock JSBSim had it on the centreline |
 | 2026-10-11 | Placeholder sounds synthesised live from FDM data (no audio files) | Hear something now; recorded engine sounds replace the synth later with the same inputs |
 | 2026-10-11 | Perf note: 172 cockpit ~90 fps, Cub ~145 fps uncapped at 1080p (M4) | Within the 60 fps budget; watch as cockpit detail grows |
+| 2026-10-11 | Start procedure modelled on top of JSBSim by withholding spark until a start would catch (prime, flooding, warmth) | JSBSim starts any engine with spark + fuel + rpm |
+| 2026-10-11 | Cub is hand-propped: pull through with switch OFF primes, each 'contact' swing is one chance to catch | Period-correct J-3, no electrics |
+| 2026-10-11 | Spawn cold and dark in the test world; Ctrl+E auto-start assist | Assists are options, not defaults (design.md) |
+| 2026-10-11 | Carb heat = higher intake impedance (~80 rpm drop) | Same hook carb icing will use in Phase 2 |
+| 2026-10-11 | JSBSim gotcha: propulsion/set-running = N starts engine N; stop via propulsion/engine[i]/set-running = 0 | Cost a debugging round; documented in fdm.gd |
+| 2026-10-11 | Cockpit clicks hit-tested in aircraft space, not physics | Physics positions lag the interpolated camera by up to 0.5 m at cruise |

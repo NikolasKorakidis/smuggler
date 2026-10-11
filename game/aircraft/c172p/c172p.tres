@@ -14,3 +14,6 @@ trim_color = Color(0.15, 0.25, 0.5, 1)
 panel_scene = ExtResource("2")
 cockpit_look_pitch_deg = -6.0
 stall_warning_alpha_deg = 11.5
+fuel_positions = PackedStringArray("OFF", "LEFT", "BOTH", "RIGHT")
+fuel_tanks = Array[PackedInt32Array]([PackedInt32Array(), PackedInt32Array(0), PackedInt32Array(0, 1), PackedInt32Array(1)])
+fuel_default = 2

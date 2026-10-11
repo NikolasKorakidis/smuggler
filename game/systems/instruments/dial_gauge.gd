@@ -32,6 +32,8 @@ extends GaugeBase
 @export var redline := -1.0
 ## First-order lag on the needle, seconds (VSI ~1.5 s).
 @export var lag_s := 0.0
+## Needs electrical power (fuel gauges in the 172); reads minimum without it.
+@export var electric := false
 ## Altimeter thousands needle: short needle at value / ratio. 0 = none.
 @export var second_needle_ratio := 0.0
 
@@ -105,4 +107,6 @@ func angle_for(v: float, exact := false) -> float:
 
 
 func _read() -> float:
+	if electric and not powered():
+		return min_value
 	return prop(property) * value_scale if property != "" else 0.0

@@ -11,6 +11,7 @@ var rotate_kias := 30.0
 func _ready() -> void:
 	FlightInput.joysticks_enabled = false
 	world = load("res://world/test_world.tscn").instantiate()
+	world.start_engine_running = true
 	add_child(world)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--aircraft="):

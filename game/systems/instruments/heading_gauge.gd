@@ -42,4 +42,5 @@ func _build() -> void:
 
 
 func _process(_delta: float) -> void:
-	_card.rotation.z = deg_to_rad(prop("attitude/psi-deg"))
+	if vacuum():  # vacuum gyro: card stays where it was when the engine stops
+		_card.rotation.z = deg_to_rad(prop("attitude/psi-deg"))
