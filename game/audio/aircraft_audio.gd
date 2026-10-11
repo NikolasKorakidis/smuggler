@@ -7,6 +7,7 @@ const MIX_RATE := 22050.0
 
 var fdm: FDM
 var definition: AircraftDefinition
+var engine: EngineSystems
 
 var _player: AudioStreamPlayer
 var _playback: AudioStreamGeneratorPlayback
@@ -19,6 +20,9 @@ var _throttle := 0.0
 var _wind := 0.0
 var _roll := 0.0
 var _horn := 0.0
+var _firing := false  # combustion (JSBSim running), not just turning
+var _crank := 0.0  # starter motor engaged
+var _whine_phase := 0.0
 
 # Oscillator / filter state
 var _fire_phase := 0.0
@@ -52,6 +56,9 @@ func _process(delta: float) -> void:
 	_rpm = lerpf(_rpm, fdm.prop_get("propulsion/engine/engine-rpm"), k)
 	_power = lerpf(_power, clampf(fdm.prop_get("propulsion/engine/power-hp") / 160.0, 0.0, 1.2), k)
 	_throttle = lerpf(_throttle, fdm.prop_get("fcs/throttle-pos-norm"), k)
+	_firing = fdm.prop_get("propulsion/engine/set-running") > 0.5
+	var starter_on := engine != null and engine.cranking() and engine.definition.has_starter
+	_crank = lerpf(_crank, 1.0 if starter_on else 0.0, 1.0 - exp(-delta / 0.05))
 	var kias := maxf(fdm.prop_get("velocities/vc-kts"), 0.0)
 	_wind = lerpf(_wind, clampf(pow(kias / 110.0, 2.0), 0.0, 1.5), k)
 
@@ -78,22 +85,30 @@ func _fill(frames: int) -> void:
 	var dt := 1.0 / MIX_RATE
 	# Four-cylinder four-stroke: two firing pulses per crank revolution.
 	var fire_hz := _rpm / 30.0
-	var running := _rpm > 200.0
-	var engine_gain := (0.25 + 0.55 * _power + 0.2 * _throttle) if running else 0.0
+	var turning := _rpm > 30.0
+	# Firing: full exhaust note. Just turning (cranking, windmilling): soft
+	# compression chuffs, so you can hear the difference when it catches.
+	var engine_gain := (0.25 + 0.55 * _power + 0.2 * _throttle) if _firing else (0.12 if turning else 0.0)
 	var brightness := clampf(0.08 + 0.35 * _throttle + 0.2 * _power, 0.05, 0.6)
 	var wind_cut := clampf(0.02 + 0.12 * _wind, 0.02, 0.25)
 	for i in frames:
 		var s := 0.0
 		# Engine: decaying exhaust pulse per firing, slightly uneven per cylinder.
-		if running:
+		if turning:
 			_fire_phase += fire_hz * dt
 			if _fire_phase >= 1.0:
 				_fire_phase -= 1.0
 				_pulse_gain = 0.8 + 0.4 * _rng.randf()
 			var p := 1.0 - _fire_phase
 			var pulse := (p * p * p * p * 2.0 - 0.4) * _pulse_gain + (_rng.randf() - 0.5) * 0.25 * p
+			if not _firing:
+				pulse = p * p * 1.2 - 0.4  # dull compression stroke, no bang
 			_engine_lp += brightness * (pulse - _engine_lp)
 			s += _engine_lp * engine_gain
+		# Starter motor whine.
+		if _crank > 0.001:
+			_whine_phase = fmod(_whine_phase + (380.0 + _rpm * 1.6) * dt, 1.0)
+			s += (absf(_whine_phase * 2.0 - 1.0) * 2.0 - 1.0) * 0.07 * _crank
 		# Wind: band-limited noise rising with airspeed.
 		var n := _rng.randf() * 2.0 - 1.0
 		_wind_lp += wind_cut * (n - _wind_lp)

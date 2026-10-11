@@ -24,5 +24,8 @@
   <maxthrottle>               1.0  </maxthrottle>
   <minthrottle>               0.1  </minthrottle>
   <sparkfaildrop>             0.1 </sparkfaildrop>
+  <!-- Smuggler: realistic cranking speed (~250 rpm); default was 2x idle (1100). -->
+  <starter-rpm>             320.0 </starter-rpm>
+  <starter-torque>           40.0 </starter-torque>
 </piston_engine>
 

@@ -69,6 +69,11 @@ func reset(running: bool) -> void:
 	changed.emit()
 
 
+## Starter (or a prop swing) turning the engine right now.
+func cranking() -> bool:
+	return (starter and powered()) or _swing_t > 0.0
+
+
 func running() -> bool:
 	return fdm.prop_get("propulsion/engine/set-running") > 0.5
 
@@ -204,7 +209,9 @@ func apply(delta: float) -> void:
 		var q := _start_quality()
 		_catch_progress += delta * q
 		if _catch_progress >= _catch_needed:
+			# Real cranking speed is below JSBSim's own catch rpm, so fire it here.
 			_spark_allowed = true
+			_hand_catch = true
 	elif not cranking:
 		_catch_progress = 0.0
 		_catch_needed = _rng.randf_range(0.6, 2.0)

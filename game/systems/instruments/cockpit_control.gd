@@ -111,6 +111,10 @@ func tooltip() -> String:
 	match control:
 		"magnetos":
 			var pos: String = "START" if e.starter or e.click_starter else EngineSystems.MAGNETO_NAMES[e.magnetos]
+			if e.cranking() and not e.running():
+				return "%s: START — cranking… not firing yet (keep holding; cold engine needs primer)" % label
+			if e.running() and (e.starter or e.click_starter):
+				return "%s: START — ENGINE RUNNING, let go now" % label
 			var hint := "click: next · shift+click: back"
 			if e.magnetos == 3:
 				hint = "hold click: START" if e.definition.has_starter else "click: swing the prop"

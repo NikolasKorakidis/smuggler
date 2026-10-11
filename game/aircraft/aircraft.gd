@@ -40,6 +40,7 @@ func setup(world_node: Node3D) -> bool:
 		audio.name = "Audio"
 		audio.fdm = fdm
 		audio.definition = definition
+		audio.engine = engine
 		add_child(audio)
 	respawn()
 	return true
