@@ -1,12 +1,19 @@
 #include "jsbsim_fdm.h"
 
+#include <cmath>
 #include <exception>
 
 #include <FGFDMExec.h>
+#include <input_output/FGGroundCallback.h>
 #include <input_output/FGPropertyManager.h>
+#include <math/FGColumnVector3.h>
+#include <math/FGLocation.h>
+#include <models/FGInertial.h>
 
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/core/math.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <godot_cpp/variant/vector4.hpp>
 
 using namespace godot;
 
@@ -17,6 +24,64 @@ std::string to_std(const String &s) {
 }
 
 } // namespace
+
+// Ground contact source. Without a Callable it is identical to JSBSim's
+// FGDefaultGroundCallback (level ground at the set terrain elevation). With
+// one, the game world supplies elevation and surface normal per query, so
+// every wheel finds the real ground under it, slopes included.
+class GodotGroundCallback : public JSBSim::FGGroundCallback {
+	double a, b; // planet semi-axes, ft
+	double fallback_elevation_ft = 0.0;
+
+public:
+	godot::Callable callback;
+
+	GodotGroundCallback(double semimajor, double semiminor) :
+			a(semimajor), b(semiminor) {}
+
+	using FGGroundCallback::GetAGLevel;
+
+	double GetAGLevel(double t, const JSBSim::FGLocation &location, JSBSim::FGLocation &contact,
+			JSBSim::FGColumnVector3 &normal, JSBSim::FGColumnVector3 &v,
+			JSBSim::FGColumnVector3 &w) const override {
+		v.InitMatrix();
+		w.InitMatrix();
+		JSBSim::FGLocation l = location;
+		l.SetEllipse(a, b);
+		const double lat = l.GetGeodLatitudeRad();
+		const double lon = l.GetLongitude();
+		const double slat = sin(lat), clat = cos(lat), slon = sin(lon), clon = cos(lon);
+		// Local east / north / up unit vectors in ECEF.
+		const JSBSim::FGColumnVector3 east(-slon, clon, 0.0);
+		const JSBSim::FGColumnVector3 north(-slat * clon, -slat * slon, clat);
+		const JSBSim::FGColumnVector3 up(clat * clon, clat * slon, slat);
+
+		double elevation_ft = fallback_elevation_ft;
+		normal = up;
+		if (callback.is_valid()) {
+			const godot::Variant r = callback.call(godot::Math::rad_to_deg(lat), godot::Math::rad_to_deg(lon));
+			if (r.get_type() == godot::Variant::VECTOR4) {
+				const godot::Vector4 g = r;
+				elevation_ft = g.x / 0.3048;
+				JSBSim::FGColumnVector3 n = east * g.y + north * g.z + up * g.w;
+				const double len = n.Magnitude();
+				if (len > 1e-6 && g.w > 0.0) {
+					normal = n / len;
+				}
+			}
+		}
+		contact.SetEllipse(a, b);
+		contact.SetPositionGeodetic(lon, lat, elevation_ft);
+		// Vertical height above the ground, as JSBSim's gear model expects.
+		return l.GetGeodAltitude() - elevation_ft;
+	}
+
+	void SetTerrainElevation(double h) override { fallback_elevation_ft = h; }
+	void SetEllipse(double semimajor, double semiminor) override {
+		a = semimajor;
+		b = semiminor;
+	}
+};
 
 void JSBSimFDM::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_model", "aircraft_dir", "model"), &JSBSimFDM::load_model);
@@ -33,12 +98,19 @@ void JSBSimFDM::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_property", "name", "value"), &JSBSimFDM::set_property);
 	ClassDB::bind_method(D_METHOD("has_property", "name"), &JSBSimFDM::has_property);
 	ClassDB::bind_method(D_METHOD("list_properties", "filter"), &JSBSimFDM::list_properties, DEFVAL(""));
+	ClassDB::bind_method(D_METHOD("set_ground_callback", "callback"), &JSBSimFDM::set_ground_callback);
 	ClassDB::bind_static_method("JSBSimFDM", D_METHOD("set_debug_level", "level"), &JSBSimFDM::set_debug_level);
 }
 
 JSBSimFDM::JSBSimFDM() {}
 
-JSBSimFDM::~JSBSimFDM() {}
+JSBSimFDM::~JSBSimFDM() {
+	// JSBSim reads tied properties (AGL, terrain elevation) while tearing
+	// down; don't let that call back into a script that is being freed.
+	if (ground) {
+		ground->callback = Callable();
+	}
+}
 
 void JSBSimFDM::set_debug_level(int level) {
 	JSBSim::FGJSBBase::debug_lvl = level;
@@ -46,6 +118,7 @@ void JSBSimFDM::set_debug_level(int level) {
 
 bool JSBSimFDM::load_model(const String &aircraft_dir, const String &model) {
 	try {
+		ground = nullptr;
 		exec = std::make_unique<JSBSim::FGFDMExec>();
 		const std::string dir = to_std(aircraft_dir);
 		exec->SetRootDir(SGPath::fromUtf8(dir));
@@ -57,12 +130,16 @@ bool JSBSimFDM::load_model(const String &aircraft_dir, const String &model) {
 			return false;
 		}
 		model_name = model;
+		auto inertial = exec->GetInertial();
+		ground = new GodotGroundCallback(inertial->GetSemimajor(), inertial->GetSemiminor());
+		inertial->SetGroundCallback(ground); // takes ownership
 		return true;
 	} catch (const std::exception &e) {
 		UtilityFunctions::push_error("JSBSim: exception loading '", model, "': ", e.what());
 	} catch (...) {
 		UtilityFunctions::push_error("JSBSim: unknown exception loading '", model, "'");
 	}
+	ground = nullptr;
 	exec.reset();
 	return false;
 }
@@ -152,4 +229,9 @@ PackedStringArray JSBSimFDM::list_properties(const String &filter) const {
 		}
 	}
 	return out;
+}
+
+void JSBSimFDM::set_ground_callback(const Callable &callback) {
+	ERR_FAIL_COND(!exec || !ground);
+	ground->callback = callback;
 }

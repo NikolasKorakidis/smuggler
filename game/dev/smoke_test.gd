@@ -1,15 +1,35 @@
 extends Node
 ## Headless check that the world loads and the aircraft takes off in Godot.
-## godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn
+## godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn [-- --aircraft=1 --world=terrain]
+
+const WORLDS := {
+	"test": "res://world/test_world.tscn",
+	"terrain": "res://world/terrain_tile/terrain_tile.tscn",
+}
 
 var world: Node3D
 var frames := 0
 var takeoff_frame := -1
+var rotate_kias := 30.0
+var runway_heading := 0.0
 
 
 func _ready() -> void:
-	world = load("res://world/test_world.tscn").instantiate()
+	FlightInput.joysticks_enabled = false
+	var world_path: String = WORLDS.test
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--world="):
+			world_path = WORLDS.get(a.trim_prefix("--world="), world_path)
+	world = load(world_path).instantiate()
+	world.start_engine_running = true
 	add_child(world)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--aircraft="):
+			world._spawn_aircraft(int(a.trim_prefix("--aircraft=")))
+	if world.aircraft.definition.jsbsim_model != "J3Cub":
+		rotate_kias = 55.0
+	runway_heading = world.spawn_point().heading_deg
+	print("aircraft: ", world.aircraft.definition.display_name, "  world: ", world_path)
 
 
 func _process(_delta: float) -> void:
@@ -23,11 +43,12 @@ func _process(_delta: float) -> void:
 	if frames == 2:
 		var lowest := INF
 		for w in ac.airframe._wheels:
-			lowest = minf(lowest, w.global_position.y - w.mesh.top_radius)
-		print("at rest: CG y=%.2f m, lowest wheel bottom y=%.3f m, pitch=%.1f, surface=%s" % [
+			lowest = minf(lowest, w.global_position.y - w.mesh.top_radius
+				- world.terrain_height(w.global_position))
+		print("at rest: CG y=%.2f m, lowest wheel bottom above ground=%.3f m, pitch=%.1f, surface=%s" % [
 			ac.global_position.y, lowest, f.prop_get("attitude/theta-deg"), f.surface])
 		FlightInput.set_throttle_keyboard(1.0)
-	var hdg := wrapf(f.prop_get("attitude/psi-deg"), -180.0, 180.0)
+	var hdg := wrapf(f.prop_get("attitude/psi-deg") - runway_heading, -180.0, 180.0)
 	var r := clampf(-0.15 * hdg - 0.1 * rad_to_deg(f.prop_get("velocities/r-rad_sec")), -1.0, 1.0)
 	Input.action_release("rudder_left")
 	Input.action_release("rudder_right")
@@ -37,7 +58,7 @@ func _process(_delta: float) -> void:
 		Input.action_press("rudder_left", -r)
 	var kias := f.prop_get("velocities/vc-kts")
 	Input.action_release("pitch_back")
-	if kias > 30.0:
+	if kias > rotate_kias:
 		Input.action_press("pitch_back", 0.35)
 	if frames % 120 == 0:
 		print("t=%4.1f KIAS=%5.1f AGL=%6.1f ft HDG=%6.1f pos=(%.0f, %.1f, %.0f) %s rpm=%.0f fps=%d" % [

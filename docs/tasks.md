@@ -1,3 +1,27 @@
+# Current phase: 1 — Flight core
+
+Gate: 172-type matches real stall, climb and takeoff figures; ground handling feels right to Nikolas.
+
+## Claude
+- [x] 172-type aircraft (JSBSim c172p as base) + headless tests vs C172P figures at 2400 lb (8 tests).
+- [x] Flaps control (G/T keys + bindable HOTAS buttons) and aircraft switching (N) in the test world.
+- [x] 3D cockpit with period gauges: ASI, attitude, altimeter, turn coordinator, heading, VSI, tachometer, compass, oil temp/pressure, fuel. Panels per aircraft (Cub: ASI in mph).
+- [x] Clickable cockpit switches (hover shows name and state; wheel turns knobs).
+- [x] Full engine management: master, magnetos, starter (Cub: hand-propping), primer, mixture, carb heat, fuel selector with fuel in the lines. Priming/flooding/cold starts. Ctrl+E start-up assist. Electric and vacuum instruments.
+- [x] Tutorial flight in the checklist: start, takeoff (172: flaps 10°), radio tower ~2 km out and back, land on the strip, taxi to the hangar apron, shut down. Skipped steps don't block it.
+- [x] Flaps: 172 flap switch + position indicator in the cockpit; flaps move on the placeholder model.
+- [x] Self-ticking start-up / before-takeoff checklists per aircraft (top right, K toggles; text files in aircraft/<model>/checklist.txt).
+- [x] Engine sound driven by RPM and power: data-driven synth per aircraft (engine, prop, airframe, cabin/outside views). Recorded sounds can replace it later.
+- [x] One terrain tile (16 x 16 km): paved valley strip with hangar/apron, dirt ridge strip; JSBSim wheels follow real ground height and slope. Now the default world; tutorial runs on it.
+- [x] Performance check at 1080p: terrain 164-288 fps, 172 cockpit ~90 fps on flat world (M4).
+
+## Nikolas
+- [ ] Fly the 172-type: compare stall, climb, takeoff and ground handling with what you know from MSFS.
+- [ ] Pick fictional names for the tutorial plane and the 172-type.
+- [ ] (Before Phase 2) Decide release scope vs date — see design.md → Scope reality check.
+
+---
+
 # Phase 0 — Setup and first flight ✅ passed 2026-10-11
 
 Gate: Nikolas takes off, flies a circuit and lands with the HOTAS.

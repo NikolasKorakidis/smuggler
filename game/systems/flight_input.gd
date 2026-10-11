@@ -11,14 +11,17 @@ const PROFILES_PATH := "res://systems/input_profiles.cfg"
 const WRONG_MODE := {
 	"1103:46715": "HOTAS is in PlayStation mode (blue LED). Hold MODE 3 s, press MODE until the LED is green.",
 }
-const AXES := ["pitch", "roll", "rudder", "throttle", "brake_left", "brake_right"]
+const AXES := ["pitch", "roll", "rudder", "throttle", "mixture", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "trim_up", "trim_down", "camera_next"]
+const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter"]
+## Bound joystick buttons that fire a one-shot action (like a key press).
+const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next", "parking_brake"]
 const LABELS := {
 	"pitch": "Pitch (stick back = +)", "roll": "Roll (right = +)", "rudder": "Rudder (right pedal = +)",
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
-	"brakes": "Both brakes", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
-	"camera_next": "Next camera",
+	"brakes": "Both brakes", "parking_brake": "Parking brake (toggle)", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
+	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
+	"camera_next": "Next camera", "mixture": "Mixture", "starter": "Starter / swing prop",
 }
 
 const KEYS := {
@@ -27,12 +30,18 @@ const KEYS := {
 	"rudder_left": [KEY_Q], "rudder_right": [KEY_E],
 	"throttle_up": [KEY_R], "throttle_down": [KEY_F],
 	"brakes": [KEY_SPACE], "trim_up": [KEY_BRACKETRIGHT], "trim_down": [KEY_BRACKETLEFT],
-	"camera_next": [KEY_C], "reset_aircraft": [KEY_BACKSPACE], "engine_toggle": [KEY_M],
+	"camera_next": [KEY_C], "reset_aircraft": [KEY_BACKSPACE],
+	"magnetos_up": [KEY_M], "magnetos_down": [KEY_M | KEY_MASK_SHIFT], "starter": [KEY_ENTER],
+	"primer": [KEY_P], "mixture_rich": [KEY_X], "mixture_lean": [KEY_Z], "carb_heat": [KEY_V],
+	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
+	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
+	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second
 const THROTTLE_KEY_RATE := 0.5
+const MIXTURE_KEY_RATE := 0.4
 
 ## Outputs, read by the aircraft every physics tick.
 var pitch := 0.0  # +1 full aft stick
@@ -42,12 +51,21 @@ var throttle := 0.0  # 0..1
 var brake_left := 0.0  # 0..1
 var brake_right := 0.0
 var trim := 0.0  # -1..1 rate command, +1 nose up
+## Parking brake: holds both brakes fully on until toggled off.
+var parking_brake := false
 
 ## control -> {guid, device_name, axis, invert, deadzone}
 var axis_bindings := {}
 ## action -> {guid, device_name, button}
 var button_bindings := {}
 
+## False ignores all joysticks (headless tests with hardware plugged in).
+var joysticks_enabled := true
+## Test pilot: any of pitch/roll/rudder/throttle/brake_left/brake_right set
+## here replaces the pilot's input (dev tests only).
+var override := {}
+
+var _seen_axes := {}  # Vector2i(device, axis) that have reported real movement
 var _user_axes := {}  # bindings the player made (saved); the rest come from profiles
 var _user_buttons := {}
 var _profiles := ConfigFile.new()
@@ -62,7 +80,9 @@ func _ready() -> void:
 			InputMap.add_action(action)
 		for key in KEYS[action]:
 			var ev := InputEventKey.new()
-			ev.physical_keycode = key
+			ev.physical_keycode = key & KEY_CODE_MASK
+			ev.shift_pressed = key & KEY_MASK_SHIFT != 0
+			ev.ctrl_pressed = key & KEY_MASK_CTRL != 0
 			InputMap.action_add_event(action, ev)
 	_profiles.load(PROFILES_PATH)
 	load_bindings()
@@ -84,9 +104,12 @@ func _physics_process(delta: float) -> void:
 		throttle = _kb_throttle
 
 	var both := 1.0 if (Input.is_action_pressed("brakes") or _button("brakes")
-		or _pad_button(JOY_BUTTON_A)) else 0.0
+		or _pad_button(JOY_BUTTON_A) or parking_brake) else 0.0
 	brake_left = maxf(both, _axis("brake_left"))
 	brake_right = maxf(both, _axis("brake_right"))
+
+	for k in override:
+		set(k, override[k])
 
 	trim = 0.0
 	if Input.is_action_pressed("trim_up") or _button("trim_up") or _pad_button(JOY_BUTTON_DPAD_DOWN):
@@ -95,14 +118,37 @@ func _physics_process(delta: float) -> void:
 		trim -= 1.0
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("parking_brake"):
+		parking_brake = not parking_brake
+
+
 func _input(event: InputEvent) -> void:
+	# macOS reports axes as centred until they first move; trust them after that.
+	if event is InputEventJoypadMotion:
+		_seen_axes[Vector2i(event.device, event.axis)] = true
 	if event is InputEventJoypadButton and event.pressed:
-		var b = button_bindings.get("camera_next")
-		if b and event.button_index == b.button and Input.get_joy_guid(event.device) == b.guid:
-			var ev := InputEventAction.new()
-			ev.action = "camera_next"
-			ev.pressed = true
-			Input.parse_input_event(ev)
+		for action in PULSE_BUTTONS:
+			var b = button_bindings.get(action)
+			if b and event.button_index == b.button and Input.get_joy_guid(event.device) == b.guid:
+				var ev := InputEventAction.new()
+				ev.action = action
+				ev.pressed = true
+				Input.parse_input_event(ev)
+
+
+## Mixture lever from a bound axis, or null when not bound (keys/clicks set it).
+func mixture_axis():
+	return _axis("mixture") if _bound("mixture") else null
+
+
+## Keyboard mixture change per second (-1 lean .. +1 rich).
+func mixture_key_rate() -> float:
+	return (Input.get_action_strength("mixture_rich") - Input.get_action_strength("mixture_lean")) * MIXTURE_KEY_RATE
+
+
+func starter_held() -> bool:
+	return Input.is_action_pressed("starter") or _button("starter")
 
 
 func set_throttle_keyboard(value: float) -> void:
@@ -214,7 +260,10 @@ func device_for_guid(guid: String) -> int:
 # --- internals --------------------------------------------------------------
 
 func _bound(control: String) -> bool:
-	return control in axis_bindings and device_for_guid(axis_bindings[control].guid) >= 0
+	if not joysticks_enabled or control not in axis_bindings:
+		return false
+	var d := device_for_guid(axis_bindings[control].guid)
+	return d >= 0 and _seen_axes.has(Vector2i(d, axis_bindings[control].axis))
 
 
 func _axis(control: String) -> float:
@@ -235,7 +284,7 @@ func _axis(control: String) -> float:
 
 func _button(action: String) -> bool:
 	var b = button_bindings.get(action)
-	if b == null:
+	if b == null or not joysticks_enabled:
 		return false
 	var d := device_for_guid(b.guid)
 	return d >= 0 and Input.is_joy_button_pressed(d, b.button)
@@ -245,6 +294,8 @@ func _button(action: String) -> bool:
 # are rudder, right stick moves the throttle, cross/A brakes.
 func _pad_axis(axis: JoyAxis) -> float:
 	var total := 0.0
+	if not joysticks_enabled:
+		return total
 	for d in Input.get_connected_joypads():
 		if Input.is_joy_known(d) and not _device_has_bindings(d):
 			var v := Input.get_joy_axis(d, axis)
@@ -253,6 +304,8 @@ func _pad_axis(axis: JoyAxis) -> float:
 
 
 func _pad_button(button: JoyButton) -> bool:
+	if not joysticks_enabled:
+		return false
 	for d in Input.get_connected_joypads():
 		if Input.is_joy_known(d) and not _device_has_bindings(d) and Input.is_joy_button_pressed(d, button):
 			return true
@@ -275,7 +328,9 @@ func _update_keyboard(delta: float) -> void:
 		Input.get_action_strength("pitch_back") - Input.get_action_strength("pitch_fwd"), delta)
 	_kb.roll = _approach(_kb.roll,
 		Input.get_action_strength("roll_right") - Input.get_action_strength("roll_left"), delta)
-	_kb.rudder = _approach(_kb.rudder,
+	# Ctrl+E is auto-start, not right rudder.
+	var ctrl := Input.is_key_pressed(KEY_CTRL)
+	_kb.rudder = _approach(_kb.rudder, 0.0 if ctrl else
 		Input.get_action_strength("rudder_right") - Input.get_action_strength("rudder_left"), delta)
 	var t := Input.get_action_strength("throttle_up") - Input.get_action_strength("throttle_down")
 	_kb_throttle = clampf(_kb_throttle + t * THROTTLE_KEY_RATE * delta, 0.0, 1.0)

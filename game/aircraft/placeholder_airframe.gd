@@ -10,6 +10,9 @@ var _wheels: Array[Node3D] = []
 var _wheel_rest: Array[Vector3] = []
 var _wheel_units: Array[int] = []
 var _prop: Node3D
+var _flaps: Array[Node3D] = []
+var _blades: Array[Node3D] = []
+var _disc: MeshInstance3D
 
 
 func build(fdm: FDM, def: AircraftDefinition) -> void:
@@ -17,8 +20,6 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 	var body := _mat(def.body_color, 0.75)
 	var trim := _mat(def.trim_color, 0.6)
 	var dark := _mat(Color(0.08, 0.08, 0.08), 0.9)
-	var glass := _mat(Color(0.15, 0.2, 0.25, 0.12), 0.05)
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
 	var span := fdm.prop_get("metrics/bw-ft") * 12.0
 	var chord := fdm.prop_get("metrics/cbarw-ft") * 12.0
@@ -54,12 +55,27 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 		Basis.looking_at(back - front) * Basis(Vector3.RIGHT, -PI / 2) * Basis(Vector3.UP, PI / 4),
 		(front + back) * 0.5)
 	add_child(boom)
-	# Windshield and cowling
-	_box(Vector3(rp.x - 0.35 * chord, 0, cabin_top - 14.0), Vector3(rp.x - 0.2 * chord, 0, cabin_top), 26.0, glass)
+	# Cowling
 	_box(Vector3(nose_x, 0, nose_z - 12.0), Vector3(nose_x + 14.0, 0, nose_z + 12.0), 26.0, trim)
 
 	# Wing (quarter chord on the aero reference point)
 	_box(Vector3(rp.x - 0.25 * chord, 0, rp.z), Vector3(rp.x + 0.75 * chord, 0, rp.z + 5.0), span, body)
+	# Flaps: inboard trailing-edge panels hinged at their front edge.
+	if not def.flap_detents.is_empty():
+		var flap_chord := 0.25 * chord
+		var hinge_x := rp.x + 0.75 * chord - flap_chord
+		for side in [-1.0, 1.0]:
+			var hinge := Node3D.new()
+			hinge.position = _p(hinge_x, side * span * 0.21, rp.z)
+			add_child(hinge)
+			var panel := MeshInstance3D.new()
+			var pb := BoxMesh.new()
+			pb.size = Vector3(span * 0.3, 2.5, flap_chord) * IN
+			panel.mesh = pb
+			panel.material_override = trim
+			panel.position = Vector3(0, -0.6 * IN, flap_chord * 0.5 * IN + 0.01)
+			hinge.add_child(panel)
+			_flaps.append(hinge)
 	for side in [-1.0, 1.0]:
 		_rod(Vector3(rp.x, side * 12.0, cabin_bottom + 4.0), Vector3(rp.x, side * span * 0.3, rp.z), 1.5, trim)
 
@@ -107,6 +123,23 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 		blade.basis = Basis(Vector3.BACK, a)
 		blade.position = Vector3(cos(a), sin(a), 0) * radius * 0.5
 		_prop.add_child(blade)
+		_blades.append(blade)
+	# At running rpm a real prop reads as a faint disc, not a visible blade.
+	_disc = MeshInstance3D.new()
+	var disc_mesh := CylinderMesh.new()
+	disc_mesh.top_radius = radius
+	disc_mesh.bottom_radius = radius
+	disc_mesh.height = 0.005
+	disc_mesh.radial_segments = 48
+	_disc.mesh = disc_mesh
+	var disc_mat := _mat(Color(0.1, 0.1, 0.1, 0.08), 0.5)
+	disc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	disc_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_disc.material_override = disc_mat
+	_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_disc.rotation.x = PI / 2
+	_disc.visible = false
+	_prop.add_child(_disc)
 	var spinner := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.09
@@ -123,17 +156,28 @@ func build(fdm: FDM, def: AircraftDefinition) -> void:
 	marker.name = "Eyepoint"
 	marker.position = _p(eye.x, eye.y, eye.z)
 	add_child(marker)
-	_box(Vector3(eye.x - 40.0, 0, eye.z - 15.0), Vector3(eye.x - 38.0, 0, eye.z - 8.0), 22.0,
-		_mat(Color(0.12, 0.11, 0.10), 0.8))
+	if def.panel_scene:
+		var panel := def.panel_scene.instantiate()
+		panel.position = marker.position
+		add_child(panel)
+	else:
+		_box(Vector3(eye.x - 40.0, 0, eye.z - 15.0), Vector3(eye.x - 38.0, 0, eye.z - 8.0), 22.0,
+			_mat(Color(0.12, 0.11, 0.10), 0.8))
 
 
 func _process(delta: float) -> void:
 	if _fdm == null or _fdm.jsb == null:
 		return
+	var flap_deg := _fdm.prop_get("fcs/flap-pos-deg") if not _flaps.is_empty() else 0.0
+	for h in _flaps:
+		h.rotation.x = deg_to_rad(flap_deg)  # trailing edge (aft, +Z) down
 	var rpm := _fdm.prop_get("propulsion/engine/propeller-rpm")
-	# Render-rate aliasing makes real blade speeds look static; show a slow blur instead.
-	var visual_rps := minf(rpm / 60.0, 4.0) if rpm < 300.0 else 4.0 + rpm / 600.0
-	_prop.rotate_object_local(Vector3.BACK, visual_rps * TAU * delta)
+	var spinning := rpm > 350.0
+	_disc.visible = spinning
+	for b in _blades:
+		b.visible = not spinning
+	if not spinning:
+		_prop.rotate_object_local(Vector3.BACK, rpm / 60.0 * TAU * delta)
 	for i in _wheels.size():
 		var c := _fdm.prop_get("gear/unit[%d]/compression-ft" % _wheel_units[i]) * 12.0
 		_wheels[i].position = _wheel_rest[i] + Vector3(0, c * IN, 0)

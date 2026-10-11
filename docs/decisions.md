@@ -15,3 +15,28 @@
 | 2026-10-11 | Ground surface (grass/paved/rough) sets JSBSim's global ground friction from where the aircraft is | JSBSim ignores per-wheel surface factors |
 | 2026-10-11 | T.Flight Hotas 5 must be in PC mode (green LED); built-in default bindings by USB id | PlayStation mode hides throttle/pedal axes from macOS |
 | 2026-10-11 | Phase 0 gate passed (HOTAS circuit flown by Nikolas) | — |
+| 2026-10-11 | 172-type tuned: BSFC 0.43 (was 0.32), prop cp 0.80 / ct 1.08, +0.014 parasite drag, CL ×1.10 | Stock engine made ~226 hp. Now at 2400 lb: 710 fpm, 122 kt, 911 ft roll, stall 51.5/46.9 KCAS vs 700/123/890/51/46 published |
+| 2026-10-11 | Physics tests for the 172 run at 2400 lb max gross | Published figures are at max gross |
+| 2026-10-11 | Joystick axes ignored until they first move | macOS reports unmoved axes as centred: throttle read 50%, toe brakes 50% at start-up |
+| 2026-10-11 | Flap notches defined per aircraft in its .tres | Aircraft are data; Cub has none, 172 has 0/10/20/30° |
+| 2026-10-11 | Instruments: dial faces drawn once into textures + 3D needles; horizon/turn/compass faces redraw per frame. One panel scene per aircraft, positioned from the eyepoint | Crisp, cheap, and every aircraft's panel is data |
+| 2026-10-11 | 172 eyepoint moved to the left seat (y −14 in) | Stock JSBSim had it on the centreline |
+| 2026-10-11 | Placeholder sounds synthesised live from FDM data (no audio files) | Hear something now; recorded engine sounds replace the synth later with the same inputs |
+| 2026-10-11 | Perf note: 172 cockpit ~90 fps, Cub ~145 fps uncapped at 1080p (M4) | Within the 60 fps budget; watch as cockpit detail grows |
+| 2026-10-11 | Start procedure modelled on top of JSBSim by withholding spark until a start would catch (prime, flooding, warmth) | JSBSim starts any engine with spark + fuel + rpm |
+| 2026-10-11 | Cub is hand-propped: pull through with switch OFF primes, each 'contact' swing is one chance to catch | Period-correct J-3, no electrics |
+| 2026-10-11 | Spawn cold and dark in the test world; Ctrl+E auto-start assist | Assists are options, not defaults (design.md) |
+| 2026-10-11 | Carb heat = higher intake impedance (~80 rpm drop) | Same hook carb icing will use in Phase 2 |
+| 2026-10-11 | JSBSim gotcha: propulsion/set-running = N starts engine N; stop via propulsion/engine[i]/set-running = 0 | Cost a debugging round; documented in fdm.gd |
+| 2026-10-11 | Cockpit clicks hit-tested in aircraft space, not physics | Physics positions lag the interpolated camera by up to 0.5 m at cruise |
+| 2026-10-11 | On-screen checklist (top right) that ticks itself; optional, K hides | Teaches the start procedure; an aid like the assists, not a flight HUD |
+| 2026-10-11 | Checklist guidance: only the current section open, big NEXT STEP box, pulsing ring on the cockpit part to use (5th column in checklist.txt) | Nikolas: easier, more visual step-by-step help |
+| 2026-10-11 | Parking brake toggle (. key, bindable HOTAS button, 172 knob); checklists set and release it | Requested; frees the hands during run-up |
+| 2026-10-11 | The checklist doubles as the tutorial: sections can 'until:' a later event so skipped checks never block it | Cub list got stuck when a check was skipped and Nikolas took off |
+| 2026-10-11 | Tutorial navigation uses a real landmark (radio tower) plus distance/clock hints in the checklist, not a HUD marker | Keeps the no-HUD rule for flying; hints are part of the optional aid |
+| 2026-10-11 | Hangar apron is paved; parking square is the tutorial end point | Gives the taxi-in a clear target |
+| 2026-10-11 | Automated tutorial flight test with a scripted pilot for both aircraft | Proves the whole tutorial can be completed after every change |
+| 2026-10-11 | Merged parallel agent branches feature/engine-sound and feature/terrain-tile into phase1-172 | Work done in parallel worktrees; no file overlaps, all tests pass after merge |
+| 2026-10-11 | JSBSim ground contact via a Godot callback (height + normal per wheel) | Slopes and hills under each wheel; flat world unchanged |
+| 2026-10-11 | Terrain tile is the default world; flat test world kept for fast tests | Phase 1 goal; tutorial verified on both |
+| 2026-10-11 | Worlds share a tutorial interface: point(), strip_heading(), strip_length(), on_strip(); tower and parking square in world/landmarks.gd | Same checklist/tutorial works in any world |

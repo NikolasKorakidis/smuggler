@@ -1,0 +1,68 @@
+# 172-type tutorial: start, take off, fly to the radio tower, come back,
+# land, taxi to the hangar, shut down. One item per line:
+#   condition | ITEM | STATE | how to do it | cockpit part to highlight (optional)
+# "== TITLE | until:<condition>": once that is true, what's left of the
+# section (and earlier ones) is marked skipped. Conditions: game/ui/checklist.gd.
+# Hints may use {dist:tower} {clock:tower} (also strip, parking).
+
+== BEFORE START | until:engine_running
+parking_brake_on | PARKING BRAKE  | SET             | Press . (period), or click the PARK BRAKE knob, lower left                  | ParkingBrake
+fuel:BOTH        | FUEL SELECTOR  | BOTH            | Round knob lower right: click it, or press B                               | FuelSelector
+mixture_rich     | MIXTURE        | RICH            | Red knob pushed in: click it, or hold X                                    | Mixture
+carb_heat_off    | CARB HEAT      | COLD            | White knob pushed in: click it, or press V                                 | CarbHeat
+master_on        | MASTER SWITCH  | ON              | Red switch, lower left: click it, or press O                               | Master
+
+== STARTING ENGINE | until:engine_running
+primed           | PRIMER         | 3 STROKES       | Click the black PRIMER knob 3 times, or press P 3 times (not needed warm)  | Primer
+throttle_cracked | THROTTLE       | OPEN A CRACK    | Throttle just above idle: tap R, or ease the HOTAS lever forward           |
+manual           | PROPELLER AREA | CLEAR           | Look outside, then click this line                                         |
+magnetos_both    | IGNITION KEY   | BOTH            | Click the IGNITION key 3 times (OFF-R-L-BOTH), or press M 3 times           | Ignition
+engine_running   | STARTER        | ENGAGE          | Click AND HOLD the IGNITION key (or hold Enter). Let go when it roars       | Ignition
+
+== AFTER START | until:moving
+oil_pressure     | OIL PRESSURE   | IN THE GREEN    | Watch the OIL PSI gauge come up into the green                             | OilPressure
+idle:1200        | THROTTLE       | 1000 RPM        | Set about 1000 on the tachometer                                           | Tachometer
+
+== BEFORE TAKEOFF | until:airborne
+controls_checked | FLIGHT CONTROLS| FREE & CORRECT  | Stick fully forward, back, left, right; both pedals                        |
+trim_takeoff     | ELEVATOR TRIM  | TAKEOFF         | [ / ] until trim is near neutral                                           |
+runup:1800       | THROTTLE       | 1800 RPM        | The parking brake holds you. Add power to 1800 on the tachometer           | Tachometer
+mag_check        | MAGNETOS       | CHECK L, R      | Shift+M to L, Shift+M to R, then M back to BOTH (watch the rpm drop)       | Ignition
+carb_heat_check  | CARB HEAT      | CHECK           | V on: rpm drops. V off again                                               | CarbHeat
+idle:1200        | THROTTLE       | IDLE            | Back to about 1000 rpm                                                     | Tachometer
+flaps_set:1      | FLAPS          | 10°             | Click the FLAPS switch once, or press G once                               | FlapSwitch
+parking_brake_off| PARKING BRAKE  | RELEASE         | Press . (period) or click the PARK BRAKE knob                              | ParkingBrake
+
+== TAKEOFF | until:agl_above:300
+lined_up         | LINE UP        | ON THE STRIP    | Point the nose straight down the strip                                     |
+throttle_full    | THROTTLE       | FULL            | Smoothly full power. Keep it straight with the pedals                      | Tachometer
+kias_above:55    | ROTATE         | 55 KNOTS        | Watch the airspeed. At 55 kt ease the stick back                           | Airspeed
+airborne         | LIFT OFF       | CLIMB AT 65 KT  | Let it fly off, then hold about 65 knots                                   | Airspeed
+
+== AFTER TAKEOFF | until:near:tower:600
+agl_above:300    | CLIMB          | 300 FT          | Keep climbing at 65-70 knots                                               | Altimeter
+flaps_set:0      | FLAPS          | UP              | Click the FLAPS switch with Shift, or press T                              | FlapSwitch
+agl_above:1000   | CLIMB          | 1000 FT         | Climb to 1000 ft, then lower the nose and reduce to about 2300 rpm         | Altimeter
+
+== FLY TO THE TOWER
+near:tower:600   | RADIO TOWER    | REACH IT        | Red-and-white tower {dist:tower} away, at your {clock:tower}. Fly to it    |
+heading_to:strip:25 | TURN BACK   | TOWARDS STRIP   | Turn round the tower and point at the strip: {dist:strip}, {clock:strip}   | Heading
+
+== APPROACH AND LANDING | until:landed
+near:strip:2500  | THE STRIP      | HEAD FOR IT     | Strip {dist:strip} away at your {clock:strip}. Descend towards 500 ft      | Altimeter
+carb_heat_on     | CARB HEAT      | ON              | Before reducing power: press V                                             | CarbHeat
+flaps_at_least:2 | FLAPS          | 20° OR MORE     | Below 85 knots: press G twice. Aim for 65 knots on final                   | FlapSwitch
+landed           | TOUCH DOWN     | ON THE STRIP    | Power to idle over the strip, flare gently, hold the nose up               | Airspeed
+
+== AFTER LANDING | until:parked
+flaps_set:0      | FLAPS          | UP              | Shift+click the FLAPS switch or press T until up                           | FlapSwitch
+carb_heat_off    | CARB HEAT      | COLD            | Press V                                                                    | CarbHeat
+parked           | TAXI           | TO THE HANGAR   | Hangar {dist:parking} at your {clock:parking}. Stop on the yellow square    |
+
+== SHUTDOWN
+parking_brake_on | PARKING BRAKE  | SET             | Press . (period)                                                           | ParkingBrake
+idle:1100        | THROTTLE       | IDLE            | Throttle fully back                                                        | Tachometer
+mixture_cutoff   | MIXTURE        | CUT-OFF         | Click the red MIXTURE knob (pulls it out), or hold Z                       | Mixture
+engine_stopped   | ENGINE         | STOPPED         | Wait for the propeller to stop                                             |
+magnetos_off     | IGNITION KEY   | OFF             | Shift+click the key, or Shift+M, back to OFF                               | Ignition
+master_off       | MASTER SWITCH  | OFF             | Click the red MASTER switch, or press O                                    | Master

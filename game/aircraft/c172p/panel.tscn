@@ -1,0 +1,307 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/instruments/dial_gauge.gd" id="dial"]
+[ext_resource type="Script" path="res://systems/instruments/attitude_gauge.gd" id="att"]
+[ext_resource type="Script" path="res://systems/instruments/heading_gauge.gd" id="hdg"]
+[ext_resource type="Script" path="res://systems/instruments/turn_coordinator.gd" id="tc"]
+[ext_resource type="Script" path="res://systems/instruments/compass_gauge.gd" id="cmp"]
+[ext_resource type="Script" path="res://systems/instruments/cockpit_control.gd" id="ctl"]
+
+[sub_resource type="StandardMaterial3D" id="PanelMat"]
+albedo_color = Color(0.13, 0.13, 0.14, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoardMesh"]
+material = SubResource("PanelMat")
+size = Vector3(1.25, 0.35, 0.03)
+
+[sub_resource type="BoxMesh" id="GlareShieldMesh"]
+material = SubResource("PanelMat")
+size = Vector3(1.25, 0.025, 0.14)
+
+[sub_resource type="BoxMesh" id="PillarMesh"]
+material = SubResource("PanelMat")
+size = Vector3(0.05, 0.42, 0.05)
+
+[sub_resource type="BoxMesh" id="RoofMesh"]
+material = SubResource("PanelMat")
+size = Vector3(1.3, 0.03, 1.1)
+
+[sub_resource type="BoxMesh" id="SillMesh"]
+material = SubResource("PanelMat")
+size = Vector3(0.06, 0.32, 1.3)
+
+[node name="Panel172" type="Node3D"]
+
+[node name="Board" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.31, -0.245, -0.635)
+mesh = SubResource("BoardMesh")
+
+[node name="GlareShield" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.31, -0.065, -0.58)
+mesh = SubResource("GlareShieldMesh")
+
+[node name="Airspeed" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.085, -0.13, -0.618)
+script = ExtResource("dial")
+title = "AIRSPEED"
+label_from = 40.0
+unit_label = "KNOTS"
+property = "velocities/vc-kts"
+min_value = 0.0
+max_value = 180.0
+min_angle = -10.0
+max_angle = 330.0
+major_step = 10.0
+minor_step = 5.0
+label_step = 20.0
+redline = 158.0
+arc_from = PackedFloat32Array(33, 44, 127)
+arc_to = PackedFloat32Array(85, 127, 158)
+arc_colors = PackedColorArray(0.95, 0.95, 0.95, 1, 0.2, 0.75, 0.25, 1, 0.95, 0.8, 0.1, 1)
+
+[node name="Attitude" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.13, -0.618)
+script = ExtResource("att")
+
+[node name="Altimeter" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.085, -0.13, -0.618)
+script = ExtResource("dial")
+title = "ALT"
+unit_label = "FEET"
+property = "position/h-sl-ft"
+min_value = 0.0
+max_value = 1000.0
+min_angle = 0.0
+max_angle = 360.0
+wrap = true
+major_step = 100.0
+minor_step = 20.0
+label_step = 100.0
+label_divisor = 100.0
+second_needle_ratio = 10.0
+
+[node name="TurnCoordinator" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.085, -0.218, -0.618)
+script = ExtResource("tc")
+
+[node name="Heading" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.218, -0.618)
+script = ExtResource("hdg")
+
+[node name="VerticalSpeed" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.085, -0.218, -0.618)
+script = ExtResource("dial")
+title = "VERTICAL SPEED"
+unit_label = "100 FT/MIN"
+property = "velocities/h-dot-fps"
+value_scale = 60.0
+min_value = -2000.0
+max_value = 2000.0
+min_angle = -260.0
+max_angle = 80.0
+major_step = 500.0
+minor_step = 100.0
+label_step = 500.0
+label_divisor = 100.0
+label_abs = true
+lag_s = 1.5
+
+[node name="Tachometer" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.185, -0.218, -0.618)
+script = ExtResource("dial")
+diameter_m = 0.07
+title = "RPM"
+unit_label = "x100"
+property = "propulsion/engine/engine-rpm"
+min_value = 0.0
+max_value = 3500.0
+min_angle = -135.0
+max_angle = 135.0
+major_step = 500.0
+minor_step = 100.0
+label_step = 500.0
+label_divisor = 100.0
+redline = 2700.0
+arc_from = PackedFloat32Array(2100)
+arc_to = PackedFloat32Array(2700)
+arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
+
+[node name="FuelLeft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.165, -0.125, -0.618)
+script = ExtResource("dial")
+electric = true
+diameter_m = 0.05
+title = "FUEL L"
+unit_label = "GAL"
+property = "propulsion/tank[0]/contents-lbs"
+value_scale = 0.16666666666666666
+min_value = 0.0
+max_value = 30.0
+min_angle = -120.0
+max_angle = 120.0
+major_step = 10.0
+minor_step = 5.0
+label_step = 10.0
+arc_from = PackedFloat32Array(0)
+arc_to = PackedFloat32Array(2)
+arc_colors = PackedColorArray(0.85, 0.1, 0.1, 1)
+
+[node name="FuelRight" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.222, -0.125, -0.618)
+script = ExtResource("dial")
+electric = true
+diameter_m = 0.05
+title = "FUEL R"
+unit_label = "GAL"
+property = "propulsion/tank[1]/contents-lbs"
+value_scale = 0.16666666666666666
+min_value = 0.0
+max_value = 30.0
+min_angle = -120.0
+max_angle = 120.0
+major_step = 10.0
+minor_step = 5.0
+label_step = 10.0
+arc_from = PackedFloat32Array(0)
+arc_to = PackedFloat32Array(2)
+arc_colors = PackedColorArray(0.85, 0.1, 0.1, 1)
+
+[node name="OilTemp" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.279, -0.125, -0.618)
+script = ExtResource("dial")
+diameter_m = 0.05
+title = "OIL °F"
+property = "propulsion/engine/oil-temperature-degF"
+min_value = 50.0
+max_value = 250.0
+min_angle = -120.0
+max_angle = 120.0
+major_step = 50.0
+minor_step = 25.0
+label_step = 100.0
+redline = 245.0
+arc_from = PackedFloat32Array(100)
+arc_to = PackedFloat32Array(245)
+arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
+
+[node name="OilPressure" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, -0.218, -0.618)
+script = ExtResource("dial")
+diameter_m = 0.05
+title = "OIL PSI"
+property = "propulsion/engine/oil-pressure-psi"
+min_value = 0.0
+max_value = 120.0
+min_angle = -120.0
+max_angle = 120.0
+major_step = 20.0
+minor_step = 10.0
+label_step = 40.0
+redline = 115.0
+arc_from = PackedFloat32Array(60)
+arc_to = PackedFloat32Array(90)
+arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
+
+[node name="Compass" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.356, -0.035, -0.585)
+script = ExtResource("cmp")
+diameter_m = 0.07
+
+[node name="PillarLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.94, 0.34, 0, -0.34, 0.94, -0.3, 0.12, -0.48)
+mesh = SubResource("PillarMesh")
+
+[node name="PillarRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.94, 0.34, 0, -0.34, 0.94, 1.0, 0.12, -0.48)
+mesh = SubResource("PillarMesh")
+
+[node name="Roof" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.3, -0.05)
+mesh = SubResource("RoofMesh")
+
+[node name="SillLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.33, -0.27, -0.05)
+mesh = SubResource("SillMesh")
+
+[node name="SillRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.04, -0.27, -0.05)
+mesh = SubResource("SillMesh")
+
+[node name="Master" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.235, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "master"
+label = "MASTER"
+knob_color = Color(0.75, 0.1, 0.1, 1)
+size_m = 0.028
+
+[node name="Ignition" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "magnetos"
+label = "IGNITION / START"
+knob_color = Color(0.1, 0.1, 0.1, 1)
+size_m = 0.034
+
+[node name="Primer" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.065, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "primer"
+label = "PRIMER"
+knob_color = Color(0.1, 0.1, 0.1, 1)
+size_m = 0.026
+
+[node name="CarbHeat" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "carb_heat"
+label = "CARB HEAT"
+knob_color = Color(0.85, 0.85, 0.82, 1)
+size_m = 0.028
+
+[node name="Mixture" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.095, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "mixture"
+label = "MIXTURE"
+knob_color = Color(0.75, 0.1, 0.1, 1)
+size_m = 0.028
+
+[node name="FuelSelector" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "fuel_selector"
+label = "FUEL"
+knob_color = Color(0.3, 0.3, 0.3, 1)
+size_m = 0.04
+
+[node name="ParkingBrake" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.225, -0.365, -0.618)
+script = ExtResource("ctl")
+control = "parking_brake"
+label = "PARK BRAKE"
+knob_color = Color(0.1, 0.1, 0.1, 1)
+size_m = 0.026
+
+[node name="FlapSwitch" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.305, -0.618)
+script = ExtResource("ctl")
+control = "flaps"
+label = "FLAPS"
+knob_color = Color(0.85, 0.85, 0.82, 1)
+size_m = 0.03
+
+[node name="FlapIndicator" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.275, -0.305, -0.618)
+script = ExtResource("dial")
+diameter_m = 0.05
+title = "FLAPS"
+unit_label = "DEG"
+property = "fcs/flap-pos-deg"
+max_value = 30.0
+min_angle = -60.0
+max_angle = 60.0
+major_step = 10.0
+minor_step = 5.0
+label_step = 10.0

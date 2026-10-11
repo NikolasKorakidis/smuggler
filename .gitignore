@@ -13,3 +13,4 @@ smuggler-starter.zip
 .sconsign.dblite
 *.os
 *.o
+.claude/worktrees/

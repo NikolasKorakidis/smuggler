@@ -37,7 +37,10 @@ func _process(delta: float) -> void:
 			f.prop_get("velocities/vg-fps") * 0.592484],
 		"RPM %5.0f    THR %3.0f%%   TRIM %+.2f   ENGINE %s" % [
 			f.prop_get("propulsion/engine/engine-rpm"), i.throttle * 100.0, aircraft.trim,
-			"ON" if f.engine_running() else "OFF"],
+			"RUNNING" if f.engine_running() else "STOPPED"],
+		aircraft.engine.status_text(),
 		"STICK p%+.2f r%+.2f  RUD %+.2f  BRK %.1f/%.1f" % [i.pitch, i.roll, i.rudder, i.brake_left, i.brake_right],
-		"SURFACE %s   FPS %d" % [f.surface, Engine.get_frames_per_second()],
+		"FLAPS %2.0f°   FUEL %3.0f lb   WEIGHT %4.0f lb" % [
+			f.prop_get("fcs/flap-pos-deg"), f.prop_get("propulsion/total-fuel-lbs"), f.prop_get("inertia/weight-lbs")],
+		"%s   SURFACE %s   FPS %d" % [aircraft.definition.display_name, f.surface, Engine.get_frames_per_second()],
 	])

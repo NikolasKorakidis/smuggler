@@ -1,6 +1,7 @@
 extends Node3D
-## Phase 0 flat test world: one grass strip on open rough grass, scattered
-## trees and a hangar for height and speed cues. Ground is flat at sea level.
+## Flat test world: one grass strip on open rough grass, a hangar with a
+## paved apron and parking spot, a radio tower ~2 km out for the tutorial
+## circuit, and scattered trees for height and speed cues. Sea level.
 
 @export var origin_lat_deg := 24.0
 @export var origin_lon_deg := -78.0
@@ -8,10 +9,17 @@ extends Node3D
 @export var strip_width_m := 25.0
 ## True heading of the strip, degrees.
 @export var strip_heading_deg := 0.0
-@export var aircraft_definition: AircraftDefinition
+## Spawn with the engine running (true) or cold and dark (false).
+@export var start_engine_running := false
+## Tutorial turning point: distance and true bearing from the strip centre.
+@export var tower_distance_m := 2000.0
+@export var tower_bearing_deg := 30.0
+## Aircraft available in the test world; N cycles through them.
+@export var aircraft_definitions: Array[AircraftDefinition] = []
 
 var geo: Geo
 var aircraft: Aircraft
+var _aircraft_index := 0
 
 
 func _ready() -> void:
@@ -20,13 +28,31 @@ func _ready() -> void:
 	$Strip.rotation.y = -deg_to_rad(strip_heading_deg)
 	_build_strip_markers()
 	_build_hangar()
+	_build_apron()
+	_build_tower()
 	_scatter_trees()
 
+	_spawn_aircraft(0)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("next_aircraft") and aircraft_definitions.size() > 1:
+		_spawn_aircraft((_aircraft_index + 1) % aircraft_definitions.size())
+
+
+func _spawn_aircraft(index: int) -> void:
+	if aircraft:
+		aircraft.queue_free()
+		remove_child(aircraft)
+	_aircraft_index = index
 	aircraft = preload("res://aircraft/aircraft.tscn").instantiate()
-	aircraft.definition = aircraft_definition
+	aircraft.definition = aircraft_definitions[index]
 	add_child(aircraft)
 	if aircraft.setup(self):
+		$Checklist.set_aircraft(aircraft)
+		aircraft.respawned.connect($Checklist.reset)
 		$CameraRig.target = aircraft
+		$CameraRig.recentre()
 		$DebugOverlay.aircraft = aircraft
 
 
@@ -35,7 +61,40 @@ func spawn_point() -> Dictionary:
 	return {"position": -_strip_dir() * (strip_length_m * 0.5 - 30.0), "heading_deg": strip_heading_deg}
 
 
+## Named places the checklist/tutorial refers to.
+func point(name: String) -> Vector3:
+	match name:
+		"tower":
+			var b := deg_to_rad(tower_bearing_deg)
+			return Vector3(sin(b), 0.0, -cos(b)) * tower_distance_m
+		"strip":
+			return Vector3.ZERO
+		"parking":
+			return _strip_basis() * _parking_local()
+	return Vector3.ZERO
+
+
+func strip_heading() -> float:
+	return strip_heading_deg
+
+
+func strip_length() -> float:
+	return strip_length_m
+
+
+## On the runway surface itself (for "lined up" and "landed").
+func on_strip(p: Vector3) -> bool:
+	return surface_at(p) == &"grass_strip"
+
+
+func on_apron(p: Vector3) -> bool:
+	var local := _strip_basis().inverse() * p
+	return local.x > -33.5 and local.x < -strip_width_m * 0.5 and local.z > 315.0 and local.z < 365.0
+
+
 func surface_at(p: Vector3) -> StringName:
+	if on_apron(p):
+		return &"paved"
 	var along := p.dot(_strip_dir())
 	var across := p.dot(_strip_dir().cross(Vector3.UP))
 	if absf(along) <= strip_length_m * 0.5 and absf(across) <= strip_width_m * 0.5:
@@ -95,6 +154,32 @@ func _build_hangar() -> void:
 	add_child(hangar)
 
 
+func _parking_local() -> Vector3:
+	return Vector3(-25.0, 0.0, 340.0)
+
+
+# Paved apron between the hangar and the strip, with a yellow parking square.
+func _build_apron() -> void:
+	var b := _strip_basis()
+	var apron := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(-strip_width_m * 0.5 + 33.5, 50.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.42, 0.41, 0.39)
+	mat.roughness = 0.95
+	plane.material = mat
+	apron.mesh = plane
+	apron.name = "Apron"
+	apron.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	apron.transform = Transform3D(b, b * Vector3((-33.5 - strip_width_m * 0.5) * 0.5, 0.04, 340.0))
+	add_child(apron)
+	Landmarks.parking_square(self, Transform3D(b, b * _parking_local()))
+
+
+func _build_tower() -> void:
+	Landmarks.radio_tower(self, point("tower"))
+
+
 func _scatter_trees() -> void:
 	var cone := CylinderMesh.new()
 	cone.top_radius = 0.0
@@ -117,6 +202,9 @@ func _scatter_trees() -> void:
 		for t in rng.randi_range(6, 40):
 			var p := centre + Vector2.from_angle(rng.randf() * TAU) * radius * sqrt(rng.randf())
 			if absf(p.x) < strip_width_m * 0.5 + 60.0 and absf(p.y) < strip_length_m * 0.5 + 700.0:
+				continue
+			var world_p := b * Vector3(p.x, 0.0, p.y)
+			if Vector2(world_p.x, world_p.z).distance_to(Vector2(point("tower").x, point("tower").z)) < 80.0:
 				continue
 			var s := rng.randf_range(0.7, 1.6)
 			var pos := b * Vector3(p.x, cone.height * 0.5 * s, p.y)
