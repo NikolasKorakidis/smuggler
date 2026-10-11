@@ -1,5 +1,5 @@
 extends CanvasLayer
-## F2: shows every connected controller's raw axes and buttons, and binds
+## J / F2: shows every connected controller's raw axes and buttons, and binds
 ## flight controls by moving them ("Bind", then move the stick/pedal/lever).
 
 const MAX_AXES := 10
@@ -150,7 +150,7 @@ func _build() -> void:
 	_status.custom_minimum_size = Vector2(560, 48)
 	right.add_child(_status)
 	var hint := Label.new()
-	hint.text = "Gamepads work without binding. Bindings are saved per device. F2 closes."
+	hint.text = "Gamepads work without binding. Bindings are saved per device. J closes."
 	hint.modulate = Color(1, 1, 1, 0.6)
 	right.add_child(hint)
 	add_child(_root)
@@ -171,6 +171,13 @@ func _rebuild_devices() -> void:
 		var name := Label.new()
 		name.text = "#%d  %s%s" % [d, Input.get_joy_name(d), "  (gamepad)" if Input.is_joy_known(d) else ""]
 		_devices_box.add_child(name)
+		var warning := FlightInput.mode_warning(d)
+		if warning:
+			var w := Label.new()
+			w.text = warning
+			w.autowrap_mode = TextServer.AUTOWRAP_WORD
+			w.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
+			_devices_box.add_child(w)
 		var grid := GridContainer.new()
 		grid.columns = 2
 		var bars: Array = []
@@ -200,9 +207,9 @@ func _refresh_bindings() -> void:
 		if b == null:
 			row.binding.text = "keyboard" if name not in ["brake_left", "brake_right"] else "-"
 		elif "axis" in b:
-			row.binding.text = "axis %d · %s" % [b.axis, b.device_name]
+			row.binding.text = "axis %d · %s" % [b.axis, "default" if b.get("profile") else b.device_name]
 		else:
-			row.binding.text = "btn %d · %s" % [b.button, b.device_name]
+			row.binding.text = "btn %d · %s" % [b.button, "default" if b.get("profile") else b.device_name]
 		row.binding.tooltip_text = row.binding.text
 		row.invert.set_pressed_no_signal(b != null and b.get("invert", false))
 

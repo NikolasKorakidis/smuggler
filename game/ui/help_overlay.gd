@@ -12,9 +12,9 @@ M                      engine off / on
 C                      chase / cockpit camera
 Right mouse            look around    Wheel: zoom    Middle: recentre
 Backspace              back to the start of the strip
-F2  axis tester and HOTAS/pedal binding
-F3  flight data (dev builds)
-F1  this help"""
+J  (or Fn+F2)          joystick setup: bind HOTAS / pedals
+I  (or Fn+F3)          flight data (dev builds)
+H  (or Fn+F1)          this help"""
 
 var _panel: PanelContainer
 
