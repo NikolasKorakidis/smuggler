@@ -7,3 +7,5 @@ build/
 *.dll
 __pycache__/
 export/
+.venv/
+smuggler-starter.zip
