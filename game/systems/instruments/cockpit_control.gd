@@ -7,7 +7,7 @@ extends Node3D
 
 enum Style { ROTARY, TOGGLE, PUSH_PULL }
 
-## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake, flaps
+## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake, flaps, kollsman
 @export var control := "magnetos"
 @export var label := ""
 @export var knob_color := Color(0.12, 0.12, 0.12)
@@ -32,6 +32,8 @@ func _ready() -> void:
 			_style = Style.ROTARY
 		"master", "flaps":
 			_style = Style.TOGGLE
+		"kollsman":
+			_style = Style.ROTARY
 		_:
 			_style = Style.PUSH_PULL
 	_build()
@@ -56,6 +58,9 @@ func press(reverse: bool) -> void:
 		return
 	if control == "flaps":
 		aircraft.set_flap_notch(aircraft.flap_notch + (-1 if reverse else 1))
+		return
+	if control == "kollsman":
+		_turn_kollsman(-0.01 if reverse else 0.01)
 		return
 	var e := _engine()
 	if e == null:
@@ -91,6 +96,9 @@ func release() -> void:
 
 
 func scroll(dir: int) -> void:
+	if control == "kollsman":
+		_turn_kollsman(0.01 * dir * (10.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0))
+		return
 	if control == "flaps":
 		aircraft.set_flap_notch(aircraft.flap_notch - dir)  # wheel up = flaps up
 		return
@@ -108,6 +116,11 @@ func scroll(dir: int) -> void:
 			press(dir < 0)
 
 
+func _turn_kollsman(step: float) -> void:
+	aircraft.altimeter_setting_inhg = clampf(snappedf(aircraft.altimeter_setting_inhg + step, 0.01), 28.0, 31.0)
+	_moving.rotation.z -= step * 30.0
+
+
 func set_hover(on: bool) -> void:
 	_hover = on
 	_highlight.emission_enabled = on
@@ -116,6 +129,8 @@ func set_hover(on: bool) -> void:
 func tooltip() -> String:
 	if control == "parking_brake":
 		return "%s: %s   (click, or press .)" % [label, "SET (pulled)" if FlightInput.parking_brake else "RELEASED"]
+	if control == "kollsman":
+		return "%s: %.2f inHg   (wheel: ±0.01 · shift+wheel: ±0.10)" % [label, aircraft.altimeter_setting_inhg]
 	if control == "flaps":
 		return "%s: %d°   (click: down · shift+click: up · or G / T)" % [label, aircraft.flap_notch_degrees(aircraft.flap_notch)]
 	var e := _engine()
@@ -206,7 +221,9 @@ func _build() -> void:
 			pointer.position = Vector3(0, r * 0.35, r * 0.7)
 			_moving.add_child(pointer)
 			var names: PackedStringArray
-			if control == "magnetos":
+			if control == "kollsman":
+				names = PackedStringArray()
+			elif control == "magnetos":
 				names = PackedStringArray(EngineSystems.MAGNETO_NAMES)
 				if _engine() and _engine().definition.has_starter:
 					names.append("START")

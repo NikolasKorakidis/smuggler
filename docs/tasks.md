@@ -1,4 +1,27 @@
-# Current phase: 1 — Flight core
+# Current phase: 2 — Weather
+
+Gate: a gusty crosswind landing at dusk feels hard but fair.
+Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
+
+## Claude
+- [x] Weather core: wind with height (boundary layer + veer), gusts, Dryden turbulence, temperature (density altitude), QNH. Presets, U cycles.
+- [x] Windsocks at every strip, driven by the same wind (gusts included).
+- [x] Barometric altimeter with Kollsman window and setting knob; "altimeter set" checklist step.
+- [x] Ground handling in tailwinds: no reversed-flow aero (JSBSim tables don't cover it).
+- [ ] Day/night cycle with compressed time: sun, dusk, night sky, moon; panel lights; landing light. Strips stay unlit.
+- [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction), simple cloud layer.
+- [ ] Weather menu / pick conditions before a flight (instead of U), and an 80s-style radio forecast.
+- [ ] Gate scenario: gusty crosswind at dusk on the valley strip; scripted-pilot test that it is landable.
+
+## Nikolas
+- [ ] Fly the presets (U): gusty crosswind and hot afternoon especially. Report how gusts and turbulence feel.
+- [ ] Phase 1 gate: confirm 172 feel (stall, climb, takeoff, ground handling) incl. the new flaps.
+- [ ] Fictional names for the tutorial plane and the 172-type.
+- [ ] (Before Phase 3) Release scope vs date.
+
+---
+
+# Phase 1 — Flight core ✅ (pending Nikolas's gate: 172 feel vs MSFS — flaps fixed after first feedback)
 
 Gate: 172-type matches real stall, climb and takeoff figures; ground handling feels right to Nikolas.
 

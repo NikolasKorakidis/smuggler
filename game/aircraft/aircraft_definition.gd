@@ -26,6 +26,9 @@ extends Resource
 @export var fuel_tanks: Array[PackedInt32Array] = [PackedInt32Array(), PackedInt32Array([0])]
 @export var fuel_default := 1
 @export_group("")
+## Brake effectiveness (1 = toe brakes that can lock the wheels; the J-3's
+## heel brakes are weak, ~0.4).
+@export_range(0.0, 1.0) var brake_strength := 1.0
 ## Stall warning horn sounds above this angle of attack. 0 = no horn.
 @export var stall_warning_alpha_deg := 0.0
 ## Flap command (0..1) at each notch, first = up. Empty = no flaps.

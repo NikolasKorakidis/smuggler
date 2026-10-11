@@ -15,6 +15,8 @@ var airframe: Node3D
 var engine: EngineSystems
 var trim := 0.0
 var flap_notch := 0
+## Altimeter setting in the Kollsman window, inches of mercury.
+var altimeter_setting_inhg := 29.92
 
 @onready var fdm: FDM = $FDM
 
@@ -53,6 +55,7 @@ func respawn() -> void:
 	engine.reset(world.start_engine_running)
 	trim = 0.0
 	flap_notch = 0
+	altimeter_setting_inhg = 29.92
 	FlightInput.parking_brake = false
 	FlightInput.set_throttle_keyboard(0.0)
 	_place()
@@ -83,6 +86,8 @@ func _physics_process(delta: float) -> void:
 		fdm.set_surface(surface)
 	fdm.prop("position/terrain-elevation-asl-ft", world.terrain_height(here) / FT)
 	engine.apply(delta)
+	if world.get("weather"):
+		world.weather.apply(fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground())
 	fdm.step()
 	if not fdm.is_valid():
 		push_warning("FDM diverged, respawning")
@@ -124,12 +129,19 @@ func _apply_controls(delta: float) -> void:
 	fdm.prop("fcs/rudder-cmd-norm", -i.rudder)
 	fdm.prop("fcs/steer-cmd-norm", i.rudder)
 	fdm.prop("fcs/throttle-cmd-norm", i.throttle)
-	fdm.prop("fcs/left-brake-cmd-norm", i.brake_left)
-	fdm.prop("fcs/right-brake-cmd-norm", i.brake_right)
+	fdm.prop("fcs/left-brake-cmd-norm", i.brake_left * definition.brake_strength)
+	fdm.prop("fcs/right-brake-cmd-norm", i.brake_right * definition.brake_strength)
 	trim = clampf(trim + i.trim * TRIM_RATE * delta, -1.0, 1.0)
 	fdm.prop("fcs/pitch-trim-cmd-norm", -trim)
 	if not definition.flap_detents.is_empty():
 		fdm.prop("fcs/flap-cmd-norm", definition.flap_detents[flap_notch])
+
+
+func _on_ground() -> bool:
+	for w in fdm.wheels():
+		if fdm.prop_get("gear/unit[%d]/WOW" % w.index) > 0.5:
+			return true
+	return false
 
 
 func _place() -> void:

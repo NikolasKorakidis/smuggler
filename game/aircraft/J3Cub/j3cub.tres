@@ -45,3 +45,4 @@ has_primer = false
 has_mixture = false
 checklist = "res://aircraft/J3Cub/checklist.txt"
 sound = SubResource("Sound")
+brake_strength = 0.3

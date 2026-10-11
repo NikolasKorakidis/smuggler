@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://systems/instruments/turn_coordinator.gd" id="tc"]
 [ext_resource type="Script" path="res://systems/instruments/compass_gauge.gd" id="cmp"]
 [ext_resource type="Script" path="res://systems/instruments/cockpit_control.gd" id="ctl"]
+[ext_resource type="Script" path="res://systems/instruments/altimeter_gauge.gd" id="alt"]
 
 [sub_resource type="StandardMaterial3D" id="PanelMat"]
 albedo_color = Color(0.13, 0.13, 0.14, 1)
@@ -43,7 +44,7 @@ arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1, 0.95, 0.8, 0.1, 1)
 
 [node name="Altimeter" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.045, -0.12, -0.758)
-script = ExtResource("dial")
+script = ExtResource("alt")
 title = "ALT"
 unit_label = "FEET"
 property = "position/h-sl-ft"
@@ -141,3 +142,11 @@ control = "fuel_selector"
 label = "FUEL"
 knob_color = Color(0.3, 0.3, 0.3, 1)
 size_m = 0.026
+
+[node name="AltimeterKnob" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.079, -0.156, -0.754)
+script = ExtResource("ctl")
+control = "kollsman"
+label = ""
+knob_color = Color(0.12, 0.12, 0.12, 1)
+size_m = 0.014

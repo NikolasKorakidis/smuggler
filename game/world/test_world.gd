@@ -19,11 +19,15 @@ extends Node3D
 
 var geo: Geo
 var aircraft: Aircraft
+var weather: Weather
 var _aircraft_index := 0
 
 
 func _ready() -> void:
 	geo = Geo.new(origin_lat_deg, origin_lon_deg)
+	weather = Weather.new()
+	weather.name = "Weather"
+	add_child(weather)
 	$Strip.mesh.size = Vector2(strip_width_m, strip_length_m)
 	$Strip.rotation.y = -deg_to_rad(strip_heading_deg)
 	_build_strip_markers()
@@ -178,6 +182,9 @@ func _build_apron() -> void:
 
 func _build_tower() -> void:
 	Landmarks.radio_tower(self, point("tower"))
+	var b := _strip_basis()
+	Landmarks.windsock(self, b * Vector3(strip_width_m * 0.5 + 25.0, 0.0, strip_length_m * 0.5 - 150.0), weather)
+	Landmarks.windsock(self, b * Vector3(-strip_width_m * 0.5 - 25.0, 0.0, -strip_length_m * 0.5 + 150.0), weather)
 
 
 func _scatter_trees() -> void:
