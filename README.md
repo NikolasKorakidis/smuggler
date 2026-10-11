@@ -98,8 +98,9 @@ Start with something cheap and tired. Work your way up to bigger, faster, more c
 | ✅ **World** | Hilly 16 × 16 km terrain with a paved valley strip and a dirt hilltop strip. The ground is real to the physics, so slopes, dirt and grass all handle differently. |
 | ✅ **First flight** | A guided tutorial flight with checklists that tick themselves as you go |
 | ✅ **Controls** | Joystick, throttle and rudder pedals (HOTAS), plus gamepad and keyboard |
-| 🔧 **In progress** | Engine, propeller and wind sound generated live from the engine model |
-| 🔧 **In progress** | Weather: wind, gusts and a weather system that drives both the physics and the visuals |
+| ✅ **Sound** | Engine, propeller, wind and tyre sound generated live from the engine model. A bad mixture or a single magneto sounds rough. |
+| ✅ **Wind** | Wind that changes with height, gusts and turbulence, windsocks at every strip and a barometric altimeter. One weather system drives both the physics and the visuals. |
+| 🔧 **Next up** | Day and night with compressed time, unlit night strips, fog, rain and clouds |
 
 <sub>The images on this page are concept art showing the look we're aiming for. They're not in-game screenshots yet.</sub>
 
@@ -112,8 +113,8 @@ Each phase has a gate, and the next phase doesn't start until that gate has been
 | Phase | What it adds | Gate |
 | --- | --- | --- |
 | **0 · First flight** ✅ | Flight-model bridge, first airplane, test airfield | Take off, fly a circuit, land |
-| **1 · Flight core** 🔧 | Cockpits, engine management, sound, real terrain, second airplane | Real stall, climb and take-off numbers; ground handling feels right |
-| **2 · Weather** | Wind by altitude, gusts, turbulence, fog, rain, day and night | A gusty crosswind landing at dusk feels hard but fair |
+| **1 · Flight core** ✅ | Cockpits, engine management, sound, real terrain, second airplane | Real stall, climb and take-off numbers; ground handling feels right |
+| **2 · Weather** 🔧 | Wind by altitude, gusts, turbulence, fog, rain, day and night | A gusty crosswind landing at dusk feels hard but fair |
 | **3 · The loop** | Jobs, cargo, weight and balance, fuel, money, wear and repairs, radar zones, the paper map, an island group to fly | One full session is fun to play *and* fun to watch |
 | **4 · The world** | More airplanes and upgrades, pursuit, reputation, contacts, radio chatter, a bigger map | Content-complete for Early Access |
 | **5 · Release** | Performance pass, Windows build, playtests | Stable on Mac and Windows |
