@@ -20,6 +20,8 @@ uniform vec4 rect_b[12];
 uniform int rect_count = 0;
 // Ground steeper than this (normal.y below) is rock and scrub ("rough" in physics).
 uniform float rough_normal_y = 0.94;
+// Towards the sun (world axes). Hills shadow the ground beyond the shadow-map range.
+uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);
 
 uniform vec3 grass_dry : source_color = vec3(0.50, 0.46, 0.27);
 uniform vec3 grass_green : source_color = vec3(0.27, 0.32, 0.13);
@@ -34,6 +36,7 @@ uniform vec3 asphalt : source_color = vec3(0.21, 0.21, 0.22);
 uniform vec3 paint : source_color = vec3(0.80, 0.80, 0.76);
 
 varying vec3 world_pos;
+varying float hill_shadow;  // 1 lit .. 0 behind a hill, from the heightmap
 
 vec2 hash2(vec2 p) {
 	p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -172,8 +175,45 @@ void fragment() {
 		col = mix(col, s, inside);
 	}
 
+	// Hill shadows: march the heightmap towards the sun (out to ~4 km).
+	hill_shadow = 1.0;
+	if (sun_dir.y > -0.05) {
+		vec2 sdir = normalize(sun_dir.xz + vec2(1e-5));
+		float slope = sun_dir.y / max(length(sun_dir.xz), 1e-4);
+		float h0 = world_pos.y + 1.5;
+		float t = 15.0;
+		float vis = 1.0;
+		for (int i = 0; i < 20; i++) {
+			float above = h0 + t * slope - height_smooth(xz + sdir * t);
+			vis = min(vis, clamp(above / (t * 0.035) + 0.5, 0.0, 1.0));
+			t *= 1.33;
+		}
+		hill_shadow = vis;
+	}
+	// Ambient occlusion from the terrain shape: hollows and valley floors
+	// see less sky than ridges.
+	float ring = 0.0;
+	for (int k = 0; k < 6; k++) {
+		float a = float(k) * 1.0472 + 0.5;
+		vec2 o = vec2(cos(a), sin(a));
+		ring += max(height_smooth(xz + o * 120.0) - world_pos.y, 0.0) / 120.0;
+	}
+	AO = clamp(1.0 - ring * 0.6, 0.35, 1.0);
+	AO_LIGHT_AFFECT = 0.0;
+
 	ALBEDO = col;
 	ROUGHNESS = rough_px;
 	SPECULAR = 0.25;
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
+}
+
+
+// Lambert (Burley-like) diffuse with the hill shadow on the sun only.
+void light() {
+	float ndl = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	float sh = LIGHT_IS_DIRECTIONAL ? hill_shadow : 1.0;
+	DIFFUSE_LIGHT += ndl * ATTENUATION * LIGHT_COLOR * sh / PI;
+	vec3 h = normalize(VIEW + LIGHT);
+	float spec = pow(clamp(dot(NORMAL, h), 0.0, 1.0), mix(8.0, 64.0, 1.0 - ROUGHNESS)) * (1.0 - ROUGHNESS);
+	SPECULAR_LIGHT += spec * ndl * ATTENUATION * LIGHT_COLOR * sh * 0.08;
 }

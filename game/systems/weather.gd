@@ -15,15 +15,15 @@ const HPA_TO_PSF := 2.0885434
 ## 0..1, sea-level temperature (°C) and QNH (hPa).
 const PRESETS := [
 	{"name": "Calm", "wind_dir": 0.0, "wind_kt": 0.0, "gust_kt": 0.0, "aloft_kt": 5.0, "veer": 10.0,
-		"turbulence": 0.0, "temp_c": 15.0, "qnh": 1013.0},
+		"turbulence": 0.0, "temp_c": 15.0, "qnh": 1013.0, "clouds": 0.1},
 	{"name": "Light breeze", "wind_dir": 60.0, "wind_kt": 7.0, "gust_kt": 0.0, "aloft_kt": 15.0, "veer": 20.0,
-		"turbulence": 0.1, "temp_c": 22.0, "qnh": 1016.0},
+		"turbulence": 0.1, "temp_c": 22.0, "qnh": 1016.0, "clouds": 0.3},
 	{"name": "Gusty crosswind", "wind_dir": 150.0, "wind_kt": 14.0, "gust_kt": 10.0, "aloft_kt": 28.0, "veer": 25.0,
-		"turbulence": 0.45, "temp_c": 24.0, "qnh": 1006.0},
+		"turbulence": 0.45, "temp_c": 24.0, "qnh": 1006.0, "clouds": 0.5},
 	{"name": "Hot afternoon", "wind_dir": 110.0, "wind_kt": 9.0, "gust_kt": 6.0, "aloft_kt": 18.0, "veer": 15.0,
-		"turbulence": 0.35, "temp_c": 38.0, "qnh": 1009.0},
+		"turbulence": 0.35, "temp_c": 38.0, "qnh": 1009.0, "clouds": 0.2},
 	{"name": "Low pressure, windy", "wind_dir": 210.0, "wind_kt": 20.0, "gust_kt": 12.0, "aloft_kt": 38.0, "veer": 30.0,
-		"turbulence": 0.6, "temp_c": 12.0, "qnh": 992.0},
+		"turbulence": 0.6, "temp_c": 12.0, "qnh": 992.0, "clouds": 0.7},
 ]
 
 @export var preset := 0
@@ -35,6 +35,8 @@ const PRESETS := [
 @export_range(0.0, 1.0) var turbulence := 0.0
 @export var temp_c := 15.0
 @export var qnh_hpa := 1013.0
+## Fair-weather cloud cover, 0 clear .. 1 overcast (visual for now).
+@export_range(0.0, 1.0) var cloud_cover := 0.1
 @export var seed := 1985
 ## Seconds to blend from one weather to the next (wind never jumps).
 @export var transition_s := 20.0
@@ -79,6 +81,7 @@ func _apply_fields(p: Dictionary, k: float) -> void:
 	turbulence = lerpf(turbulence, p.turbulence, k)
 	temp_c = lerpf(temp_c, p.temp_c, k)
 	qnh_hpa = lerpf(qnh_hpa, p.qnh, k)
+	cloud_cover = lerpf(cloud_cover, p.get("clouds", 0.2), k)
 
 
 func preset_name() -> String:

@@ -85,6 +85,8 @@ func _ready() -> void:
 	time_of_day = TimeOfDay.new()
 	time_of_day.name = "TimeOfDay"
 	add_child(time_of_day)
+	time_of_day.weather = weather
+	time_of_day.camera = $CameraRig
 	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg)
 	_spawn_aircraft(0)
 
@@ -508,6 +510,8 @@ func _add_lamp(pos: Vector3) -> void:
 
 
 func _process(_delta: float) -> void:
+	if time_of_day:
+		($Terrain.material as ShaderMaterial).set_shader_parameter("sun_dir", time_of_day.sun_direction())
 	var on := time_of_day != null and time_of_day.darkness() > 0.3
 	for lamp in _lamps:
 		lamp.visible = on
