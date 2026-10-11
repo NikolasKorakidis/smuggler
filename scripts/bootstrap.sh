@@ -27,7 +27,8 @@ command -v cmake   >/dev/null && ok "CMake"               || miss "CMake" "cmake
 command -v scons   >/dev/null && ok "SCons"               || miss "SCons (builds the Godot extension)" "scons"
 command -v gh      >/dev/null && ok "GitHub CLI"          || miss "GitHub CLI" "gh"
 if [[ -d "/Applications/Godot.app" ]] || command -v godot >/dev/null; then ok "Godot"; else miss "Godot 4.7" "godot"; fi
-python3 -c "import jsbsim" 2>/dev/null && ok "JSBSim Python package" || miss "JSBSim Python package" "jsbsim-py"
+VENV="$(cd "$(dirname "$0")/.." && pwd)/.venv"
+"$VENV/bin/python" -c "import jsbsim" 2>/dev/null && ok "JSBSim Python package (.venv)" || miss "JSBSim Python package (.venv)" "jsbsim-py"
 
 echo
 if [[ ${#MISSING[@]} -eq 0 ]]; then echo "All set."; exit 0; fi
@@ -41,7 +42,7 @@ for m in "${MISSING[@]}"; do
     git|cmake|scons|gh) brew install "$m" ;;
     python)    brew install python ;;
     godot)     brew install --cask godot ;;
-    jsbsim-py) python3 -m pip install --user jsbsim || python3 -m pip install --user --break-system-packages jsbsim ;;
+    jsbsim-py) PY="$(command -v python3.12 || command -v python3)"; "$PY" -m venv "$VENV" && "$VENV/bin/pip" install -q jsbsim ;;
   esac
 done
 echo "Done. Re-run without --install to verify."

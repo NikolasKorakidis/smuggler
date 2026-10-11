@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+# Builds the JSBSim <-> Godot bridge. Run via scripts/build_extension.sh,
+# which builds libJSBSim.a first.
+
+env = SConscript("thirdparty/godot-cpp/SConstruct", {"api_version": "4.7"})
+
+jsbsim_src = "thirdparty/jsbsim/src"
+jsbsim_lib = "build/jsbsim/src"
+
+env.Append(CPPPATH=["src/", jsbsim_src])
+env.Append(LIBPATH=[jsbsim_lib])
+env.Append(LIBS=["JSBSim"])
+
+sources = Glob("src/*.cpp")
+out_dir = "../../game/bin/"
+
+library = env.SharedLibrary(
+    out_dir + "libjsbsim_gd.{}.{}{}".format(env["platform"], env["target"], env["SHLIBSUFFIX"]),
+    source=sources,
+)
+
+env.NoCache(library)
+Default(library)
