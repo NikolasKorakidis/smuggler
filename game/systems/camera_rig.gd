@@ -95,6 +95,10 @@ func _process(delta: float) -> void:
 			* Vector3(0, 0, chase_distance)
 		var focus := t.origin + Vector3(0, CHASE_HEIGHT, 0)
 		global_position = focus + offset
+		# Stay above the ground on hilly terrain.
+		var floor_y: float = target.world.terrain_height(global_position) + 0.5
+		if global_position.y < floor_y:
+			global_position.y = floor_y
 		look_at(focus, Vector3.UP)
 	else:
 		var eye := target.eyepoint().get_global_transform_interpolated()

@@ -1,0 +1,95 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://world/terrain_tile/terrain_tile.gd" id="1_world"]
+[ext_resource type="Script" path="res://systems/camera_rig.gd" id="2_cam"]
+[ext_resource type="Script" path="res://ui/debug_overlay.gd" id="3_debug"]
+[ext_resource type="Script" path="res://ui/axis_tester.gd" id="4_axis"]
+[ext_resource type="Script" path="res://ui/help_overlay.gd" id="5_help"]
+[ext_resource type="Resource" path="res://aircraft/J3Cub/j3cub.tres" id="6_cub"]
+[ext_resource type="Resource" path="res://aircraft/c172p/c172p.tres" id="7_c172"]
+[ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="8_def"]
+[ext_resource type="Script" path="res://ui/checklist.gd" id="9_check"]
+[ext_resource type="Script" path="res://world/terrain_tile/terrain_renderer.gd" id="10_terrain"]
+[ext_resource type="Shader" path="res://world/terrain_tile/terrain.gdshader" id="11_shader"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.22, 0.42, 0.72, 1)
+sky_horizon_color = Color(0.7, 0.75, 0.8, 1)
+ground_bottom_color = Color(0.7, 0.75, 0.8, 1)
+ground_horizon_color = Color(0.7, 0.75, 0.8, 1)
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.7, 0.75, 0.8, 1)
+fog_density = 6e-05
+fog_sky_affect = 0.2
+
+[sub_resource type="FastNoiseLite" id="MacroNoise"]
+frequency = 0.006
+fractal_octaves = 5
+
+[sub_resource type="NoiseTexture2D" id="MacroTex"]
+width = 512
+height = 512
+seamless = true
+generate_mipmaps = true
+noise = SubResource("MacroNoise")
+
+[sub_resource type="FastNoiseLite" id="DetailNoise"]
+frequency = 0.03
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="DetailTex"]
+width = 512
+height = 512
+seamless = true
+generate_mipmaps = true
+noise = SubResource("DetailNoise")
+
+[sub_resource type="ShaderMaterial" id="TerrainMat"]
+shader = ExtResource("11_shader")
+shader_parameter/macro_noise = SubResource("MacroTex")
+shader_parameter/detail_noise = SubResource("DetailTex")
+
+[node name="TerrainTile" type="Node3D"]
+script = ExtResource("1_world")
+aircraft_definitions = Array[ExtResource("8_def")]([ExtResource("6_cub"), ExtResource("7_c172")])
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, 0.383798, -0.426250, 0.000000, 0.743145, 0.669131, 0.573576, -0.548120, 0.608749, 0, 0, 0)
+light_energy = 1.1
+shadow_enabled = true
+directional_shadow_max_distance = 600.0
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource("10_terrain")
+material = SubResource("TerrainMat")
+
+[node name="CameraRig" type="Camera3D" parent="."]
+near = 0.05
+far = 120000.0
+fov = 70.0
+script = ExtResource("2_cam")
+
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("3_debug")
+
+[node name="AxisTester" type="CanvasLayer" parent="."]
+script = ExtResource("4_axis")
+
+[node name="Help" type="CanvasLayer" parent="."]
+script = ExtResource("5_help")
+
+[node name="Checklist" type="CanvasLayer" parent="."]
+script = ExtResource("9_check")
