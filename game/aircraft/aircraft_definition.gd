@@ -12,6 +12,8 @@ extends Resource
 @export var panel_scene: PackedScene
 ## Default cockpit camera pitch, degrees (negative = looking down at the panel).
 @export var cockpit_look_pitch_deg := -4.0
+## Stall warning horn sounds above this angle of attack. 0 = no horn.
+@export var stall_warning_alpha_deg := 0.0
 ## Flap command (0..1) at each notch, first = up. Empty = no flaps.
 @export var flap_detents: PackedFloat32Array = []
 @export_group("Placeholder")

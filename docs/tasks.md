@@ -8,7 +8,7 @@ Gate: 172-type matches real stall, climb and takeoff figures; ground handling fe
 - [x] 3D cockpit with period gauges: ASI, attitude, altimeter, turn coordinator, heading, VSI, tachometer, compass, oil temp/pressure, fuel. Panels per aircraft (Cub: ASI in mph).
 - [ ] Clickable cockpit switches (with engine management below).
 - [ ] Full engine management: magnetos, primer, starter, mixture, carb heat, fuel selector. Optional "simplified start-up" assist.
-- [ ] Engine sound driven by RPM and power.
+- [~] Engine sound driven by RPM and power. Placeholder synth in place (engine, wind, tyres, touchdown, 172 stall horn); recorded sounds later.
 - [ ] One real terrain tile with a dirt strip and a paved strip (replaces the flat test world as default).
 - [ ] Performance check at 1080p after cockpit and terrain.
 

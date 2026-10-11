@@ -21,3 +21,5 @@
 | 2026-10-11 | Flap notches defined per aircraft in its .tres | Aircraft are data; Cub has none, 172 has 0/10/20/30° |
 | 2026-10-11 | Instruments: dial faces drawn once into textures + 3D needles; horizon/turn/compass faces redraw per frame. One panel scene per aircraft, positioned from the eyepoint | Crisp, cheap, and every aircraft's panel is data |
 | 2026-10-11 | 172 eyepoint moved to the left seat (y −14 in) | Stock JSBSim had it on the centreline |
+| 2026-10-11 | Placeholder sounds synthesised live from FDM data (no audio files) | Hear something now; recorded engine sounds replace the synth later with the same inputs |
+| 2026-10-11 | Perf note: 172 cockpit ~90 fps, Cub ~145 fps uncapped at 1080p (M4) | Within the 60 fps budget; watch as cockpit detail grows |

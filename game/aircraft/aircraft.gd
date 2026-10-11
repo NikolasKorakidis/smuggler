@@ -28,6 +28,12 @@ func setup(world_node: Node3D) -> bool:
 		airframe.build(fdm, definition)
 	airframe.name = "Airframe"
 	add_child(airframe)
+	if not "--no-audio" in OS.get_cmdline_user_args():
+		var audio := preload("res://audio/aircraft_audio.gd").new()
+		audio.name = "Audio"
+		audio.fdm = fdm
+		audio.definition = definition
+		add_child(audio)
 	respawn()
 	return true
 
