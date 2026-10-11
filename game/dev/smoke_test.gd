@@ -42,9 +42,8 @@ func _process(_delta: float) -> void:
 	var f := ac.fdm
 	if frames == 2:
 		var lowest := INF
-		for w in ac.airframe._wheels:
-			lowest = minf(lowest, w.global_position.y - w.mesh.top_radius
-				- world.terrain_height(w.global_position))
+		for w in ac.airframe.wheel_contacts():
+			lowest = minf(lowest, w.point.y - world.terrain_height(w.point))
 		print("at rest: CG y=%.2f m, lowest wheel bottom above ground=%.3f m, pitch=%.1f, surface=%s" % [
 			ac.global_position.y, lowest, f.prop_get("attitude/theta-deg"), f.surface])
 		FlightInput.set_throttle_keyboard(1.0)

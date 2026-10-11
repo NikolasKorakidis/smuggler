@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://aircraft/aircraft_definition.gd" id="1"]
 [ext_resource type="PackedScene" path="res://aircraft/J3Cub/panel.tscn" id="2"]
 [ext_resource type="Script" path="res://audio/aircraft_sound.gd" id="3"]
+[ext_resource type="PackedScene" path="res://aircraft/J3Cub/model/cub_model.tscn" id="4"]
 
 [sub_resource type="Resource" id="Sound"]
 script = ExtResource("3")
@@ -37,6 +38,7 @@ script = ExtResource("1")
 jsbsim_model = "J3Cub"
 display_name = "Tutorial plane (placeholder)"
 prop_diameter_m = 1.83
+visual_scene = ExtResource("4")
 panel_scene = ExtResource("2")
 cockpit_look_pitch_deg = -3.0
 has_master = false

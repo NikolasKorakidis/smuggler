@@ -183,6 +183,15 @@ func _process(delta: float) -> void:
 		_wheels[i].position = _wheel_rest[i] + Vector3(0, c * IN, 0)
 
 
+## Bottom of each wheel in world space: [{unit, point}]. Shared with model_airframe.gd.
+func wheel_contacts() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in _wheels.size():
+		var r: float = (_wheels[i].mesh as CylinderMesh).top_radius
+		out.append({"unit": _wheel_units[i], "point": _wheels[i].global_position - global_basis.y * r})
+	return out
+
+
 # --- helpers ----------------------------------------------------------------
 
 func _p(x_in: float, y_in: float, z_in: float) -> Vector3:
