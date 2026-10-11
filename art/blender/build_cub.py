@@ -10,11 +10,20 @@ y right, z up, inches -> Blender (y, -x, z) * 0.0254). Dimensions from J3Cub.xml
 
 Node names follow game/aircraft/model_airframe.gd (hinges, Prop, Wheel_*, Steer_*).
 """
-import bpy, bmesh, math, os
+import bpy, bmesh, math, os, sys, importlib
+import numpy as np
 from mathutils import Vector, Matrix
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import paint_tools as pt
+importlib.reload(pt)
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "game", "aircraft", "J3Cub", "model", "cub.glb")
+TEX_DIR = os.path.join(REPO, "art", "blender", "out")  # PNG copies for inspection (not committed)
+# Texture sizes; drop QUALITY to 0.5 while iterating.
+QUALITY = globals().get("QUALITY", 1.0)
+TEX = {"fus": (2048, 1024), "wing": (4096, 1024), "tail": (2048, 1024)}
 REG = "N7283K"
 
 # --- materials ---------------------------------------------------------------
@@ -46,7 +55,7 @@ def material(name, hexcol, rough=0.8, metal=0.0, alpha=1.0, double=False):
     return m
 
 
-M = {}
+M, IMGS = {}, {}
 def make_materials():
     M["blue"] = material("Paint_Blue", "#4E7D96", 0.7)
     M["cream"] = material("Fabric_Cream", "#E3D9BF", 0.85)
@@ -59,25 +68,30 @@ def make_materials():
     M["prop"] = material("Prop_Black", "#151515", 0.5)
     M["tip"] = material("Prop_Tip", "#E8B830", 0.5)
     M["disc"] = material("Prop_Disc", "#202020", 0.5, alpha=0.08, double=True)
-    M["reg"] = material("Registration", "#ECE4CC", 0.7, double=True)
+    M["reg"] = material("Registration", "#E2DAC2", 0.7, double=True)
+    M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
+    for key, (w, h) in TEX.items():
+        M["tex_" + key], IMGS[key] = pt.textured_material("Cub_" + key.capitalize(),
+                                                         int(w * QUALITY), int(h * QUALITY))
 
 # --- mesh building -------------------------------------------------------------
 
 class MB:
     """Vertices + faces with a material key per face."""
     def __init__(self):
-        self.v, self.f, self.m = [], [], []
+        self.v, self.f, self.m, self.uv = [], [], [], []
 
-    def vert(self, p):
+    def vert(self, p, uv=(0.0, 0.0)):
         self.v.append(tuple(p))
+        self.uv.append(tuple(uv))
         return len(self.v) - 1
 
     def face(self, idx, mat):
         self.f.append(list(idx))
         self.m.append(mat)
 
-    def ring(self, pts):
-        return [self.vert(p) for p in pts]
+    def ring(self, pts, uvs=None):
+        return [self.vert(p, uvs[i] if uvs else (0.0, 0.0)) for i, p in enumerate(pts)]
 
     def loft(self, rings, mat, cap0=False, cap1=False, closed=True):
         """rings: lists of vertex indices, equal length. mat(i, j) or a key."""
@@ -104,6 +118,13 @@ def obj(name, mb, parent=None, recalc=True, smooth=35.0):
     for poly, k in zip(me.polygons, mb.m):
         poly.material_index = keys.index(k)
     me.validate()
+    uvl = me.uv_layers.new(name="UVMap")
+    vi = [0] * len(me.loops)
+    me.loops.foreach_get("vertex_index", vi)
+    flat = []
+    for v in vi:
+        flat += mb.uv[v]
+    uvl.data.foreach_set("uv", flat)
     if recalc:
         bm = bmesh.new()
         bm.from_mesh(me)
@@ -238,12 +259,12 @@ def section(y, inset=0.0):
     zs = zb + 0.45 * h
     right = [(0, zb), (0.40 * w, zb), (0.5 * w, zb + min(0.06, 0.15 * h)), (0.5 * w, zs),
              (0.5 * w, zs + 0.025), (0.5 * w, zs + 0.045), (0.5 * w, zwb), (0.47 * w, zwt),
-             (0.33 * w, zt - 0.012), (0, zt)]
+             (0.33 * w, zt - 0.012), (0.17 * w, zt - 0.003), (0, zt)]
     ring = right + [(-x, z) for x, z in reversed(right[1:-1])]
     return [Vector((x, y, z)) for x, z in ring]
 
 
-def band_of(j, n_right=10):
+def band_of(j, n_right=11):
     return j if j < n_right - 1 else 2 * (n_right - 1) - 1 - j
 
 
@@ -256,26 +277,36 @@ def side_window(y):
 
 
 def fus_material(y, band):
-    if band <= 2 or band == 4:
-        return "blue"
-    if band in (3, 5):
-        return "cream"
     if band == 6:
-        return "glass" if (windshield(y) or side_window(y)) else "cream"
-    return "glass" if windshield(y) else "cream"
+        return "glass" if (windshield(y) or side_window(y)) else "tex_fus"
+    if band >= 7:
+        return "glass" if windshield(y) else "tex_fus"
+    return "tex_fus"
+
+
+FUS_Y0, FUS_LEN = 1.72, 6.34
+
+
+def fus_uv_ring(pts, y):
+    """Closed section + repeated first point; u along the fuselage, v around it."""
+    ring = pts + [pts[0]]
+    arc = [0.0]
+    for a, b in zip(ring, ring[1:]):
+        arc.append(arc[-1] + (b - a).length)
+    u = 0.01 + 0.98 * (FUS_Y0 - y) / FUS_LEN
+    return ring, [(u, 0.01 + 0.98 * a / arc[-1]) for a in arc]
 
 
 def build_fuselage(root):
     mb = MB()
-    rings = [mb.ring(section(y)) for y in STATIONS]
+    rings = [mb.ring(*fus_uv_ring(section(y), y)) for y in STATIONS]
     mid = [(STATIONS[i] + STATIONS[i + 1]) / 2 for i in range(len(STATIONS) - 1)]
-    mb.loft(rings, lambda i, j: fus_material(mid[i], band_of(j)), cap1=True)
-    nose = mb.vert((0, 1.72, -0.62))
+    mb.loft(rings, lambda i, j: fus_material(mid[i], band_of(j)), cap1=True, closed=False)
     first = rings[0]
-    for j in range(len(first)):
-        k = (j + 1) % len(first)
-        mb.face((first[k], first[j], nose), fus_material(1.7, band_of(j)))
-    obj("Fuselage", mb, root, smooth=40)
+    for j in range(len(first) - 1):
+        nose = mb.vert((0, FUS_Y0, -0.62), (0.005, mb.uv[first[j]][1]))
+        mb.face((first[j + 1], first[j], nose), "tex_fus")
+    obj("Fuselage", mb, root, smooth=55)
 
     # Cabin lining seen from the seats: inset, inward-facing, no faces over the glass.
     ib = MB()
@@ -314,22 +345,43 @@ def slab(t_root, blunt_front=False, taper_back=True, x0=0.0):
     return f
 
 
-def surface(mb, stations, c0, c1, profile, mapper, mat, n=12):
-    """stations: [(s, le, te)], chord along Y (le > te). Closed loft between c0..c1."""
+def surface(mb, stations, c0, c1, profile, mapper, mat, n=12, uvf=None, hidden=None):
+    """stations: [(s, le, te)], chord along Y (le > te). Closed loft between c0..c1.
+    Each ring runs lower TE -> LE -> upper TE, so the UV seam sits on the trailing edge.
+    uvf(s, y, x, upper) -> (u, v). Caps and blunt hinge walls get `hidden` (untextured)."""
     xs = [c0 + (c1 - c0) * (0.5 - 0.5 * math.cos(math.pi * k / (n - 1))) for k in range(n)]
-    rings = []
+    rings, blunt_back, blunt_front, n_lo = [], False, False, n
     for s, le, te in stations:
         chord = max(le - te, 1e-4)
-        up = [(x, profile(x, chord)[0]) for x in xs]
-        lo = [(x, profile(x, chord)[1]) for x in reversed(xs)]
-        if abs(up[-1][1] - lo[0][1]) < 1e-6:
-            lo = lo[1:]
-        if abs(up[0][1] - lo[-1][1]) < 1e-6:
-            lo = lo[:-1]
-        pts = [mapper(s, le - x * chord, z) for x, z in up + lo]
-        rings.append(mb.ring(pts))
-    mb.loft(rings, mat, cap0=True, cap1=True)
+        lo = [(x, profile(x, chord)[1], False) for x in reversed(xs)]
+        up = [(x, profile(x, chord)[0], True) for x in xs]
+        blunt_front = abs(up[0][1] - lo[-1][1]) > 1e-6
+        if not blunt_front:
+            up = up[1:]
+        blunt_back = abs(up[-1][1] - lo[0][1]) > 1e-6
+        pts = [mapper(s, le - x * chord, z) for x, z, _ in lo + up]
+        uvs = [uvf(s, le - x * chord, x, u) for x, _, u in lo + up] if uvf else None
+        rings.append(mb.ring(pts, uvs))
+    mf = mat if callable(mat) else (lambda i, j: mat)
+    hid = hidden or mf(0, 0)
+    mb.loft(rings, lambda i, j: hid if (blunt_front and j == n_lo - 1) else mf(i, j), closed=False)
+    if blunt_back:
+        for i in range(len(rings) - 1):
+            a, b = rings[i], rings[i + 1]
+            mb.face((a[-1], a[0], b[0], b[-1]), hid)
+    mb.face(list(reversed(rings[0])), hid)
+    mb.face(rings[-1], hid)
     return rings
+
+
+def chord_uv(u0, du, s_len, v0, dv, x0=0.0, x1=1.0, mirror=1.0):
+    """UV for a chord-parametrised surface: u along span, v around the section
+    (lower TE at v0, leading edge mid-way, upper TE at v0 + dv)."""
+    def f(s, y, x, upper):
+        t = (x - x0) / (x1 - x0) if x1 > x0 else 0.0
+        v = v0 + dv * (0.5 + 0.5 * t if upper else 0.5 - 0.5 * t)
+        return (u0 + du * min(abs(s) / s_len, 1.0), v)
+    return f
 
 
 INC, DIH = math.radians(2.0), math.radians(1.0)
@@ -359,9 +411,9 @@ def build_wing(root):
     tip_s = [4.85, 4.95, 5.05, 5.15, 5.23, 5.29, 5.33, 5.36, 5.37]
     for side in (1, -1):
         mp = wing_mapper(side)
-        surface(mb, [wing_station(s) for s in [0.0, 0.5, 1.0, 1.6, 2.1, AIL0]], 0.0, 1.0, naca4412, mp, "cream", 16)
-        surface(mb, [wing_station(s) for s in [AIL0, 3.2, 4.0, AIL1]], 0.0, AIL_C, naca4412, mp, "cream", 14)
-        surface(mb, [wing_station(s) for s in tip_s], 0.0, 1.0, naca4412, mp, "blue", 16)
+        uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.01, 0.76)
+        for st, c1, n in (([0.0, 0.5, 1.0, 1.6, 2.1, AIL0], 1.0, 16), ([AIL0, 3.2, 4.0, AIL1], AIL_C, 14), (tip_s, 1.0, 16)):
+            surface(mb, [wing_station(s) for s in st], 0.0, c1, naca4412, mp, "tex_wing", n, uv, "cream")
     obj("Wing", mb, root, smooth=50)
 
     for side, tag in ((1, "R"), (-1, "L")):
@@ -370,8 +422,9 @@ def build_wing(root):
         zc = sum(naca4412(AIL_C, WING_LE - WING_TE)) / 2
         hinge = empty("Hinge_aileron_" + tag, mp(AIL0 + 0.02, y_h, zc), (0, -side * DIH, 0), root)
         ab = MB()
+        uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.80, 0.19, AIL_C + 0.005, 1.0)
         surface(ab, [wing_station(s) for s in [AIL0 + 0.02, 3.2, 4.0, AIL1 - 0.02]], AIL_C + 0.005, 1.0,
-                naca4412, mp, "cream", 8)
+                naca4412, mp, "tex_wing", 8, uv, "cream")
         obj("Aileron_" + tag, ab, hinge, smooth=50)
 
 
@@ -390,11 +443,13 @@ def build_tail(root):
     h = 0.5 / 0.8
     st = [0.0, 0.3, 0.6, 0.9, 1.05, 1.15, 1.25, 1.33, 1.39, 1.43, 1.449]
     sb, eb = MB(), MB()
-    tip_mat = lambda i, j: "blue" if i >= 6 else "cream"
     for side in (1, -1):
         mp = lambda s, y, z, side=side: Vector((side * s, y, STAB_Z + z))
-        surface(sb, [stab_station(s) for s in st], 0.0, h, slab(0.022, taper_back=False), mp, tip_mat, 10)
-        surface(eb, [stab_station(s) for s in [0.07] + st[1:]], h, 1.0, slab(0.022, True, x0=h), mp, tip_mat, 6)
+        u0 = 0.005 if side > 0 else 0.255
+        surface(sb, [stab_station(s) for s in st], 0.0, h, slab(0.022, taper_back=False), mp, "tex_tail", 10,
+                chord_uv(u0, 0.24, 1.45, 0.01, 0.98), "cream")
+        surface(eb, [stab_station(s) for s in [0.07] + st[1:]], h, 1.0, slab(0.022, True, x0=h), mp, "tex_tail", 6,
+                chord_uv(u0, 0.24, 1.45, 0.01, 0.98), "cream")
     obj("Stabilizer", sb, root, smooth=50)
     hinge = empty("Hinge_elevator", (0, STAB_HINGE, STAB_Z), parent=root)
     obj("Elevator", eb, hinge, smooth=50)
@@ -412,42 +467,22 @@ def build_tail(root):
         return RUD_HINGE - 0.40 * math.sqrt(max(0.0, 1 - ((s - 0.55) / 0.43) ** 2))
 
     vmap = lambda s, y, z: Vector((z, y, FIN_Z0 + s))
+
+    def side_uv(s, y, x, right):
+        """Fin and rudder: side projection, right side and left side in separate tiles."""
+        return ((0.505 if right else 0.755) + 0.24 * (-3.78 - y) / 1.30, 0.01 + 0.98 * (s + 0.15) / 1.15)
+
     fb, rb = MB(), MB()
     fs = [0.0, 0.2, 0.4, 0.6, 0.8, 0.86, 0.91, 0.95, 0.975, 0.979]
-    surface(fb, [(s, fin_le(s), RUD_HINGE) for s in fs], 0.0, 1.0, slab(0.018, taper_back=False), vmap, "cream", 10)
+    surface(fb, [(s, fin_le(s), RUD_HINGE) for s in fs], 0.0, 1.0, slab(0.018, taper_back=False), vmap,
+            "tex_tail", 10, side_uv, "cream")
     rs = [-0.13, -0.05, 0.1, 0.3, 0.55, 0.65, 0.75, 0.84, 0.91, 0.95, 0.975, 0.979]
-    surface(rb, [(s, RUD_HINGE, rud_te(s)) for s in rs], 0.0, 1.0, slab(0.018, True), vmap, "cream", 8)
-    fin = obj("Fin", fb, root, smooth=50)
+    surface(rb, [(s, RUD_HINGE, rud_te(s)) for s in rs], 0.0, 1.0, slab(0.018, True), vmap,
+            "tex_tail", 8, side_uv, "cream")
+    obj("Fin", fb, root, smooth=50)
     hinge = empty("Hinge_rudder", (0, RUD_HINGE, FIN_Z0), (0, math.radians(90), 0), root)
-    rud = obj("Rudder", rb, hinge, smooth=50)
-    # Blue lower-aft triangle across fin and rudder, cut exactly along the diagonal.
-    a, b = Vector((0, -3.70, FIN_Z0 - 0.05)), Vector((0, -5.05, FIN_Z0 + 0.62))
-    paint_split(fin, a, b)
-    paint_split(rud, a, b)
+    obj("Rudder", rb, hinge, smooth=50)
 
-
-def paint_split(ob, a, b):
-    """Bisect a mesh along the line a-b (in the YZ plane) and paint the lower side blue."""
-    me = ob.data
-    mw = ob.matrix_world
-    inv = mw.inverted()
-    d = (b - a).normalized()
-    n_world = Vector((1, 0, 0)).cross(d).normalized()  # points up-forward of the line
-    if n_world.z < 0:
-        n_world = -n_world
-    co = inv @ a
-    no = (inv.to_3x3() @ n_world).normalized()
-    bm = bmesh.new()
-    bm.from_mesh(me)
-    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=co, plane_no=no)
-    if "Paint_Blue" not in [m.name for m in me.materials]:
-        me.materials.append(M["blue"])
-    blue = [m.name for m in me.materials].index("Paint_Blue")
-    for f in bm.faces:
-        if (f.calc_center_median() - co).dot(no) < 0:
-            f.material_index = blue
-    bm.to_mesh(me)
-    bm.free()
 
 # --- struts, gear, engine, prop --------------------------------------------------
 
@@ -536,13 +571,18 @@ def build_engine(root):
     for side in (1, -1):
         for y in ((1.28, 1.48) if side > 0 else (1.38, 1.58)):
             hw = half_width(y)
-            base = Vector((side * (hw - 0.10), y, -0.50))
+            base = Vector((side * (hw - 0.07), y, -0.50))
             lathe(mb, [(0, 0)] + fins + [(0.16, 0.058), (0.16, 0)], "engine", base, "x", 12, side)
-            head = base + Vector((side * 0.21, 0, 0))
-            hb = [head + Vector((sx * 0.05, sy * 0.065, sz * 0.075)) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
-            vi = [mb.vert(p) for p in hb]
+            head = base + Vector((side * 0.16, 0, 0))
+            hfins = []
+            for k in range(6):
+                hfins += [(k * 0.014, 0.072), (k * 0.014 + 0.007, 0.092)]
+            lathe(mb, [(0, 0)] + hfins + [(0.085, 0.07), (0.10, 0.05), (0.10, 0)], "engine", head, "x", 14, side)
+            rocker = head + Vector((side * 0.05, 0, 0.075))
+            rb = [rocker + Vector((sx * 0.045, sy * 0.05, sz * 0.022)) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+            vi = [mb.vert(p) for p in rb]
             for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
-                mb.face([vi[i] for i in f], "engine")
+                mb.face([vi[i] for i in f], "steel")
         hw = half_width(1.0)
         tube(mb, [(side * (half_width(1.53) + 0.03), 1.53, -0.60), (side * (half_width(1.40) + 0.04), 1.40, -0.67),
                   (side * (hw + 0.03), 1.05, -0.67), (side * (hw + 0.02), 0.92, -0.72)], 0.024, "exhaust", 10)
@@ -617,6 +657,223 @@ def build_registration(root):
         COLL.objects.link(ob)
         set_parent(ob, root)
 
+
+# --- weathering (procedural textures) ---------------------------------------------
+
+def C(h):
+    return np.array(lin(h)[:3], np.float32)
+
+
+BLUE, CREAM = C("#46738B"), C("#D8CCAE")
+PRIMER, SILVER, METAL = C("#8E8E86"), C("#A6A69E"), C("#B4B4AE")
+SOOT, OIL, MUD, GRIME = C("#24211E"), C("#3B2A18"), C("#6E5C43"), C("#5E5444")
+
+
+def tape(coord, spacing, offset, width):
+    """Rib/frame tape: (inside 0..1, dirt line at the edges) for lines every `spacing`."""
+    d = np.abs((coord - offset + spacing / 2) % spacing - spacing / 2)
+    inside = 1.0 - pt.smoothstep(d, width / 2 - 0.004, width / 2)
+    edge = np.exp(-((d - width / 2) / 0.004) ** 2)
+    return inside, edge
+
+
+def stitches(along, across, pitch, width=0.003):
+    """Small stitch marks along a tape centre line."""
+    d = np.abs((along + pitch / 2) % pitch - pitch / 2)
+    return ((d < 0.004) & (np.abs(across) < width)).astype(np.float32)
+
+
+def patches(P, Nn, plist):
+    """Fabric patches: (mask, stitch lines). plist: [(centre, axis a, axis b, half a, half b)]."""
+    mask = np.zeros(len(P), np.float32)
+    stitch = np.zeros(len(P), np.float32)
+    for c, a, b, ha, hb in plist:
+        c, a, b = (np.array(v, np.float32) for v in (c, a, b))
+        n = np.cross(a, b)
+        d = P - c
+        da, db, dn = d @ a, d @ b, d @ n
+        inside = (np.abs(da) < ha) & (np.abs(db) < hb) & (np.abs(dn) < 0.12) & (np.abs(Nn @ n) > 0.3)
+        border = np.minimum(ha - np.abs(da), hb - np.abs(db))
+        cross = np.abs(np.abs(da) / ha - np.abs(db) / hb) * min(ha, hb)
+        line = ((border < 0.007) & ((np.sin((da + db) * 300) > 0))) | (cross < 0.003)
+        mask = np.maximum(mask, inside.astype(np.float32))
+        stitch = np.maximum(stitch, (inside & line).astype(np.float32))
+    return mask, stitch
+
+
+def weather_common(P, Nn, col, rough, metal, height, wear=1.0):
+    """Sun fading, general grime, dirtier undersides, fabric grain, chips."""
+    n = len(P)
+    up = np.clip(Nn[:, 2], 0, 1)
+    down = np.clip(-Nn[:, 2], 0, 1)
+    fade = (0.10 + 0.25 * pt.fbm(P, 1.2, 3, seed=1) + 0.12 * up) * wear
+    lum = col @ np.array([0.3, 0.59, 0.11], np.float32)
+    faded = col * 0.75 + lum[:, None] * 0.25 + 0.05
+    col = pt.mix(col, faded, fade)
+    grime = (0.15 + 0.35 * pt.fbm(P, 2.5, 4, seed=2)) * wear + 0.20 * down
+    grime += 0.25 * pt.smoothstep(pt.fbm(P, (5.0, 0.8, 9.0), 3, seed=14), 0.5, 0.8) * wear  # flow streaks
+    col = pt.mix(col, col * np.array([0.62, 0.57, 0.48], np.float32), np.clip(grime, 0, 0.9) * 0.75)
+    stains = pt.smoothstep(pt.fbm(P, 7.0, 4, seed=15), 0.58, 0.70) * wear
+    col = pt.mix(col, col * np.array([0.70, 0.62, 0.50], np.float32), stains * 0.6)
+    col *= (0.97 + 0.06 * pt.fbm(P, 220.0, 2, seed=3))[:, None]
+    rough = np.clip(rough + 0.08 * pt.fbm(P, 8.0, 2, seed=4) - 0.04, 0, 1)
+    return col, rough, metal, height
+
+
+def chips(P, Nn, col, rough, metal, is_blue, threshold, under=None):
+    c = pt.fbm(P, 70.0, 3, seed=5)
+    front = np.clip(Nn[:, 1], 0, 1)
+    m = pt.smoothstep(c, threshold - 0.10 * front, threshold - 0.10 * front + 0.02)
+    under = under if under is not None else np.where(is_blue[:, None], PRIMER, CREAM * 0.8)
+    return pt.mix(col, under, m), m
+
+
+FUS_YS = np.array([r[0] for r in reversed(FUS)], np.float32)
+
+
+def fus_col(i):
+    return np.array([r[i] for r in reversed(FUS)], np.float32)
+
+
+def rules_fuselage(P, Nn, part):
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    zb, zt = np.interp(y, FUS_YS, fus_col(2)), np.interp(y, FUS_YS, fus_col(3))
+    zs = zb + 0.45 * (zt - zb)
+    blue = (z < zs) | ((z >= zs + 0.025) & (z < zs + 0.045))
+    col = np.where(blue[:, None], BLUE, CREAM).astype(np.float32)
+    cowl = y > 1.0
+    rough = np.where(cowl, 0.55, 0.82).astype(np.float32)
+    metal = np.zeros(len(P), np.float32)
+    height = np.zeros(len(P), np.float32)
+    col, rough, metal, height = weather_common(P, Nn, col, rough, metal, height)
+
+    # Fabric over the frames behind the cabin; panel seams and rivets on the cowl.
+    fr_in, fr_edge = tape(y, 0.47, -1.25, 0.03)
+    fr = (y < -1.05)
+    height += np.where(fr, fr_in * 0.6, 0)
+    col = pt.mix(col, col * 0.78, np.where(fr, fr_edge * 0.5, 0))
+    seam = np.exp(-((y - 1.0) / 0.003) ** 2) + np.exp(-((y - 1.40) / 0.003) ** 2) * cowl
+    seam += np.exp(-((z - zs) / 0.003) ** 2) * cowl
+    col = pt.mix(col, col * 0.35, np.clip(seam, 0, 1) * 0.8)
+    rivet_row = (np.abs(y - 1.0) < 0.012) | ((np.abs(y - 1.40) < 0.012) & cowl)
+    rv = ((np.abs((z + 0.0175) % 0.035 - 0.0175) < 0.004) & rivet_row).astype(np.float32)
+    height += rv * 0.3
+    col = pt.mix(col, col * 0.7, rv * 0.35)
+
+    col, chip = chips(P, Nn, col, rough, metal, blue, np.where(cowl, 0.80, 0.86),
+                      np.where(cowl[:, None], METAL, np.where(blue[:, None], PRIMER, CREAM * 0.8)))
+    metal = np.where(cowl, chip * 0.9, metal)
+    rough = np.where(cowl, rough - chip * 0.2, rough)
+
+    # Exhaust soot streaming aft along both sides from the stacks.
+    d = np.clip(0.92 - y, 0, None)
+    zc = -0.72 - 0.06 * d
+    w = 0.05 + 0.07 * d
+    streak = 0.6 + 0.4 * pt.fbm(P, (2.0, 1.5, 30.0), 3, seed=6)
+    soot = np.exp(-((z - zc) / w) ** 2) * np.exp(-d / 2.4) * streak * (y < 0.95) * (np.abs(x) > 0.05)
+    col = pt.mix(col, SOOT, np.clip(soot * 1.4, 0, 0.9))
+    rough = np.clip(rough + soot * 0.1, 0, 1)
+
+    # Oil: streaks running aft along the belly, drips down the cowl sides.
+    belly = pt.smoothstep(pt.fbm(P, (8.0, 1.0, 40.0), 3, seed=7), 0.52, 0.72)
+    belly *= np.exp(-np.clip(1.65 - y, 0, None) / 1.3) * (z < zb + 0.18) * (y < 1.65)
+    drips = pt.smoothstep(pt.fbm(P, (10.0, 45.0, 1.5), 3, seed=8), 0.55, 0.75)
+    drips *= ((y > 1.05) & (y < 1.62) & (z < -0.48)).astype(np.float32)
+    oil = np.clip(belly + drips * 0.9, 0, 0.9)
+    col = pt.mix(col, OIL, oil)
+    rough = np.clip(rough - oil * 0.35, 0.15, 1)
+
+    # Mud thrown up by the wheels.
+    spat = pt.smoothstep(pt.fbm(P, 60.0, 2, seed=9), 0.66, 0.72)
+    spat *= ((y < 0.45) & (y > -1.8) & (z < zb + 0.25)).astype(np.float32)
+    col = pt.mix(col, MUD, spat * 0.6)
+
+    side = lambda sx, yc, zc_, ha, hb: ((sx * 0.33, yc, zc_), (0, 1, 0), (0, 0, 1), ha, hb)
+    pm, ps = patches(P, Nn, [side(-1, -0.42, -0.87, 0.075, 0.06), side(1, -2.9, -0.50, 0.10, 0.07),
+                             side(-1, -3.25, -0.52, 0.11, 0.08), side(1, 0.62, -0.86, 0.06, 0.05)])
+    col = pt.mix(col, SILVER * (0.9 + 0.1 * pt.fbm(P, 30, 1, seed=10))[:, None], pm * 0.85)
+    col = pt.mix(col, col * 0.4, ps)
+    height += pm * 0.4
+    return col, rough, metal, height
+
+
+def wing_surface_common(P, Nn, s, rib_sp, rib_off, tip, along):
+    """Paint, ribs and stitching for a fabric flying surface. s: spanwise, along: chordwise coordinate."""
+    col = np.where(tip[:, None], BLUE, CREAM).astype(np.float32)
+    rough = np.full(len(P), 0.82, np.float32)
+    metal = np.zeros(len(P), np.float32)
+    height = np.zeros(len(P), np.float32)
+    col, rough, metal, height = weather_common(P, Nn, col, rough, metal, height)
+    rin, redge = tape(s, rib_sp, rib_off, 0.04)
+    near, _ = tape(s, rib_sp, rib_off, 0.10)
+    height += rin * 0.7
+    dirt = pt.fbm(P, (3.0, 12.0, 3.0), 3, seed=16)
+    col = pt.mix(col, col * 0.72, redge * 0.7 + (near - rin) * 0.25 * dirt)
+    centre = (s - rib_off + rib_sp / 2) % rib_sp - rib_sp / 2
+    st = stitches(along, centre, 0.055)
+    col = pt.mix(col, col * 0.55, st * 0.7)
+    height += st * 0.3
+    col, _ = chips(P, Nn, col, rough, metal, tip, 0.86)
+    return col, rough, metal, height
+
+
+def rules_wing(P, Nn, part):
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    s = np.abs(x)
+    col, rough, metal, height = wing_surface_common(P, Nn, s, 0.31, 0.22, s > 4.85, y)
+    # Trailing-edge tape and grime around the wing root and strut fittings.
+    te = np.exp(-((y - (WING_TE + 0.02)) / 0.012) ** 2) * (part == 2)
+    height += te * 0.5
+    root = np.exp(-(s / 0.30) ** 2) * 0.6
+    fit = np.exp(-((s - 2.10) ** 2 + (y - 0.16) ** 2) / 0.01) + np.exp(-((s - 2.10) ** 2 + (y + 0.64) ** 2) / 0.01)
+    dirt = np.clip(root * 0.6 + fit * 0.5, 0, 0.7) * pt.smoothstep(pt.fbm(P, 30.0, 3, seed=12), 0.35, 0.65)
+    col = pt.mix(col, col * 0.45, dirt)
+    top = lambda sx, sc, yc, h: ((sx * sc, yc, 0.14 + sc * math.tan(DIH)), (1, 0, 0), (0, 1, 0), h, h)
+    pm, ps = patches(P, Nn, [top(1, 1.25, 0.02, 0.11), top(-1, 3.95, -0.25, 0.10), top(-1, 2.15, -0.55, 0.12),
+                             top(1, 3.6, -0.45, 0.08)])
+    col = pt.mix(col, SILVER * (0.9 + 0.1 * pt.fbm(P, 30, 1, seed=13))[:, None], pm * 0.85)
+    col = pt.mix(col, col * 0.4, ps)
+    height += pm * 0.4
+    return col, rough, metal, height
+
+
+def rules_tail(P, Nn, part):
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    horiz = (part == 4) | (part == 5)
+    # Stabilizer and elevator: ribs across the span, blue tips. Fin and rudder:
+    # horizontal ribs, blue lower-aft triangle.
+    a = np.array([-3.70, FIN_Z0 - 0.05], np.float32)
+    b = np.array([-5.05, FIN_Z0 + 0.62], np.float32)
+    dvec = (b - a) / np.linalg.norm(b - a)
+    nrm = np.array([-dvec[1], dvec[0]], np.float32)
+    if nrm[1] < 0:
+        nrm = -nrm
+    below = ((np.stack([y, z], 1) - a) @ nrm) < 0
+    s = np.where(horiz, np.abs(x), z - FIN_Z0)
+    tip = np.where(horiz, np.abs(x) > 1.22, below)
+    col, rough, metal, height = wing_surface_common(P, Nn, s, 0.21, 0.12, tip, y)
+    pm, ps = patches(P, Nn, [((0.85, -4.42, STAB_Z + 0.03), (1, 0, 0), (0, 1, 0), 0.07, 0.07),
+                             ((-0.03, -4.25, FIN_Z0 + 0.35), (0, 1, 0), (0, 0, 1), 0.06, 0.05)])
+    col = pt.mix(col, SILVER[None, :] * np.ones_like(col), pm * 0.8)
+    col = pt.mix(col, col * 0.4, ps)
+    return col, rough, metal, height
+
+
+def paint_all():
+    os.makedirs(TEX_DIR, exist_ok=True)
+    O = bpy.data.objects
+    jobs = [
+        ("fus", [(O["Fuselage"], 1, {"Cub_Fus"})], rules_fuselage),
+        ("wing", [(O["Wing"], 2, {"Cub_Wing"}), (O["Aileron_L"], 3, None), (O["Aileron_R"], 3, None)], rules_wing),
+        ("tail", [(O["Stabilizer"], 4, {"Cub_Tail"}), (O["Elevator"], 5, {"Cub_Tail"}),
+                  (O["Fin"], 6, {"Cub_Tail"}), (O["Rudder"], 7, {"Cub_Tail"})], rules_tail),
+    ]
+    for key, items, rules in jobs:
+        img = IMGS[key]["base"]
+        W, H = img.size
+        texels = pt.paint(items, W, H, rules, IMGS[key], TEX_DIR, normal_strength=3.0 * QUALITY)
+        print("painted", key, W, "x", H, texels, "texels")
+
 # --- main --------------------------------------------------------------------
 
 def build():
@@ -644,6 +901,8 @@ def build():
     build_prop(root)
     build_registration(root)
     bpy.context.view_layer.update()
+    if globals().get("PAINT", True):
+        paint_all()
     return root
 
 
@@ -652,7 +911,8 @@ def export():
     lc = bpy.context.view_layer.layer_collection.children["Cub"]
     bpy.context.view_layer.active_layer_collection = lc
     bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", use_active_collection=True,
-                              export_yup=True, export_apply=True, export_cameras=False, export_lights=False)
+                              export_yup=True, export_apply=True, export_cameras=False, export_lights=False,
+                              export_image_format="WEBP", export_image_quality=90)
     print("exported", OUT, os.path.getsize(OUT), "bytes")
 
 
