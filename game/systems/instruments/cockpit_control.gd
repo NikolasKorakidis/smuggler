@@ -7,7 +7,8 @@ extends Node3D
 
 enum Style { ROTARY, TOGGLE, PUSH_PULL }
 
-## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake, flaps, kollsman
+## magnetos, master, primer, mixture, carb_heat, fuel_selector, parking_brake, flaps, kollsman,
+## landing_light, nav_lights, panel_lights
 @export var control := "magnetos"
 @export var label := ""
 @export var knob_color := Color(0.12, 0.12, 0.12)
@@ -30,7 +31,7 @@ func _ready() -> void:
 	match control:
 		"magnetos", "fuel_selector":
 			_style = Style.ROTARY
-		"master", "flaps":
+		"master", "flaps", "landing_light", "nav_lights", "panel_lights":
 			_style = Style.TOGGLE
 		"kollsman":
 			_style = Style.ROTARY
@@ -52,7 +53,13 @@ func hit(from: Vector3, dir: Vector3) -> float:
 	return -1.0 if p == null else from.distance_to(p)
 
 
+const LIGHTS := {"landing_light": "landing", "nav_lights": "nav", "panel_lights": "panel"}
+
+
 func press(reverse: bool) -> void:
+	if control in LIGHTS:
+		aircraft.toggle_light(LIGHTS[control])
+		return
 	if control == "parking_brake":
 		FlightInput.parking_brake = not FlightInput.parking_brake
 		return
@@ -127,6 +134,11 @@ func set_hover(on: bool) -> void:
 
 
 func tooltip() -> String:
+	if control in LIGHTS:
+		var on: bool = aircraft.lights[LIGHTS[control]]
+		var keys := {"landing_light": "Ctrl+L", "nav_lights": "Ctrl+N", "panel_lights": "Ctrl+P"}
+		var power := "" if aircraft.engine.powered() else "   — no power: MASTER is off"
+		return "%s: %s   (click, or %s)%s" % [label, "ON" if on else "OFF", keys[control], power]
 	if control == "parking_brake":
 		return "%s: %s   (click, or press .)" % [label, "SET (pulled)" if FlightInput.parking_brake else "RELEASED"]
 	if control == "kollsman":
@@ -177,6 +189,8 @@ func _process(delta: float) -> void:
 			_moving.rotation.z = -deg_to_rad(_rotary_angle(e.fuel_selector, e.definition.fuel_positions.size()))
 		"master":
 			_moving.rotation.x = deg_to_rad(-20.0 if e.master else 20.0)
+		"landing_light", "nav_lights", "panel_lights":
+			_moving.rotation.x = deg_to_rad(-20.0 if aircraft.lights[LIGHTS[control]] else 20.0)
 		"mixture":
 			_moving.position.z = size_m * 0.4 + (1.0 - e.mixture) * size_m * 1.2
 		"carb_heat":

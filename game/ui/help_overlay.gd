@@ -25,6 +25,8 @@ L (hold)               look at the objective (tower, strip, hangar)
 Right mouse            look around    Wheel: zoom    Middle: recentre
 Backspace              back to the start of the strip
 U                      next weather (calm, breeze, gusty crosswind, hot, windy)
+Y                      next time of day (dawn, morning, noon, golden, dusk, night)
+Ctrl+L / Ctrl+N / Ctrl+P   landing / nav / panel lights (172, needs master)
 K                      checklist on / off
 J  (or Fn+F2)          joystick setup: bind HOTAS / pedals
 I  (or Fn+F3)          flight data (dev builds)

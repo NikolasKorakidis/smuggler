@@ -44,6 +44,8 @@ const PAINT := {&"paved": 0, &"dirt": 1, &"apron": 2, &"mown": 3}
 var geo: Geo
 var aircraft: Aircraft
 var weather: Weather
+var time_of_day: TimeOfDay
+var _lamps: Array[OmniLight3D] = []
 var heightfield: TerrainHeightfield
 ## Set to {"position": Vector3, "heading_deg": float} to spawn somewhere else (tests).
 var spawn_override := {}
@@ -73,15 +75,22 @@ func _ready() -> void:
 	$Terrain.build(heightfield, mat)
 	_build_buildings()
 	_build_tutorial_props()
+	var hangar: Node3D = get_node("Hangar")
+	var door: Node3D = get_node("HangarDoor")
+	_add_lamp(door.position + (door.position - hangar.position).normalized() * 0.6 + Vector3(0, 3.5, 0))
 	_build_strip_markers()
 	_scatter_trees()
 	print("terrain tile: heights %d ms, visuals %d ms, %d chunks" % [
 		t1 - t0, Time.get_ticks_msec() - t1, $Terrain.chunk_count])
+	time_of_day = TimeOfDay.new()
+	time_of_day.name = "TimeOfDay"
+	add_child(time_of_day)
+	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg)
 	_spawn_aircraft(0)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("next_aircraft") and aircraft_definitions.size() > 1:
+	if event.is_action_pressed("next_aircraft", false, true) and aircraft_definitions.size() > 1:
 		_spawn_aircraft((_aircraft_index + 1) % aircraft_definitions.size())
 
 
@@ -308,7 +317,7 @@ func _build_tutorial_props() -> void:
 	Landmarks.parking_square(self, Transform3D(_strip_basis(s), point("parking")))
 	for st in strips:
 		# Beside each strip, a third of the way down, clear of the runway.
-		var p := _strip_point(st, -st.length_m * 0.2, st.width_m * 0.5 + SHOULDER_M + 6.0)
+		var p: Vector3 = _strip_point(st, -st.length_m * 0.2, st.width_m * 0.5 + SHOULDER_M + 6.0)
 		p.y = st.elevation
 		Landmarks.windsock(self, p, weather)
 
@@ -471,3 +480,34 @@ func _add_multimesh(node_name: String, mesh: Mesh, mat: Material, transforms: Ar
 		else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mmi, true)
 	return mmi
+
+
+## A warm lamp (hangar door) that comes on at dusk.
+func _add_lamp(pos: Vector3) -> void:
+	var lamp := OmniLight3D.new()
+	lamp.name = "Lamp"
+	lamp.position = pos
+	lamp.light_color = Color(1.0, 0.72, 0.4)
+	lamp.omni_range = 28.0
+	lamp.light_energy = 2.5
+	lamp.shadow_enabled = false
+	add_child(lamp)
+	var bulb := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.15
+	sphere.height = 0.3
+	var m := StandardMaterial3D.new()
+	m.emission_enabled = true
+	m.emission = lamp.light_color
+	m.emission_energy_multiplier = 6.0
+	m.albedo_color = lamp.light_color
+	sphere.material = m
+	bulb.mesh = sphere
+	lamp.add_child(bulb)
+	_lamps.append(lamp)
+
+
+func _process(_delta: float) -> void:
+	var on := time_of_day != null and time_of_day.darkness() > 0.3
+	for lamp in _lamps:
+		lamp.visible = on

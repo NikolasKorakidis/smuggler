@@ -50,3 +50,7 @@
 | 2026-10-11 | Altimeter reads pressure altitude + (setting - 29.92) x 1000 ft; starts at 29.92 each flight | Teaches setting the altimeter; matters with low/high pressure presets |
 | 2026-10-11 | Cub brake strength 0.3 (weak J-3 heel brakes); per-aircraft brake_strength | Stock JSBSim Cub noses over above ~30% braking; full brakes now stop it without flipping |
 | 2026-10-11 | Open pasture rolling friction 3x paved (was 4x) | The Cub couldn't taxi on open grass at half power |
+| 2026-10-11 | Game clock in local solar time, 4x compressed by default; full moon at night for now | Simple and playable; moon phases later |
+| 2026-10-11 | Custom sky shader instead of PhysicalSkyMaterial | PhysicalSky's night-sky texture can't fade, so stars showed in daylight |
+| 2026-10-11 | Aircraft lights only on aircraft with electrics (has_master); positions from JSBSim data | Cub stays period-correct; real models can keep the same light points |
+| 2026-10-11 | Instrument faces dim with darkness unless panel lights are on; needles stay faintly luminous | Night flying needs the panel lights, like the real 172 |

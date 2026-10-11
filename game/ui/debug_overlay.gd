@@ -40,6 +40,7 @@ func _process(delta: float) -> void:
 			"RUNNING" if f.engine_running() else "STOPPED"],
 		aircraft.engine.status_text(),
 		aircraft.world.weather.summary() if aircraft.world.get("weather") else "",
+		("TIME %s  sun %+.0f°" % [aircraft.world.time_of_day.clock_text(), aircraft.world.time_of_day.sun_elevation_deg()]) if aircraft.world.get("time_of_day") else "",
 		"WIND HERE %03d° %d kt   DENSITY ALT %d ft   PRESS ALT %d ft" % [
 			int(fposmod(rad_to_deg(atan2(-f.prop_get("atmosphere/total-wind-east-fps"), -f.prop_get("atmosphere/total-wind-north-fps"))), 360.0)),
 			int(Vector2(f.prop_get("atmosphere/total-wind-north-fps"), f.prop_get("atmosphere/total-wind-east-fps")).length() / 1.68781),
