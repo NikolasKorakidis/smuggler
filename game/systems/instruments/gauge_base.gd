@@ -10,12 +10,15 @@ const FACE_PX := 320
 @export var diameter_m := 0.08
 
 var aircraft: Aircraft
+var _face_mats: Array[StandardMaterial3D] = []
 
 
 func _ready() -> void:
 	aircraft = _find_aircraft()
 	_build_bezel()
 	_build()
+	if aircraft:
+		aircraft.panel_lighting.connect(_on_panel_lighting)
 
 
 ## Subclasses build their faces and needles here.
@@ -71,8 +74,15 @@ func add_face(control: Control, animated := false, z := 0.0, size := Vector2.ZER
 	quad.material_override = mat
 	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	quad.position.z = z
+	_face_mats.append(mat)
 	add_child(quad)
 	return quad
+
+
+# Backlit faces: bright by day, dark at night unless the panel lights are on.
+func _on_panel_lighting(level: float) -> void:
+	for m in _face_mats:
+		m.emission_energy_multiplier = 0.3 * level
 
 
 ## A needle pivoting at the centre. Rotate the returned node with set_angle().

@@ -13,15 +13,16 @@ const WRONG_MODE := {
 }
 const AXES := ["pitch", "roll", "rudder", "throttle", "mixture", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter", "look_target"]
+const BUTTONS := ["brakes", "parking_brake", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next", "starter", "look_target", "landing_light", "nav_lights", "panel_lights"]
 ## Bound joystick buttons that fire a one-shot action (like a key press).
-const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next", "parking_brake"]
+const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next", "parking_brake", "landing_light", "nav_lights", "panel_lights"]
 const LABELS := {
 	"pitch": "Pitch (stick back = +)", "roll": "Roll (right = +)", "rudder": "Rudder (right pedal = +)",
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
 	"brakes": "Both brakes", "parking_brake": "Parking brake (toggle)", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
 	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
-	"camera_next": "Next camera", "look_target": "Look at objective (hold)", "mixture": "Mixture", "starter": "Starter / swing prop",
+	"camera_next": "Next camera", "look_target": "Look at objective (hold)",
+	"landing_light": "Landing light", "nav_lights": "Nav lights", "panel_lights": "Panel lights", "mixture": "Mixture", "starter": "Starter / swing prop",
 }
 
 const KEYS := {
@@ -36,7 +37,8 @@ const KEYS := {
 	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
-	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD], "look_target": [KEY_L], "weather_next": [KEY_U],
+	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD], "look_target": [KEY_L], "weather_next": [KEY_U], "time_next": [KEY_Y],
+	"landing_light": [KEY_L | KEY_MASK_CTRL], "nav_lights": [KEY_N | KEY_MASK_CTRL], "panel_lights": [KEY_P | KEY_MASK_CTRL],
 }
 
 const KEY_RATE := 3.0  # how fast keyboard stick/pedal inputs move, per second
@@ -148,7 +150,7 @@ func mixture_key_rate() -> float:
 
 
 func look_target_held() -> bool:
-	return Input.is_action_pressed("look_target") or _button("look_target")
+	return Input.is_action_pressed("look_target", true) or _button("look_target")
 
 
 func starter_held() -> bool:

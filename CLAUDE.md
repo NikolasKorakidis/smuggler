@@ -22,6 +22,7 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Godot smoke test (takeoff in-engine): `godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn -- --aircraft=0` (1 = 172)
 - Full tutorial flight (scripted pilot): `godot --headless --path game --fixed-fps 120 res://dev/tutorial_flight_test.tscn -- --aircraft=1 [--world=terrain]` (0 = Cub)
 - Weather (wind, gusts, windsock, altimeter, parked in wind): `godot --headless --path game --fixed-fps 120 res://dev/weather_test.tscn`
+- Day/night (sun, lights, panel lighting, lamps): `godot --headless --path game --fixed-fps 60 res://dev/daynight_test.tscn`
 - Terrain ground contact: `godot --headless --path game --fixed-fps 120 res://dev/terrain_test.tscn -- --aircraft=1`
 - Sound render check: `godot --headless --path game --fixed-fps 60 res://dev/audio_render.tscn`
 - Terrain frame time (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn`

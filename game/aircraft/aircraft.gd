@@ -4,6 +4,8 @@ extends Node3D
 ## specifics come from the AircraftDefinition and the JSBSim XML.
 
 signal respawned
+## Instrument backlight level changed (0 dark .. 1 bright); gauges listen.
+signal panel_lighting(level: float)
 
 const FT := 0.3048
 const TRIM_RATE := 0.25  # full trim travel in 4 s
@@ -17,6 +19,9 @@ var trim := 0.0
 var flap_notch := 0
 ## Altimeter setting in the Kollsman window, inches of mercury.
 var altimeter_setting_inhg := 29.92
+## Light switches (only aircraft with electrics have them).
+var lights := {"landing": false, "nav": false, "panel": false}
+var _panel_level := -1.0
 
 @onready var fdm: FDM = $FDM
 
@@ -37,6 +42,11 @@ func setup(world_node: Node3D) -> bool:
 		airframe.build(fdm, definition)
 	airframe.name = "Airframe"
 	add_child(airframe)
+	if definition.has_master:
+		var exterior := preload("res://aircraft/aircraft_lights.gd").new()
+		exterior.name = "Lights"
+		airframe.add_child(exterior)  # structural frame, like the airframe itself
+		exterior.build(self)
 	if not "--no-audio" in OS.get_cmdline_user_args():
 		var audio := preload("res://audio/aircraft_audio.gd").new()
 		audio.name = "Audio"
@@ -56,11 +66,23 @@ func respawn() -> void:
 	trim = 0.0
 	flap_notch = 0
 	altimeter_setting_inhg = 29.92
+	for k in lights:
+		lights[k] = false
 	FlightInput.parking_brake = false
 	FlightInput.set_throttle_keyboard(0.0)
 	_place()
 	reset_physics_interpolation()
 	respawned.emit()
+
+
+## A light is lit when its switch is on and the electrical bus has power.
+func light_on(name: String) -> bool:
+	return definition.has_master and lights.get(name, false) and engine.powered()
+
+
+func toggle_light(name: String) -> void:
+	if definition.has_master:
+		lights[name] = not lights[name]
 
 
 func set_flap_notch(n: int) -> void:
@@ -110,7 +132,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		engine.set_magnetos(engine.magnetos + 1)
 	elif event.is_action_pressed("auto_start", false, true):
 		engine.auto_start()
-	elif event.is_action_pressed("primer"):
+	elif event.is_action_pressed("landing_light", false, true):
+		toggle_light("landing")
+	elif event.is_action_pressed("nav_lights", false, true):
+		toggle_light("nav")
+	elif event.is_action_pressed("panel_lights", false, true):
+		toggle_light("panel")
+	elif event.is_action_pressed("primer", false, true):
 		engine.stroke_primer()
 	elif event.is_action_pressed("carb_heat"):
 		engine.set_carb_heat(not engine.carb_heat)
@@ -142,6 +170,17 @@ func _on_ground() -> bool:
 		if fdm.prop_get("gear/unit[%d]/WOW" % w.index) > 0.5:
 			return true
 	return false
+
+
+func _process(_delta: float) -> void:
+	# Daylight lights the panel; at night only the panel lights do (if fitted).
+	var dark: float = world.time_of_day.darkness() if world and world.get("time_of_day") else 0.0
+	var level := lerpf(1.0, 0.04, dark)
+	if light_on("panel"):
+		level = maxf(level, 0.75)
+	if absf(level - _panel_level) > 0.01:
+		_panel_level = level
+		panel_lighting.emit(level)
 
 
 func _place() -> void:
