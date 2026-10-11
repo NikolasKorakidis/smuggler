@@ -19,6 +19,8 @@ var _looking := false
 var _hovered: CockpitControl
 var _pressed: CockpitControl
 var _tooltip: Label
+var _objective: Label  # name + distance at the objective while "look" is held
+var _look_blend := 0.0  # 0 = pilot's own view, 1 = looking at the objective
 
 
 func _ready() -> void:
@@ -32,6 +34,13 @@ func _ready() -> void:
 	_tooltip.add_theme_constant_override("outline_size", 5)
 	_tooltip.visible = false
 	layer.add_child(_tooltip)
+	_objective = Label.new()
+	_objective.add_theme_font_size_override("font_size", 22)
+	_objective.add_theme_color_override("font_color", Color(1.0, 0.8, 0.35))
+	_objective.add_theme_color_override("font_outline_color", Color.BLACK)
+	_objective.add_theme_constant_override("outline_size", 6)
+	_objective.visible = false
+	layer.add_child(_objective)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -86,12 +95,20 @@ func recentre() -> void:
 func _process(delta: float) -> void:
 	if target == null or target.airframe == null:
 		return
+	var objective := _objective_point()
+	var looking := FlightInput.look_target_held() and objective != Vector3.INF
+	_look_blend = move_toward(_look_blend, 1.0 if looking else 0.0, delta * 4.0)
 	if mode == Mode.CHASE:
 		var t := target.get_global_transform_interpolated()
 		var fwd := -t.basis.z
 		var heading := atan2(-fwd.x, -fwd.z)
 		_heading = lerp_angle(_heading, heading, 1.0 - exp(-3.0 * delta))
-		var offset := Basis(Vector3.UP, _heading + orbit_yaw) * Basis(Vector3.RIGHT, -orbit_pitch) \
+		var yaw := _heading + orbit_yaw
+		if _look_blend > 0.0 and objective != Vector3.INF:
+			# Swing round behind the aircraft so it sits between camera and objective.
+			var to_obj := objective - t.origin
+			yaw = lerp_angle(yaw, atan2(-to_obj.x, -to_obj.z), _smooth(_look_blend))
+		var offset := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -orbit_pitch) \
 			* Vector3(0, 0, chase_distance)
 		var focus := t.origin + Vector3(0, CHASE_HEIGHT, 0)
 		global_position = focus + offset
@@ -102,9 +119,59 @@ func _process(delta: float) -> void:
 		look_at(focus, Vector3.UP)
 	else:
 		var eye := target.eyepoint().get_global_transform_interpolated()
-		global_transform = eye * Transform3D(
-			Basis(Vector3.UP, look_yaw) * Basis(Vector3.RIGHT, look_pitch), Vector3.ZERO)
+		var yaw := look_yaw
+		var pitch := look_pitch
+		if _look_blend > 0.0 and objective != Vector3.INF:
+			# Turn the pilot's head towards the objective (as far as a neck turns).
+			var local := eye.affine_inverse() * objective
+			var want_yaw := clampf(atan2(-local.x, -local.z), deg_to_rad(-160.0), deg_to_rad(160.0))
+			var want_pitch := clampf(atan2(local.y, Vector2(local.x, local.z).length()), deg_to_rad(-60.0), deg_to_rad(60.0))
+			yaw = lerp_angle(yaw, want_yaw, _smooth(_look_blend))
+			pitch = lerpf(pitch, want_pitch, _smooth(_look_blend))
+		global_transform = eye * Transform3D(Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, pitch), Vector3.ZERO)
+	_update_objective_label(objective)
 	_update_hover()
+
+
+func _smooth(x: float) -> float:
+	return x * x * (3.0 - 2.0 * x)
+
+
+# The checklist's current objective as a world point (a little above the
+# ground so the label sits on the tower / strip / hangar), or INF if none.
+func _objective_point() -> Vector3:
+	var checklist = target.world.get_node_or_null("Checklist")
+	if checklist == null or not checklist.has_method("current_target"):
+		return Vector3.INF
+	var name: String = checklist.current_target()
+	if name == "":
+		return Vector3.INF
+	var lift := 60.0 if name == "tower" else 8.0
+	return target.world.point(name) + Vector3(0, lift, 0)
+
+
+func _update_objective_label(objective: Vector3) -> void:
+	_objective.visible = _look_blend > 0.5 and objective != Vector3.INF
+	if not _objective.visible:
+		return
+	var checklist = target.world.get_node("Checklist")
+	var d := Vector2(objective.x - target.global_position.x, objective.z - target.global_position.z).length()
+	var dist := "%.1f km" % (d / 1000.0) if d >= 1000.0 else "%d m" % int(round(d / 10.0) * 10)
+	var names := {"tower": "RADIO TOWER", "strip": "STRIP", "parking": "HANGAR / PARKING"}
+	var text: String = "%s  ·  %s" % [names.get(checklist.current_target(), "OBJECTIVE"), dist]
+	var vp := get_viewport().get_visible_rect().size
+	var on_screen := not is_position_behind(objective)
+	var p := unproject_position(objective) if on_screen else Vector2(-1, -1)
+	if on_screen and Rect2(Vector2.ZERO, vp).has_point(p):
+		_objective.text = "▼  " + text
+		_objective.position = p - Vector2(30, 40)
+	else:
+		# Off screen: pin it to the nearest edge with an arrow pointing the way.
+		var c := vp * 0.5
+		var dir := (p - c).normalized() if on_screen else (c - unproject_position(objective)).normalized()
+		_objective.text = ("◀  " if dir.x < 0 else "") + text + ("  ▶" if dir.x >= 0 else "")
+		var edge := c + dir * minf(c.x / maxf(absf(dir.x), 0.01), c.y / maxf(absf(dir.y), 0.01)) * 0.85
+		_objective.position = edge - Vector2(_objective.size.x * 0.5, 12)
 
 
 # Mouse ray against cockpit controls, done in aircraft space so the

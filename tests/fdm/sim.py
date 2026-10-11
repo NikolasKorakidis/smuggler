@@ -174,6 +174,20 @@ def climb_rate(model, vy_kcas, alt_ft=1000.0, settle=20.0, measure=30.0, **load)
     return (s["position/h-sl-ft"] - h0) / (s.t - t0) * 60.0
 
 
+def climb_rate_at(s, kias_t, settle=15.0, measure=20.0):
+    """Hold kias_t with pitch at the current throttle; returns ft/min (negative = descending)."""
+    theta = 0.0
+    t_end = s.t + settle + measure
+    h0 = t0 = None
+    while s.t < t_end:
+        theta += 0.05 * DT * (kcas(s) - kias_t)
+        s.hold(theta + 0.6 * (kcas(s) - kias_t))
+        s.step()
+        if h0 is None and s.t >= t_end - measure:
+            h0, t0 = s["position/h-sl-ft"], s.t
+    return (s["position/h-sl-ft"] - h0) / (s.t - t0) * 60.0
+
+
 def level_speed(model, throttle=1.0, alt_ft=1000.0, start_kcas=60.0, seconds=150.0, **load):
     """Altitude-hold flight at fixed throttle. Returns steady KCAS and RPM."""
     s = Sim(model, agl_ft=alt_ft, kcas=start_kcas, **load)
