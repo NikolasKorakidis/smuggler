@@ -1,4 +1,4 @@
-# Current phase: 0 — Setup and first flight
+# Phase 0 — Setup and first flight ✅ passed 2026-10-11
 
 Gate: Nikolas takes off, flies a circuit and lands with the HOTAS.
 
@@ -18,17 +18,17 @@ Gate: Nikolas takes off, flies a circuit and lands with the HOTAS.
 - [x] `FDM` node in Godot: steps JSBSim at 120 Hz, maps JSBSim position/attitude to the aircraft node.
 - [x] Tutorial aircraft: start with JSBSim's stock J-3 Cub model (placeholder visuals). Prop and drag tuned to J-3C-65 figures.
 - [x] Flat test world: ground plane, one 800 m grass strip, sky, sun (+ trees and a hangar for height/speed cues).
-- [x] Input map: keyboard + gamepad defaults; HOTAS/pedals bound in the in-game axis tester (F2). **Needs Nikolas's hardware to verify.**
+- [x] Input map: keyboard + gamepad defaults; HOTAS/pedals bound in the in-game joystick setup (J). T.Flight Hotas 5 default profile (PC mode, green LED). Verified by Nikolas.
 - [x] Chase camera + basic cockpit camera.
 - [x] Minimal debug overlay (dev builds only, F3): airspeed, altitude, AoA, fps.
 - [x] Headless test: Cub takeoff roll, stall speed, climb rate vs published figures (`tests/fdm`, 7 tests).
 - [ ] Summary in chat: what to fly and what to look for.
 
 ## Nikolas — fly it (gate test)
-- [ ] Open Godot → Import → `game/project.godot` → Run (F5). Or from the Claude panel: "run the game".
-- [ ] F2: bind stick pitch/roll, throttle, rudder twist or pedals, toe brakes. Tick Invert where a control moves the wrong way.
-- [ ] Take off from the grass strip, fly a circuit, land back on the strip.
-- [ ] Feedback: ground handling on the takeoff roll, tail-up speed, stall feel, landing flare.
+- [x] Open Godot → Import → `game/project.godot` → Run (F5). Or from the Claude panel: "run the game".
+- [x] F2 / J: bind stick pitch/roll, throttle, rudder twist or pedals, toe brakes. Tick Invert where a control moves the wrong way.
+- [x] Take off from the grass strip, fly a circuit, land back on the strip.
+- [x] Feedback: ground handling on the takeoff roll, tail-up speed, stall feel, landing flare.
 
 ## Open / next
 - [ ] Rename the placeholder "J3Cub" model to a fictional type before any public material (content rule).
