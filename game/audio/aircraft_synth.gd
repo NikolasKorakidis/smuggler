@@ -57,9 +57,11 @@ var _cyl_off := PackedFloat32Array()
 var _cyl_weak := PackedFloat32Array()
 var _cyl := 0
 var _ph := 0.0  # phase within the current firing interval
-var _thr := 1.0  # length of this interval (uneven per cylinder)
+var _thr := 1.0  # phase of the next firing (uneven per cylinder, wanders)
+var _nom := 1.0  # nominal length of this interval
 var _half := false
 var _env := 0.0  # exhaust pulse envelope
+var _xm := 0.0  # exhaust pulse after the muffler
 var _dec := 0.99
 var _nsh := 0.0  # noise share of the current pulse
 var _pf := 0.0  # compression puff envelope (target)
@@ -87,7 +89,6 @@ var _rat := 0.0  # rattle / tyre scrub envelope
 var _bump_n := 1000
 var _sp := 0.0  # starter whine phase
 var _hp := 0.0  # horn phase
-var _vib := 0.0
 # Ramped gains (no zipper noise on tonal parts)
 var _g_prop := 0.0
 var _g_wind := 0.0
@@ -145,8 +146,7 @@ func render(frames: int, out: PackedVector2Array) -> void:
 
 	# --- engine -----------------------------------------------------------------
 	var n_cyl := _cyl_gain.size()
-	var turning := rpm > 12.0
-	var inc := rpm / 120.0 * n_cyl / RATE
+	var inc := rpm / 120.0 * n_cyl / RATE if rpm > 12.0 else 0.0
 	var slow := clampf(1.0 - rpm / 450.0, 0.0, 1.0)
 	# Crank speed sags into each compression and surges after it: strong when
 	# cranking or spooling down, a faint lope at idle.
@@ -165,12 +165,14 @@ func render(frames: int, out: PackedVector2Array) -> void:
 	var cough := cough_chance
 	var puff := 0.22 + 0.25 * slow
 	# Continuous low roar that keeps the resonances ringing between bangs.
-	var floor_n := 0.06 * amp if firing else 0.0
+	var floor_n := 0.1 * amp if firing else 0.0
+	# Muffler: smears each sharp exhaust pulse into a rounder thump.
+	var kx := 1.0 - exp(-1.0 / (RATE * (0.0002 + 0.0016 * p.muffler)))
 	var clat := p.valve_clatter * (0.35 + 0.65 * clampf(rpm / 2400.0, 0.0, 1.0)) * 0.5
 	# Overrun pops: throttle closed, engine pulled round fast by the prop.
 	var pop := 0.0
 	if firing and lf < 0.12 and rpm > p.idle_rpm * 1.6:
-		pop = p.afterfire * 0.025
+		pop = p.afterfire * 0.012
 	var dtick := 0.86
 	# Fixed exhaust and body resonances (Chamberlin state-variable filters).
 	var f1 := 2.0 * sin(PI * p.exhaust_hz / RATE)
@@ -192,12 +194,14 @@ func render(frames: int, out: PackedVector2Array) -> void:
 	var kc := 1.0 - exp(-TAU * cut / RATE)
 
 	# --- propeller ----------------------------------------------------------------
-	var pinc := prop_rpm / 60.0 * p.prop_blades / RATE
+	# The prop is bolted to the crank: blade passes per firing interval.
+	var pratio := 2.0 * p.prop_blades / n_cyl * (prop_rpm / rpm if rpm > 1.0 else 1.0)
 	var tm := clampf(tip_mach, 0.0, 1.2)
 	var kp := clampf(0.04 + 0.9 * tm * tm * tm, 0.04, 0.9)
 	var prop_level := PROP_GAIN * p.prop_volume * (tm * tm * 1.6) * (0.45 + 0.55 * clampf(thrust, 0.0, 1.0))
 	prop_level *= vin * 0.45 + vout * 1.3 * outside
-	var whoosh := 0.5 * (0.3 + 0.7 * clampf(thrust, 0.0, 1.0))
+	# Blade-passage noise: a soft whoosh at low tip speed, a rasp near full power.
+	var whoosh := (0.3 + 1.2 * tm * tm) * (0.4 + 0.6 * clampf(thrust, 0.0, 1.0))
 	var imbalance := p.prop_imbalance
 	var dg_prop := (prop_level - _g_prop) * inv_n
 
@@ -241,9 +245,12 @@ func render(frames: int, out: PackedVector2Array) -> void:
 	_scrub = 0.0
 
 	# --- starter, horn -------------------------------------------------------------
-	var start_level := clampf(cranking, 0.0, 1.0) * p.starter_volume * 0.18 * (vin + vout * 0.6)
+	# Once the engine catches it outruns the starter pinion: the motor
+	# freewheels at its own speed and the whine drops away.
+	var start_level := clampf(cranking, 0.0, 1.0) * p.starter_volume * 0.1 * (vin + vout * 0.6) \
+			* clampf((700.0 - rpm) / 350.0, 0.3, 1.0)
 	var dg_start := (start_level - _g_start) * inv_n
-	var sinc := (p.starter_hz + p.starter_hz_per_rpm * rpm) / RATE
+	var sinc := (p.starter_hz + p.starter_hz_per_rpm * minf(rpm, 350.0)) / RATE
 	var start_on := start_level > 0.0005 or _g_start > 0.0005
 	var horn_level := (0.12 * (vin + vout * 0.15)) if horn else 0.0
 	var dg_horn := (horn_level - _g_horn) * inv_n
@@ -257,8 +264,10 @@ func render(frames: int, out: PackedVector2Array) -> void:
 	var seed := _seed
 	var ph := _ph
 	var thr := _thr
+	var nom := _nom
 	var half := _half
 	var env := _env
+	var xm := _xm
 	var dec := _dec
 	var nsh := _nsh
 	var pf := _pf
@@ -299,18 +308,21 @@ func render(frames: int, out: PackedVector2Array) -> void:
 		np = nz
 
 		# Engine: crank phase and firing events.
-		if turning:
-			ph += inc * (1.0 + m * (thr - 2.0 * ph))
+		var dph := inc * (1.0 + m * (thr - 2.0 * ph))
+		if dph > 0.0:
+			ph += dph
 			if not half and ph >= 0.5 * thr:
 				half = true
 				tick += clat
 			if ph >= thr:
-				ph -= thr
+				# Timing wander is relative to the crank, so it never drifts.
+				ph -= nom
 				half = false
 				cyl += 1
 				if cyl >= n_cyl:
 					cyl = 0
-				thr = 1.0 + _cyl_off[cyl] + lope * (_rng.randf() - 0.5)
+				nom = 1.0 + _cyl_off[cyl]
+				thr = nom + lope * (_rng.randf() - 0.5)
 				var fires := firing
 				if fires:
 					if _rng.randf() < miss * _cyl_weak[cyl]:
@@ -331,7 +343,8 @@ func render(frames: int, out: PackedVector2Array) -> void:
 		env *= dec
 		pf *= dec_puff
 		pl += 0.08 * (pf - pl)
-		var x := env * (1.0 + nsh * nz) + pl * (1.0 + 0.5 * nz) + nz * floor_n
+		xm += kx * (env * (1.0 + nsh * nz) + nz * floor_n - xm)
+		var x := xm + pl * (1.0 + 0.5 * nz)
 		l1 += f1 * b1
 		var h1 := x - l1 - q1 * b1
 		b1 += f1 * h1
@@ -342,7 +355,7 @@ func render(frames: int, out: PackedVector2Array) -> void:
 		var e := b1 * g_ex + h1 * g_cr + b2 * g_body + tick * hn * g_clat
 
 		# Propeller: blade-pass buzz, brighter with tip speed, plus whoosh.
-		pp += pinc
+		pp += dph * pratio
 		if pp >= 1.0:
 			# Next blade: blades differ a little (track, nicks), and the air
 			# never hits them quite the same twice.
@@ -380,7 +393,7 @@ func render(frames: int, out: PackedVector2Array) -> void:
 					var bsz := bump_size * (0.3 + _rng.randf())
 					b4 += bsz * 0.6
 					rat += rattle * bsz * 0.5
-					bump_n = int((0.4 + _rng.randf() * 1.2) / bumps_per_sample)
+					bump_n = mini(int((0.4 + _rng.randf() * 1.2) / bumps_per_sample), int(RATE))
 			l4 += f4 * b4
 			var h4 := lin - l4 - q4 * b4
 			b4 += f4 * h4
@@ -401,7 +414,7 @@ func render(frames: int, out: PackedVector2Array) -> void:
 			if hp >= 1.0:
 				hp -= 1.0
 			gh += dg_horn
-			s += (2.0 * hp - 1.0) * gh
+			s += (absf(4.0 * hp - 2.0) - 1.0 + 0.3 * (2.0 * hp - 1.0)) * gh
 
 		# Soft limiter, transparent below 0.6.
 		if s > 0.6:
@@ -415,8 +428,10 @@ func render(frames: int, out: PackedVector2Array) -> void:
 	_seed = seed
 	_ph = ph
 	_thr = thr
+	_nom = nom
 	_half = half
 	_env = env
+	_xm = xm
 	_dec = dec
 	_nsh = nsh
 	_pf = pf

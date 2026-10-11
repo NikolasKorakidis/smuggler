@@ -11,6 +11,7 @@ idle_rpm = 700.0
 exhaust_hz = 210.0
 exhaust_ring = 0.75
 bark = 0.9
+muffler = 0.1
 rasp = 0.6
 pulse_deg = 35.0
 body_hz = 150.0

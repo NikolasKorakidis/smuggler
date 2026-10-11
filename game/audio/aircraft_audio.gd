@@ -167,7 +167,7 @@ func _update_inputs(delta: float) -> void:
 	s.surface = fdm.surface
 	s.ground_speed_kt = fdm.prop_get("velocities/vg-fps") * 0.5925
 	if on_ground and not _was_on_ground:
-		var sink := absf(fdm.prop_get("velocities/v-down-fps"))
+		var sink := absf(fdm.prop_get("velocities/v-down-fps")) if fdm.jsb.has_property("velocities/v-down-fps") else 0.0
 		s.touchdown(clampf(0.25 + sink / 8.0, 0.25, 1.0))
 	_was_on_ground = on_ground
 
@@ -204,7 +204,7 @@ func _roughness(firing: bool) -> float:
 	if engine:
 		if engine.magnetos == 1 or engine.magnetos == 2:
 			r += 0.04  # one magneto: slower burn, a worn plug shows up
-		r += 0.12 * (1.0 - engine.warmth)  # cold engine
+		r += 0.06 * (1.0 - engine.warmth) * lerpf(1.0, 0.3, clampf(_load, 0.0, 1.0))  # cold engine
 		if engine.carb_heat:
 			r += 0.03
 		r += 0.9 * smoothstep(0.3, 0.0, engine.fuel_line_fraction())  # fuel starvation

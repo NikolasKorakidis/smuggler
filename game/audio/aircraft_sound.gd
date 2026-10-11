@@ -17,6 +17,8 @@ extends Resource
 ## High-frequency crack of each exhaust pulse (short stacks = high,
 ## big muffler = low).
 @export_range(0.0, 1.5) var bark := 0.5
+## Muffler: 0 = open stacks (sharp pops), 1 = big muffler (round thumps).
+@export_range(0.0, 1.0) var muffler := 0.5
 ## Raspy, noisy edge of the exhaust at high power.
 @export_range(0.0, 1.0) var rasp := 0.4
 ## Length of one exhaust pulse in crank degrees (longer = softer, rounder).
