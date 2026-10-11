@@ -13,7 +13,7 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 - **Not:** no plane-vs-plane shooting. Minimal on-foot shooting allowed later (e.g. shooting back at a chasing helicopter).
 
 ## World
-- Fictional geography, realistic terrain. Era 1978–1988.
+- Real geography and real places. Era 1978–1988. Which real region to build first: **OPEN** (replaces the fictional "Mexico"/"USA" layout below; decided 2026-10-11).
 - Layout: two continents (a "Mexico" and a "USA") with islands in between. **FLAG:** far bigger than the 150 × 150 km v1 recommendation. Plan: build one island group + a coastal strip of each continent first, expand in Early Access.
 - Locations: jungle strips, beaches, roads, farms, cities, villages, oil rigs, carrier ships.
 - Landing: mostly defined strips; beaches and some flat areas also landable.
@@ -71,7 +71,7 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 - Silent, unnamed player character (for now).
 - NPCs: mechanic, fixer, cartel contact, rival pilot, cop.
 - Story delivery: **OPEN**.
-- No ending. Fully fictional.
+- No ending. Real places; fictional people and companies.
 
 ## Cockpit, controls and UI
 - Cameras: cockpit and external.
