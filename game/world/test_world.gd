@@ -8,10 +8,12 @@ extends Node3D
 @export var strip_width_m := 25.0
 ## True heading of the strip, degrees.
 @export var strip_heading_deg := 0.0
-@export var aircraft_definition: AircraftDefinition
+## Aircraft available in the test world; N cycles through them.
+@export var aircraft_definitions: Array[AircraftDefinition] = []
 
 var geo: Geo
 var aircraft: Aircraft
+var _aircraft_index := 0
 
 
 func _ready() -> void:
@@ -22,8 +24,21 @@ func _ready() -> void:
 	_build_hangar()
 	_scatter_trees()
 
+	_spawn_aircraft(0)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("next_aircraft") and aircraft_definitions.size() > 1:
+		_spawn_aircraft((_aircraft_index + 1) % aircraft_definitions.size())
+
+
+func _spawn_aircraft(index: int) -> void:
+	if aircraft:
+		aircraft.queue_free()
+		remove_child(aircraft)
+	_aircraft_index = index
 	aircraft = preload("res://aircraft/aircraft.tscn").instantiate()
-	aircraft.definition = aircraft_definition
+	aircraft.definition = aircraft_definitions[index]
 	add_child(aircraft)
 	if aircraft.setup(self):
 		$CameraRig.target = aircraft

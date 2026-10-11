@@ -1,15 +1,23 @@
 extends Node
 ## Headless check that the world loads and the aircraft takes off in Godot.
-## godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn
+## godot --headless --path game --fixed-fps 60 res://dev/smoke_test.tscn [-- --aircraft=1]
 
 var world: Node3D
 var frames := 0
 var takeoff_frame := -1
+var rotate_kias := 30.0
 
 
 func _ready() -> void:
+	FlightInput.joysticks_enabled = false
 	world = load("res://world/test_world.tscn").instantiate()
 	add_child(world)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--aircraft="):
+			world._spawn_aircraft(int(a.trim_prefix("--aircraft=")))
+	if world.aircraft.definition.jsbsim_model != "J3Cub":
+		rotate_kias = 55.0
+	print("aircraft: ", world.aircraft.definition.display_name)
 
 
 func _process(_delta: float) -> void:
@@ -37,7 +45,7 @@ func _process(_delta: float) -> void:
 		Input.action_press("rudder_left", -r)
 	var kias := f.prop_get("velocities/vc-kts")
 	Input.action_release("pitch_back")
-	if kias > 30.0:
+	if kias > rotate_kias:
 		Input.action_press("pitch_back", 0.35)
 	if frames % 120 == 0:
 		print("t=%4.1f KIAS=%5.1f AGL=%6.1f ft HDG=%6.1f pos=(%.0f, %.1f, %.0f) %s rpm=%.0f fps=%d" % [

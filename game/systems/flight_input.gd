@@ -13,11 +13,14 @@ const WRONG_MODE := {
 }
 const AXES := ["pitch", "roll", "rudder", "throttle", "brake_left", "brake_right"]
 const BIPOLAR := ["pitch", "roll", "rudder"]
-const BUTTONS := ["brakes", "trim_up", "trim_down", "camera_next"]
+const BUTTONS := ["brakes", "trim_up", "trim_down", "flaps_up", "flaps_down", "camera_next"]
+## Bound joystick buttons that fire a one-shot action (like a key press).
+const PULSE_BUTTONS := ["flaps_up", "flaps_down", "camera_next"]
 const LABELS := {
 	"pitch": "Pitch (stick back = +)", "roll": "Roll (right = +)", "rudder": "Rudder (right pedal = +)",
 	"throttle": "Throttle", "brake_left": "Left toe brake", "brake_right": "Right toe brake",
 	"brakes": "Both brakes", "trim_up": "Trim nose up", "trim_down": "Trim nose down",
+	"flaps_up": "Flaps up (one notch)", "flaps_down": "Flaps down (one notch)",
 	"camera_next": "Next camera",
 }
 
@@ -28,6 +31,7 @@ const KEYS := {
 	"throttle_up": [KEY_R], "throttle_down": [KEY_F],
 	"brakes": [KEY_SPACE], "trim_up": [KEY_BRACKETRIGHT], "trim_down": [KEY_BRACKETLEFT],
 	"camera_next": [KEY_C], "reset_aircraft": [KEY_BACKSPACE], "engine_toggle": [KEY_M],
+	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
 }
 
@@ -48,6 +52,10 @@ var axis_bindings := {}
 ## action -> {guid, device_name, button}
 var button_bindings := {}
 
+## False ignores all joysticks (headless tests with hardware plugged in).
+var joysticks_enabled := true
+
+var _seen_axes := {}  # Vector2i(device, axis) that have reported real movement
 var _user_axes := {}  # bindings the player made (saved); the rest come from profiles
 var _user_buttons := {}
 var _profiles := ConfigFile.new()
@@ -96,13 +104,17 @@ func _physics_process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# macOS reports axes as centred until they first move; trust them after that.
+	if event is InputEventJoypadMotion:
+		_seen_axes[Vector2i(event.device, event.axis)] = true
 	if event is InputEventJoypadButton and event.pressed:
-		var b = button_bindings.get("camera_next")
-		if b and event.button_index == b.button and Input.get_joy_guid(event.device) == b.guid:
-			var ev := InputEventAction.new()
-			ev.action = "camera_next"
-			ev.pressed = true
-			Input.parse_input_event(ev)
+		for action in PULSE_BUTTONS:
+			var b = button_bindings.get(action)
+			if b and event.button_index == b.button and Input.get_joy_guid(event.device) == b.guid:
+				var ev := InputEventAction.new()
+				ev.action = action
+				ev.pressed = true
+				Input.parse_input_event(ev)
 
 
 func set_throttle_keyboard(value: float) -> void:
@@ -214,7 +226,10 @@ func device_for_guid(guid: String) -> int:
 # --- internals --------------------------------------------------------------
 
 func _bound(control: String) -> bool:
-	return control in axis_bindings and device_for_guid(axis_bindings[control].guid) >= 0
+	if not joysticks_enabled or control not in axis_bindings:
+		return false
+	var d := device_for_guid(axis_bindings[control].guid)
+	return d >= 0 and _seen_axes.has(Vector2i(d, axis_bindings[control].axis))
 
 
 func _axis(control: String) -> float:
@@ -235,7 +250,7 @@ func _axis(control: String) -> float:
 
 func _button(action: String) -> bool:
 	var b = button_bindings.get(action)
-	if b == null:
+	if b == null or not joysticks_enabled:
 		return false
 	var d := device_for_guid(b.guid)
 	return d >= 0 and Input.is_joy_button_pressed(d, b.button)
@@ -245,6 +260,8 @@ func _button(action: String) -> bool:
 # are rudder, right stick moves the throttle, cross/A brakes.
 func _pad_axis(axis: JoyAxis) -> float:
 	var total := 0.0
+	if not joysticks_enabled:
+		return total
 	for d in Input.get_connected_joypads():
 		if Input.is_joy_known(d) and not _device_has_bindings(d):
 			var v := Input.get_joy_axis(d, axis)
@@ -253,6 +270,8 @@ func _pad_axis(axis: JoyAxis) -> float:
 
 
 func _pad_button(button: JoyButton) -> bool:
+	if not joysticks_enabled:
+		return false
 	for d in Input.get_connected_joypads():
 		if Input.is_joy_known(d) and not _device_has_bindings(d) and Input.is_joy_button_pressed(d, button):
 			return true

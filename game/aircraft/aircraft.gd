@@ -11,6 +11,7 @@ const TRIM_RATE := 0.25  # full trim travel in 4 s
 var world: Node3D  # TestWorld (provides geo, spawn_point, surface_at, terrain_height)
 var airframe: Node3D
 var trim := 0.0
+var flap_notch := 0
 
 @onready var fdm: FDM = $FDM
 
@@ -36,6 +37,7 @@ func respawn() -> void:
 	fdm.surface = world.surface_at(sp.position)
 	fdm.spawn(world.geo, sp.position, sp.heading_deg, world.terrain_height(sp.position))
 	trim = 0.0
+	flap_notch = 0
 	FlightInput.set_throttle_keyboard(0.0)
 	_place()
 	reset_physics_interpolation()
@@ -65,6 +67,10 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reset_aircraft"):
 		respawn()
+	elif event.is_action_pressed("flaps_down"):
+		flap_notch = mini(flap_notch + 1, maxi(definition.flap_detents.size() - 1, 0))
+	elif event.is_action_pressed("flaps_up"):
+		flap_notch = maxi(flap_notch - 1, 0)
 	elif event.is_action_pressed("engine_toggle"):
 		if fdm.engine_running():
 			fdm.stop_engine()
@@ -85,6 +91,8 @@ func _apply_controls(delta: float) -> void:
 	fdm.prop("fcs/right-brake-cmd-norm", i.brake_right)
 	trim = clampf(trim + i.trim * TRIM_RATE * delta, -1.0, 1.0)
 	fdm.prop("fcs/pitch-trim-cmd-norm", -trim)
+	if not definition.flap_detents.is_empty():
+		fdm.prop("fcs/flap-cmd-norm", definition.flap_detents[flap_notch])
 
 
 func _place() -> void:

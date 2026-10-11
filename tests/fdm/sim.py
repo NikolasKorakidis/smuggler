@@ -24,7 +24,8 @@ def wrap180(deg):
 
 
 class Sim:
-    def __init__(self, model, agl_ft=0.0, kcas=0.0, psi_deg=0.0, fuel_frac=None):
+    def __init__(self, model, agl_ft=0.0, kcas=0.0, psi_deg=0.0, fuel_frac=None, payload=None):
+        """payload: {pointmass index: lbs}, e.g. passengers for max-gross tests."""
         self.fdm = jsbsim.FGFDMExec(root_dir=AIRCRAFT_DIR)
         self.fdm.set_debug_level(0)
         ok = self.fdm.load_model_with_paths(
@@ -42,13 +43,28 @@ class Sim:
         self.psi_ref = psi_deg
         assert self.fdm.run_ic()
         if fuel_frac is not None:
-            cap = self["propulsion/tank/capacity-lbs"]
-            self["propulsion/tank/contents-lbs"] = cap * fuel_frac
+            # JSBSim exposes contents and pct-full, not capacity.
+            i = 0
+            while self._has(f"propulsion/tank[{i}]/contents-lbs"):
+                pct = self[f"propulsion/tank[{i}]/pct-full"]
+                if pct > 0:
+                    cap = self[f"propulsion/tank[{i}]/contents-lbs"] * 100.0 / pct
+                    self[f"propulsion/tank[{i}]/contents-lbs"] = cap * fuel_frac
+                i += 1
+        for index, lbs in (payload or {}).items():
+            self[f"inertia/pointmass-weight-lbs[{index}]"] = lbs
         self["propulsion/magneto_cmd"] = 3
         self["propulsion/set-running"] = -1
         self["fcs/mixture-cmd-norm"] = 1.0
         self["fcs/throttle-cmd-norm"] = 0.0
         self.theta_target = None
+
+    def _has(self, key):
+        try:
+            self.fdm[key]
+            return True
+        except KeyError:
+            return False
 
     def __getitem__(self, key):
         return self.fdm[key]
@@ -99,8 +115,8 @@ def kcas(sim):
     return sim["velocities/vc-kts"]
 
 
-def static_rpm(model):
-    s = Sim(model)
+def static_rpm(model, **load):
+    s = Sim(model, **load)
     s["fcs/throttle-cmd-norm"] = 1.0
     s["fcs/left-brake-cmd-norm"] = 1.0
     s["fcs/right-brake-cmd-norm"] = 1.0
@@ -108,10 +124,12 @@ def static_rpm(model):
     return s["propulsion/engine/engine-rpm"], s["propulsion/engine/thrust-lbs"]
 
 
-def takeoff_roll(model, rotate_kcas, climb_theta=8.0, tail_up_theta=1.0):
+def takeoff_roll(model, rotate_kcas, climb_theta=8.0, tail_up_theta=1.0, flaps=0.0, **load):
     """Full-power takeoff from a standstill on a paved surface, no wind.
+    tail_up_theta: pitch held during the roll (None = stick neutral, for nosewheels).
     Returns (ground roll in ft, liftoff KCAS)."""
-    s = Sim(model)
+    s = Sim(model, **load)
+    s["fcs/flap-cmd-norm"] = flaps
     s.step(2.0)  # settle on the gear
     x0 = s["position/distance-from-start-mag-mt"]
     s["fcs/throttle-cmd-norm"] = 1.0
@@ -139,9 +157,9 @@ def _speed_hold_theta(s, target_kcas, theta_trim, k=0.6):
     return theta_trim + k * (kcas(s) - target_kcas)
 
 
-def climb_rate(model, vy_kcas, alt_ft=1000.0, settle=20.0, measure=30.0):
+def climb_rate(model, vy_kcas, alt_ft=1000.0, settle=20.0, measure=30.0, **load):
     """Full-power climb at vy. Returns average climb rate in ft/min."""
-    s = Sim(model, agl_ft=alt_ft, kcas=vy_kcas)
+    s = Sim(model, agl_ft=alt_ft, kcas=vy_kcas, **load)
     s["fcs/throttle-cmd-norm"] = 1.0
     theta = 6.0
     t_end = settle + measure
@@ -156,9 +174,9 @@ def climb_rate(model, vy_kcas, alt_ft=1000.0, settle=20.0, measure=30.0):
     return (s["position/h-sl-ft"] - h0) / (s.t - t0) * 60.0
 
 
-def level_speed(model, throttle=1.0, alt_ft=1000.0, start_kcas=60.0, seconds=150.0):
+def level_speed(model, throttle=1.0, alt_ft=1000.0, start_kcas=60.0, seconds=150.0, **load):
     """Altitude-hold flight at fixed throttle. Returns steady KCAS and RPM."""
-    s = Sim(model, agl_ft=alt_ft, kcas=start_kcas)
+    s = Sim(model, agl_ft=alt_ft, kcas=start_kcas, **load)
     s["fcs/throttle-cmd-norm"] = throttle
     h_ref = s["position/h-sl-ft"]
     theta = 2.0
@@ -171,12 +189,14 @@ def level_speed(model, throttle=1.0, alt_ft=1000.0, start_kcas=60.0, seconds=150
     return kcas(s), s["propulsion/engine/engine-rpm"]
 
 
-def stall_speed(model, alt_ft=3000.0, ramp_s=40.0):
+def stall_speed(model, alt_ft=3000.0, ramp_s=40.0, start_kcas=55.0, flaps=0.0, **load):
     """Power-off, wings-level stall: ease the stick back from neutral to the
     aft stop over ramp_s seconds. Returns the lowest KCAS reached, plus the
     angle of attack at that moment."""
-    s = Sim(model, agl_ft=alt_ft, kcas=55.0)
+    s = Sim(model, agl_ft=alt_ft, kcas=start_kcas, **load)
     s["fcs/throttle-cmd-norm"] = 0.0
+    s["fcs/flap-cmd-norm"] = flaps
+    s.step(3.0)
     min_v, alpha_at_min = 1e9, None
     t0 = s.t
     while s.t - t0 < ramp_s + 10.0:

@@ -15,3 +15,7 @@
 | 2026-10-11 | Ground surface (grass/paved/rough) sets JSBSim's global ground friction from where the aircraft is | JSBSim ignores per-wheel surface factors |
 | 2026-10-11 | T.Flight Hotas 5 must be in PC mode (green LED); built-in default bindings by USB id | PlayStation mode hides throttle/pedal axes from macOS |
 | 2026-10-11 | Phase 0 gate passed (HOTAS circuit flown by Nikolas) | — |
+| 2026-10-11 | 172-type tuned: BSFC 0.43 (was 0.32), prop cp 0.80 / ct 1.08, +0.014 parasite drag, CL ×1.10 | Stock engine made ~226 hp. Now at 2400 lb: 710 fpm, 122 kt, 911 ft roll, stall 51.5/46.9 KCAS vs 700/123/890/51/46 published |
+| 2026-10-11 | Physics tests for the 172 run at 2400 lb max gross | Published figures are at max gross |
+| 2026-10-11 | Joystick axes ignored until they first move | macOS reports unmoved axes as centred: throttle read 50%, toe brakes 50% at start-up |
+| 2026-10-11 | Flap notches defined per aircraft in its .tres | Aircraft are data; Cub has none, 172 has 0/10/20/30° |

@@ -8,6 +8,8 @@ Q / E                  rudder (also steers the tailwheel)
 R / F                  throttle up / down
 Space                  brakes (hold)
 [ / ]                  trim nose down / up
+G / T                  flaps down / up (one notch)
+N                      next aircraft (Cub / 172)
 M                      engine off / on
 C                      chase / cockpit camera
 Right mouse            look around    Wheel: zoom    Middle: recentre
