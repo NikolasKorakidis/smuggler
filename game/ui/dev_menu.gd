@@ -97,6 +97,7 @@ func _build() -> void:
 	_tab_time()
 	_tab_weather()
 	_tab_sky()
+	_tab_clouds()
 	_tab_flight()
 	_tab_aircraft()
 	_tab_engine()
@@ -322,6 +323,85 @@ func _tab_sky() -> void:
 				var stage := "growing" if c.progress() < 0.25 else ("mature" if c.progress() < 0.7 else "dying")
 				near = "nearest %.1f km, %s, outflow %.0f kt" % [d / 1000.0, stage, c.outflow_ms() / 0.514444]
 		return "%s\nRain here %.1f mm/h   Storms %d %s" % [w.metar(), w.rain_at(here), w.cells.size(), near])
+
+
+# --- cloud designer --------------------------------------------------------------
+
+var _cl_layer := 0
+
+
+func _clouds() -> Clouds:
+	return world.get_node("WeatherFX").clouds
+
+
+func _cl() -> Clouds.Layer:
+	return _clouds().layers[_cl_layer]
+
+
+# The selected layer's type, taken over from the weather so edits stick.
+func _ct() -> CloudType:
+	if not _cl().manual:
+		_clouds().set_manual(_cl_layer, true)
+	return _cl().type
+
+
+func _ct_slider(b: VBoxContainer, text: String, field: String, lo: float, hi: float, step: float, fmt: Variant) -> void:
+	_slider(b, text, lo, hi, step, func(): return _cl().type.get(field) if _cl().type else 0.0,
+		func(v): _ct().set(field, v), fmt)
+
+
+func _tab_clouds() -> void:
+	var b := _tab("Clouds")
+	var ids: Array = _clouds().types.keys()
+	ids.sort()
+	_section(b, "LAYER (manual = the designer owns it, not the weather)")
+	_choice(b, "Layer", ["Low", "Mid", "High"], func(): return _cl_layer, func(i): _cl_layer = i)
+	_check(b, "Manual (designer)", func(): return _cl().manual, func(on): _clouds().set_manual(_cl_layer, on))
+	_check(b, "Layer on", func(): return _cl().enabled, func(on):
+		_clouds().set_manual(_cl_layer, true)
+		_cl().enabled = on)
+	var names: Array = []
+	for id in ids:
+		names.append(_clouds().types[id].display_name)
+	_choice(b, "Cloud type", names, func(): return maxi(ids.find(_cl().type_id), 0), func(i):
+		_clouds().set_manual(_cl_layer, true)
+		_clouds().set_layer_type(_cl_layer, ids[i]))
+	_slider(b, "Cover", 0, 1, 0.01, func(): return _cl().cover, func(v):
+		_clouds().set_manual(_cl_layer, true)
+		_cl().cover = v, func(v): return "%.2f (%d oktas)" % [v, int(round(v * 8.0))])
+	_slider(b, "Base", 100, 9000, 25, func(): return _cl().base_m, func(v):
+		_clouds().set_manual(_cl_layer, true)
+		_cl().base_m = v
+		_cl().top_m = maxf(_cl().top_m, v + 100.0), func(v): return "%.0f m (%d ft)" % [v, int(v / 0.3048)])
+	_slider(b, "Top", 200, 12000, 25, func(): return _cl().top_m, func(v):
+		_clouds().set_manual(_cl_layer, true)
+		_cl().top_m = maxf(v, _cl().base_m + 100.0), "%.0f m")
+	_section(b, "LOOK OF THIS LAYER'S TYPE")
+	_ct_slider(b, "Heaps .. sheet", "heaps", 0, 1, 0.05, "%.2f")
+	_ct_slider(b, "Edge softness", "softness", 0.01, 0.3, 0.005, "%.3f")
+	_ct_slider(b, "Edge erosion (detail)", "erosion", 0, 1, 0.02, "%.2f")
+	_ct_slider(b, "Billowing sides", "billow", 0, 1200, 10, "%.0f m")
+	_ct_slider(b, "Narrowing to the top", "narrowing", 0, 0.4, 0.01, "%.2f")
+	_ct_slider(b, "Density", "density", 0.1, 3, 0.05, "%.2f")
+	_ct_slider(b, "Light extinction", "extinction", 0.005, 0.15, 0.005, "%.3f /m")
+	_ct_slider(b, "Patchiness", "patchiness", 0, 1, 0.05, "%.2f")
+	_ct_slider(b, "Billow size", "scale", 0.3, 3, 0.05, "%.2fx")
+	_ct_slider(b, "Base wobble", "base_wobble", 0, 400, 5, "%.0f m")
+	_ct_slider(b, "Top wobble", "top_wobble", 0, 500, 5, "%.0f m")
+	_section(b, "ENGINE")
+	_slider(b, "Ray-march steps", 32, 200, 8, func(): return _clouds().steps, func(v): _clouds().steps = int(v), "%.0f")
+	_slider(b, "Sun-march steps", 2, 10, 1, func(): return _clouds().light_steps, func(v): _clouds().light_steps = int(v), "%.0f")
+	_slider(b, "Cells grow/fade speed", 0, 20, 0.5, func(): return _clouds().evolution, func(v): _clouds().evolution = v, "%.1fx")
+	_buttons(b, [["All layers back to the weather", func():
+		for i in 3:
+			_clouds().set_manual(i, false)]])
+	_readout(b, func():
+		var parts := []
+		for i in 3:
+			var l: Clouds.Layer = _clouds().layers[i]
+			parts.append("%s: %s %s %.2f %d-%d m" % [["Low", "Mid", "High"][i], "on" if l.enabled else "off",
+				l.type.display_name if l.type else "-", l.cover, int(l.base_m), int(l.top_m)])
+		return "\n".join(parts))
 
 
 func _heading() -> float:

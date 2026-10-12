@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="CloudType" format=3]
+
+[ext_resource type="Script" path="res://world/clouds/cloud_type.gd" id="1_52sys"]
+
+[sub_resource type="Curve" id="Curve_htxk0"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.012, 1), 0.0, 0.0, 0, 0, Vector2(0.8, 1), 0.0, 0.0, 0, 0, Vector2(0.95, 0.6), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 5
+
+[resource]
+script = ExtResource("1_52sys")
+display_name = "Cumulonimbus (storm)"
+profile = SubResource("Curve_htxk0")
+default_depth = 9500.0
+softness = 0.05
+erosion = 0.5
+billow = 700.0
+narrowing = 0.1
+density = 2.5
+extinction = 0.09
+base_wobble = 30.0
+scale = 1.6

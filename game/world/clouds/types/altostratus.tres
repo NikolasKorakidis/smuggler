@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CloudType" format=3]
+
+[ext_resource type="Script" path="res://world/clouds/cloud_type.gd" id="1_bmyhk"]
+
+[sub_resource type="Curve" id="Curve_7fl16"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.15, 1), 0.0, 0.0, 0, 0, Vector2(0.6, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[resource]
+script = ExtResource("1_bmyhk")
+display_name = "Altostratus (mid-level sheet)"
+profile = SubResource("Curve_7fl16")
+default_depth = 900.0
+heaps = 0.0
+softness = 0.12
+erosion = 0.15
+billow = 200.0
+narrowing = 0.0
+density = 0.6
+extinction = 0.025
+base_wobble = 120.0
+top_wobble = 150.0
+patchiness = 0.6
+scale = 1.2

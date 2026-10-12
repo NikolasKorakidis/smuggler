@@ -14,7 +14,7 @@ const MAX_CELLS := 8
 ## Floats in the fog parameter buffer (matches fog.glsl).
 const FOG_FLOATS := 16 + 16 + 4 * 12 + MAX_CELLS * 4 * 2 + 4 + 12
 ## Floats in the cloud parameter buffer after the three matrices (matches clouds.glsl).
-const CLOUD_FLOATS := 4 * 12 + 8 * 4 * 2 + 4 * 4
+const CLOUD_FLOATS := 4 * 45
 const SHAPE_SIZE := 128
 const DETAIL_SIZE := 32
 
@@ -24,6 +24,8 @@ var clouds_enabled := true
 var fog_enabled := true
 ## The 2D weather map (coverage noise), set by Clouds.
 var weather_texture: Texture2D
+## Cloud type profiles (rows: layers 0-2, storm), set by Clouds.
+var profile_texture: Texture2D
 ## Cloud shadows for the terrain: sunlight getting through, over a square
 ## around the camera on the cloud-base plane (see shadow_rect).
 var shadow_texture := Texture2DRD.new()
@@ -223,7 +225,7 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 	var half := Vector2i(maxi(size.x / 2, 1), maxi(size.y / 2, 1))
 	_ensure_history(half)
 	var depth := buffers.get_depth_layer(0)
-	var clouds_on := clouds_enabled and weather_texture != null
+	var clouds_on := clouds_enabled and weather_texture != null and profile_texture != null
 	var cur := _ping
 	var prev := 1 - _ping
 
@@ -234,9 +236,9 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 		_put_xform(data, cam)
 		_put_mat(data, _prev_vp if _have_prev else vp)
 		data.append_array(cloud_params)
-		data[48 + 4 * 10 + 2] = float(_frame)  # counts.z: frame index
+		data[48 + 4 * 7 + 2] = float(_frame)  # counts.z: frame index
 		if not _have_prev:
-			data[48 + 4 * 11 + 2] = 1.0  # misc.z: no history yet
+			data[48 + 4 * 8 + 2] = 1.0  # misc.z: no history yet
 		var bytes := data.to_byte_array()
 		_rd.buffer_update(_cloud_buf, 0, bytes.size(), bytes)
 		var wtex := RenderingServer.texture_get_rd_texture(weather_texture.get_rid())
@@ -251,6 +253,8 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 			_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 7, [_s_linear_repeat, wtex]),
 			_uniform(RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER, 8, [_cloud_buf]),
 			_uniform(RenderingDevice.UNIFORM_TYPE_IMAGE, 9, [_shadow]),
+			_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 10,
+				[_s_linear_clamp, RenderingServer.texture_get_rd_texture(profile_texture.get_rid())]),
 		])
 		# Cloud shadows (for the terrain, next frame), then the clouds themselves.
 		var spush := PackedFloat32Array([SHADOW_SIZE, SHADOW_SIZE, size.x, size.y,

@@ -39,6 +39,13 @@ Gate: a gusty crosswind landing at dusk feels hard but fair; a thunderstorm is s
 - [x] High cirrus stays in our sky shader.
 - [x] Overcast days darker and flatter; cloud shadows on the ground; god rays through gaps.
 
+## Cloud engine (our own, like Ace Combat's Cloudly)
+- [x] Data-driven cloud types (world/clouds/types/*.tres, made by dev/make_cloud_types.gd) with profile curves.
+- [x] Up to three layers (low, mid, high) plus storm towers; the weather fills them, the designer can take any over.
+- [x] Sun at cloud height; cells that grow and dissolve; cloud shadows; god rays.
+- [x] Dev menu "Clouds" designer: type, cover, heights and every look setting per layer; quality.
+- [ ] Next: far-distance skies beyond 60 km; cumulus that build through the afternoon (time of day); cirrus as a volumetric high layer; rain shafts under raining clouds from the cloud map.
+
 ## W4 — Rain
 - [x] Rain streaks around the camera (GPU, constant density at any speed), slanted by your airspeed, lit by the landing light.
 - [x] **Rain on the windshield**: drops land and merge, run down when slow, are blown up and back at flying speed, water film in heavy rain, refraction and blur of the view, glints from lights; stays wet for a while after you leave the rain. Cloud moisture too.
