@@ -174,7 +174,7 @@ func _build_glass() -> void:
 	q.size = Vector2(diameter_m, diameter_m) * 0.98
 	glass.mesh = q
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.85, 0.83, 0.75, 0.10)
+	m.albedo_color = Color(0.85, 0.83, 0.75, 0.05)
 	var dust := NoiseTexture2D.new()
 	dust.width = 128
 	dust.height = 128

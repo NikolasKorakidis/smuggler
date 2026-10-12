@@ -121,10 +121,13 @@ func _link_vector(n: Node3D, target: Node3D) -> Vector3:
 	return parent.global_basis.inverse() * (target.global_position - n.global_position)
 
 
-# See-through parts (windows, prop disc) must not throw solid shadows into the cabin.
+# See-through parts (windows, prop disc) must not throw solid shadows into the cabin, and
+# the cabin lining (Interior*, inside the skin) must not shadow itself in stripes.
 func _no_shadows_from_glass(n: Node) -> void:
 	for c in n.get_children():
-		if c is MeshInstance3D and c.mesh:
+		if c is MeshInstance3D and String(c.name).begins_with("Interior"):
+			c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif c is MeshInstance3D and c.mesh:
 			for i in c.mesh.get_surface_count():
 				var m := c.get_active_material(i) as BaseMaterial3D
 				if m and m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:

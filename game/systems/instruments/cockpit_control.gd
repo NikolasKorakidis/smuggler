@@ -24,6 +24,8 @@ var _labels: Array[Label3D] = []
 var _highlight: StandardMaterial3D
 var _hover := false
 var _pull := 0.0  # primer animation
+var _model_meshes: Array[MeshInstance3D] = []  # knob from the aircraft's 3D model, if it has one
+var _hover_overlay: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -134,6 +136,8 @@ func _turn_kollsman(step: float) -> void:
 func set_hover(on: bool) -> void:
 	_hover = on
 	_highlight.emission_enabled = on
+	for mi in _model_meshes:
+		mi.material_overlay = _hover_overlay if on else null
 
 
 func tooltip() -> String:
@@ -224,6 +228,8 @@ func _build() -> void:
 	_highlight.emission_energy_multiplier = 0.6
 	_moving = Node3D.new()
 	add_child(_moving)
+	if vintage and _adopt_model_knob():
+		return
 	if vintage:
 		_build_vintage()
 		return
@@ -278,6 +284,26 @@ func _build() -> void:
 			_moving.add_child(knob)
 			_moving.position.z = size_m * 0.4
 	_add_label(label, Vector2(0, -r * 1.9), r * 0.5)
+
+
+# The aircraft model can supply the knob (a node named Knob_<control>, pivot on the panel
+# face, pointing at 12 o'clock) with its own placard: then this node only animates it.
+func _adopt_model_knob() -> bool:
+	if aircraft == null or aircraft.airframe == null:
+		return false
+	var knob := aircraft.airframe.find_child("Knob_" + control, true, false) as Node3D
+	if knob == null:
+		return false
+	if _style == Style.PUSH_PULL:
+		_moving.position.z = size_m * 0.4  # rest offset the animation adds to
+	knob.reparent(_moving, true)
+	for mi in knob.find_children("*", "MeshInstance3D", true, false):
+		_model_meshes.append(mi)
+	_hover_overlay = StandardMaterial3D.new()
+	_hover_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_hover_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_hover_overlay.albedo_color = Color(1.0, 0.8, 0.4, 0.25)
+	return true
 
 
 func _build_vintage() -> void:

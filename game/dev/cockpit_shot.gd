@@ -41,6 +41,9 @@ func _process(_d: float) -> void:
 				c.fov = c.cockpit_fov
 			if a.begins_with("--lookpitch="):
 				world.get_node("CameraRig").look_pitch = deg_to_rad(float(a.trim_prefix("--lookpitch=")))
+			if a == "--noshadows":
+				for l in world.find_children("*", "DirectionalLight3D", true, false):
+					l.shadow_enabled = false
 			if a == "--nohud" and world.has_node("Checklist"):
 				world.get_node("Checklist").visible = false
 	if "--look" in OS.get_cmdline_user_args():

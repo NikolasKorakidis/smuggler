@@ -82,6 +82,7 @@ def make_materials():
     M["panel"] = material("Panel_Paint", "#39423D", 0.6, 0.3)
     M["placard"] = material("Placard", "#9A968A", 0.4, 0.8)
     M["bezel"] = material("Bezel", "#1F1E1B", 0.45, 0.6)
+    M["engrave"] = material("Engraving", "#0E0D0C", 0.95, double=True)  # matte paint infill
     M["tank"] = material("Fuel_Tank", "#5C5F57", 0.6, 0.5)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
     for key, (w, h) in TEX.items():
@@ -768,11 +769,13 @@ def build_panel(parent):
     for k, (x, z) in enumerate(outline):
         if k % 3 == 0:
             screw(x * 0.94, cz + (z - cz) * 0.88)
-    for gx, gz, d in PANEL_GAUGES[:3]:
+    for gi, (gx, gz, d) in enumerate(PANEL_GAUGES[:3]):
         flange(gx, EYE.z + gz, d * 1.2, d * 1.2, d * 0.2)
         bezel_ring(gx, EYE.z + gz, d)
         for sx in (-1, 1):
             for sz in (-1, 1):
+                if gi == 1 and sx < 0 and sz < 0:
+                    continue  # the altimeter's setting knob sits here
                 screw(gx + sx * d * 0.47, EYE.z + gz + sz * d * 0.47, 0.0032, PANEL_Y - 0.003)
     # Combined oil temperature / pressure instrument: one case, two dials.
     flange(0.167, EYE.z - 0.10, 0.128, 0.072, 0.014)
@@ -781,13 +784,110 @@ def build_panel(parent):
     for sx in (-1, 1):
         for sz in (-1, 1):
             screw(0.167 + sx * 0.056, EYE.z - 0.10 + sz * 0.028, 0.0028, PANEL_Y - 0.003)
-    # Placards under the knobs (the engraving is drawn by the game).
-    for x, z in ((-0.248, -0.164), (0.205, -0.193), (-0.165, -0.197)):
-        box(mb, (x, PANEL_Y - 0.002, EYE.z + z), (0.05, 0.003, 0.013), "placard")
-        for sx in (-1, 1):
-            lathe(mb, [(0, 0), (0, 0.0015), (0.001, 0)], "steel", (x + sx * 0.022, PANEL_Y - 0.0035, EYE.z + z), "y", 6, -1)
     box(mb, (0.0, PANEL_Y + 0.02, EYE.z + 0.005), (0.07, 0.05, 0.012), "engine")
     obj("Panel_board", mb, parent, smooth=40)
+    build_panel_controls(parent)
+
+
+# Knobs and placards on the panel (eye-relative x, y like panel.tscn). The game finds the
+# Knob_<control> nodes, turns or pulls them, and uses its own hit boxes at the same spots.
+PANEL_CONTROLS = {"magnetos": (-0.245, -0.085), "fuel_selector": (-0.165, -0.163),
+                  "carb_heat": (0.150, -0.163), "kollsman": (-0.089, -0.136)}
+PLACARDS = [("SWITCH", -0.245, -0.121), ("FUEL", -0.165, -0.190), ("CARB HEAT", 0.150, -0.190)]
+
+
+def panel_point(x, y, out=0.0):
+    return Vector((x, PANEL_Y - out, EYE.z + y))
+
+
+def stamped_text(mb, text, centre, height, mat="engrave", depth=0.0004):
+    """Letters as thin raised geometry facing the pilot (-Y), centred on `centre`."""
+    cu = bpy.data.curves.new("txt", "FONT")
+    cu.body = text
+    cu.size = height * 1.35
+    cu.align_x = "CENTER"
+    cu.align_y = "CENTER"
+    cu.extrude = 0.0  # flat letters facing the pilot; the paint is double-sided
+    cu.space_character = 1.1
+    cu.offset = height * 0.045  # heavier strokes, like stamped placard lettering
+    tmp = bpy.data.objects.new("txt_tmp", cu)
+    COLL.objects.link(tmp)
+    bpy.context.view_layer.update()
+    me = bpy.data.meshes.new_from_object(tmp.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    bpy.data.objects.remove(tmp)
+    bpy.data.curves.remove(cu)
+    rot = Matrix(((1, 0, 0), (0, 0, 1), (0, -1, 0))).transposed()  # text X->X, text Y->up, normal->pilot
+    base = len(mb.v)
+    for v in me.vertices:
+        mb.vert(rot @ v.co + Vector(centre))
+    for poly in me.polygons:
+        mb.face([base + i for i in poly.vertices], mat)
+    bpy.data.meshes.remove(me)
+
+
+def fluted(mb, centre, radius, height, flutes, mat, axis_out=Vector((0, -1, 0)), top=0.85):
+    """Bakelite knob body with finger flutes round the side and a domed top."""
+    rings = []
+    seg = flutes * 4
+    for k, (h, rs) in enumerate(((0.0, 1.0), (height * 0.15, 1.0), (height * 0.85, 1.0), (height, top))):
+        pts = []
+        for i in range(seg):
+            t = 2 * math.pi * i / seg
+            r = radius * rs * (1.0 - 0.09 * (0.5 + 0.5 * math.cos(flutes * t))) if 0 < k < 3 else radius * rs
+            pts.append(Vector(centre) + Vector((r * math.sin(t), 0, r * math.cos(t))) + axis_out * h)
+        rings.append(mb.ring(pts))
+    mb.loft(rings, mat, cap0=True)
+    lathe(mb, [(0, radius * top), (height * 0.12, radius * top * 0.7), (height * 0.18, 0)], mat,
+          Vector(centre) + axis_out * height, "y", seg, -1)
+
+
+def build_panel_controls(parent):
+    hw = MB()  # fixed hardware: escutcheons, valve plate, placards, lettering
+    out = Vector((0, -1, 0))
+    # Magneto switch: brass escutcheon, stamped positions round the knob.
+    mx, my = PANEL_CONTROLS["magnetos"]
+    lathe(hw, [(0, 0), (0, 0.021), (0.0012, 0.021), (0.0018, 0.0195), (0.0018, 0)], "brass", panel_point(mx, my), "y", 32, -1)
+    for name, ang in zip(("OFF", "L", "R", "BOTH"), (-80, -40, 0, 40)):
+        a = math.radians(ang)
+        stamped_text(hw, name, panel_point(mx + 0.0142 * math.sin(a), my + 0.0142 * math.cos(a), 0.0026), 0.0027)
+    for sx in (-1, 1):
+        lathe(hw, [(0, 0), (0, 0.0018), (0.0012, 0)], "steel", panel_point(mx + sx * 0.0185, my - 0.004, 0.0018), "y", 6, -1)
+    # Fuel valve plate with OFF / ON.
+    fx, fy = PANEL_CONTROLS["fuel_selector"]
+    box(hw, panel_point(fx, fy, 0.0007), (0.054, 0.0014, 0.02), "brass")
+    stamped_text(hw, "OFF", panel_point(fx - 0.019, fy, 0.0021), 0.0034)
+    stamped_text(hw, "ON", panel_point(fx + 0.019, fy, 0.0021), 0.0034)
+    # Placards: aluminium plates, two rivets, stamped letters in black.
+    for text, x, y in PLACARDS:
+        w = 0.014 + 0.0052 * len(text)
+        box(hw, panel_point(x, y, 0.0006), (w, 0.0012, 0.0125), "placard")
+        for sx in (-1, 1):
+            lathe(hw, [(0, 0), (0, 0.0014), (0.001, 0)], "steel", panel_point(x + sx * (w / 2 - 0.003), y, 0.0012), "y", 6, -1)
+        stamped_text(hw, text, panel_point(x, y, 0.0019), 0.0058)
+    obj("Panel_hardware", hw, parent, smooth=40)
+
+    # Moving knobs, built pointing at 12 o'clock with the pivot on the panel face.
+    for control, (x, y) in PANEL_CONTROLS.items():
+        piv = empty("Knob_" + control, tuple(panel_point(x, y)), parent=parent)
+        m = MB()
+        c = panel_point(x, y, 0.0018)
+        if control == "magnetos":
+            fluted(m, c, 0.0105, 0.009, 10, "engine")
+            box(m, c + out * 0.013, (0.0055, 0.006, 0.021), "engine")  # grip bar, points up
+            box(m, c + out * 0.0161 + Vector((0, 0, 0.005)), (0.0014, 0.0004, 0.009), "reg")  # cream pointer line
+        elif control == "fuel_selector":
+            lathe(m, [(0, 0), (0, 0.007), (0.006, 0.0065), (0.008, 0)], "brass", c, "y", 16, -1)
+            tube(m, [c + out * 0.006, c + out * 0.007 + Vector((0, 0, 0.022))], 0.0045, "brass", 10, squash=0.35,
+                 flat_axis=(0, 1, 0))
+            lathe(m, [(0, 0), (0, 0.0055), (0.003, 0.0055), (0.0035, 0)], "brass", c + out * 0.0055 + Vector((0, 0, 0.022)), "y", 12, -1)
+        elif control == "carb_heat":
+            lathe(m, [(0, 0), (0, 0.0085), (0.004, 0.0085), (0.0045, 0)], "steel", c, "y", 6, -1)  # hex nut
+            tube(m, [c + out * 0.004, c + out * 0.016], 0.0024, "steel", 10)
+            lathe(m, [(0, 0), (0, 0.006), (0.002, 0.0105), (0.008, 0.0112), (0.012, 0.009), (0.014, 0)], "engine",
+                  c + out * 0.015, "y", 24, -1)
+        else:  # altimeter setting knob, finely knurled
+            fluted(m, c, 0.0058, 0.006, 18, "engine", top=0.9)
+        obj("Knob_" + control + "_mesh", m, piv, smooth=50)
 
 
 def build_center_section(root):
@@ -916,8 +1016,7 @@ def build_fuselage(root):
             if fus_material(ym, band) == "glass" or (band >= 8 and -0.42 < ym < 0.42):
                 continue
             ib.face((b[j], b[j + 1], a[j + 1], a[j]), "tex_int", band)
-    ib.face(irings[0][:-1], "interior")
-    ib.face(list(reversed(irings[-1][:-1])), "interior")
+    ib.face(list(reversed(irings[-1][:-1])), "interior")  # aft bulkhead (the firewall closes the front)
     ib = cut_windows(ib)
     keep = MB()
     remap = {}
@@ -1709,13 +1808,14 @@ CABIN_SHEETS = {
             "HeelBrake_L_mesh", "HeelBrake_R_mesh", "Throttle_rear_quadrant", "Throttle_front_quadrant",
             "Throttle_rear_lever", "Throttle_front_lever", "Throttle_rod", "Trim_crank_mesh", "Firewall",
             "Fuel_tank", "Window_frames", "Skylight_frame"],
-    "pnl": ["Panel_board"],
+    "pnl": ["Panel_board", "Panel_hardware", "Knob_magnetos_mesh", "Knob_fuel_selector_mesh",
+            "Knob_carb_heat_mesh", "Knob_kollsman_mesh"],
     "seat": ["Seat_rear", "Seat_front"],
     "frm": ["Frame"],
 }
 CABIN_MATS = {"Frame_Tube": 10, "Seat_Leather": 11, "Floor_Wood": 12, "Pedal_Metal": 13, "Steel": 14,
               "Engine_Black": 15, "Seat_Belt": 16, "Paper_Map": 17, "Brass": 18, "Panel_Paint": 19, "Bezel": 20,
-              "Placard": 21, "Fuel_Tank": 22, "Cowl_Edge": 23, "Tyre": 24}
+              "Placard": 21, "Fuel_Tank": 22, "Cowl_Edge": 23, "Tyre": 24}  # lettering keeps its own black paint
 
 
 def unwrap_cabin(objs):
@@ -1854,6 +1954,23 @@ def rules_cabin(P, Nn, part):
         col[m] = c
         rough[m] = r0 + 0.3 * rust
         metal[m] = m0 * (1 - rust)
+    # Placards: brushed aluminium, darker at the edges, a few scratches.
+    m = sel(21)
+    if m.any():
+        p = P[m]
+        brush = 0.9 + 0.12 * pt.fbm(p, (6.0, 900.0, 900.0), 2, seed=99)
+        grime = pt.smoothstep(pt.fbm(p, 120.0, 3, seed=100), 0.5, 0.8)
+        col[m] = np.tile(C("#B2AEA2"), (m.sum(), 1)) * (brush * (1.0 - 0.35 * grime))[:, None]
+        rough[m] = 0.35 + 0.25 * grime
+        metal[m] = 0.85
+    # Stamped lettering: black paint worn to metal in places.
+    m = sel(25)
+    if m.any():
+        p = P[m]
+        worn = pt.smoothstep(pt.fbm(p, 400.0, 2, seed=101), 0.68, 0.74)
+        col[m] = pt.mix(np.tile(C("#161513"), (m.sum(), 1)), np.tile(C("#7D7A70"), (m.sum(), 1)), worn)
+        rough[m] = 0.6
+        metal[m] = worn * 0.7
     # Black knobs, grips, quadrant: bakelite/rubber with scuffs.
     for i, hexc in ((15, "#151413"), (24, "#121212")):
         m = sel(i)
