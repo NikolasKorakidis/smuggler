@@ -88,6 +88,7 @@ func _ready() -> void:
 	time_of_day.weather = weather
 	time_of_day.camera = $CameraRig
 	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg, origin_lon_deg)
+	WeatherFX.attach(self)
 	_spawn_aircraft(0)
 	var dev := preload("res://ui/dev_menu.gd").new()
 	dev.name = "DevMenu"
@@ -118,6 +119,11 @@ func _spawn_aircraft(index: int) -> void:
 ## World interface -------------------------------------------------------
 
 ## Near end of the chosen strip, facing down it.
+## Height of the main airfield (weather heights are above it).
+func field_elevation() -> float:
+	return strips[0].elevation
+
+
 func spawn_point() -> Dictionary:
 	if not spawn_override.is_empty():
 		return spawn_override

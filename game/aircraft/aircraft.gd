@@ -42,6 +42,10 @@ func setup(world_node: Node3D) -> bool:
 		airframe.build(fdm, definition)
 	airframe.name = "Airframe"
 	add_child(airframe)
+	if airframe.has_node("Eyepoint"):
+		var glass := Windshield.new()
+		glass.name = "Windshield"
+		glass.setup(self)
 	if definition.has_master:
 		var exterior := preload("res://aircraft/aircraft_lights.gd").new()
 		exterior.name = "Lights"
@@ -119,7 +123,7 @@ func _physics_process(delta: float) -> void:
 	fdm.prop("position/terrain-elevation-asl-ft", world.terrain_height(here) / FT)
 	engine.apply(delta)
 	if world.get("weather"):
-		world.weather.apply(fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground())
+		world.weather.apply(fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground(), global_position)
 	fdm.step()
 	if not fdm.is_valid():
 		push_warning("FDM diverged, respawning")

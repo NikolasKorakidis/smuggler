@@ -32,6 +32,9 @@ buffet_alpha_deg = 15.0
 stall_horn_hz = 1400.0
 
 [resource]
+windshield_center = Vector3(0.31, 0.12, -0.46)
+windshield_size = Vector2(1.15, 0.55)
+windshield_rake_deg = 42.0
 script = ExtResource("1")
 jsbsim_model = "c172p"
 display_name = "172-type (placeholder)"

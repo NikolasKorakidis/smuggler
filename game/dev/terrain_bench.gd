@@ -17,6 +17,12 @@ func _ready() -> void:
 	add_child(world)
 	cam = world.get_node("CameraRig")
 	world.get_node("Checklist").visible = false
+	for a in OS.get_cmdline_user_args():
+		if a == "--smaa":  # MSAA off, SMAA on (the clouds addon can't use MSAA on Metal)
+			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
+		if a.begins_with("--clouds="):  # SunshineClouds 2 spike: resolution 0 native .. 3 eighth
+			_add_clouds(int(a.trim_prefix("--clouds=")))
 	await _run()
 	get_tree().quit()
 
@@ -73,3 +79,19 @@ func _measure(label: String, shots: String) -> void:
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000])
 	if shots != "":
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots, label])
+
+
+func _add_clouds(res: int) -> void:
+	var driver := SunshineCloudsDriverGD.new()
+	world.add_child(driver)
+	var c: SunshineCloudsGD = load("res://addons/SunshineClouds2/SunshineCloudsGDTestResource.tres").duplicate()
+	c.resolution_scale = res
+	c.cloud_floor = 1200.0
+	c.cloud_ceiling = 4000.0
+	c.clouds_coverage = 0.6
+	driver.tracked_directional_lights = [world.get_node("Sun")]
+	driver.tracked_directional_light_shadow_steps = [8]
+	driver.clouds_resource = c
+	driver.update_continuously = true
+	driver.retrieve_texture_data()
+	print("clouds on, resolution scale ", res)

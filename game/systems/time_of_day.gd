@@ -189,7 +189,9 @@ func _update() -> void:
 	var day := smoothstep(-1.0, 5.0, el)
 	sun.basis = Basis.looking_at(-_sun_dir, Vector3.UP if absf(_sun_dir.y) < 0.99 else Vector3.BACK)
 	sun.light_color = sun_col
-	sun.light_energy = 2.0 * clampf(tl / 0.75, 0.0, 1.0) * day
+	# A cloud deck hides the sun (broken cloud lets most of it through).
+	var deck := smoothstep(0.55, 1.0, weather.cloud_cover) if weather else 0.0
+	sun.light_energy = 2.0 * clampf(tl / 0.75, 0.0, 1.0) * day * (1.0 - 0.88 * deck)
 	sun.visible = day > 0.0
 	sun.shadow_enabled = day > 0.02
 
@@ -243,8 +245,13 @@ func _update() -> void:
 		stars.celestial_basis = cel
 		stars.set_visibility(limiting_magnitude, clear)
 	_sky.set_shader_parameter("camera_altitude", cam_alt)
-	_sky.set_shader_parameter("cloud_cover", cover)
+	# The sky draws only the high cirrus; the main layer is volumetric.
+	_sky.set_shader_parameter("cloud_cover", weather.cirrus if weather else cover)
 	_sky.set_shader_parameter("cloud_time", _cloud_time)
+	_sky.set_shader_parameter("overcast", deck)
+	# The underside of a deck: about as bright as the sky would be on average, grey.
+	var grey := 0.6 * _sky_lum + 0.15 * clampf(tl, 0.0, 1.0) * day
+	_sky.set_shader_parameter("overcast_color", Vector3(grey, grey * 1.02, grey * 1.07))
 	_sky.set_shader_parameter("sun_color", Vector3(sun_col.r, sun_col.g, sun_col.b) * day * 1.6
 		+ Vector3(0.25, 0.28, 0.4) * lit * moon_up * 0.05 * night)
 	# Cloud undersides take the light of the sky around them.
@@ -271,6 +278,40 @@ func sky_luminance(sun_d: Vector3, moon_d: Vector3, moon_int: float, twilight: f
 			c += sky_radiance(d, moon_d, moon_int, alt_m)
 		sum += 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z
 	return sum / 3.0
+
+
+## Sky radiance near the horizon (3° up): average round the compass, at the
+## zenith, and on the horizon towards and away from the sun. Sun, moon,
+## twilight and night glow. What lights fog and haze.
+func sky_ambient_colors() -> Array[Vector3]:
+	var cam_alt := camera.global_position.y if camera else 200.0
+	var phase := moon_phase()
+	var moon_dir := _body_direction(hours - phase * 24.0)
+	var moon_int := SUN_INTENSITY * MOON_SKY * moon_illumination() * smoothstep(-0.02, 0.2, moon_dir.y)
+	var tw := twilight_level(sun_elevation_deg())
+	var horizon := Vector3.ZERO
+	for i in 4:
+		var a := TAU * i / 4.0 + 0.4
+		var d := Vector3(sin(a) * 0.9986, 0.0523, -cos(a) * 0.9986)
+		horizon += _sky_at(d, moon_dir, moon_int, tw, cam_alt) * 0.25
+	var zenith := _sky_at(Vector3.UP, moon_dir, moon_int, tw, cam_alt)
+	var flat := Vector3(_sun_dir.x, 0.0, _sun_dir.z)
+	flat = flat.normalized() if flat.length() > 1e-4 else Vector3.RIGHT
+	# 'Towards' the sun is sampled 60° either side of it: the sun's own glow
+	# (aureole) is added separately as forward scatter.
+	var toward := Vector3.ZERO
+	for side in [-1.0, 1.0]:
+		var a := flat.rotated(Vector3.UP, deg_to_rad(60.0) * side)
+		toward += _sky_at((a * 0.9986 + Vector3.UP * 0.0523), moon_dir, moon_int, tw, cam_alt) * 0.5
+	var away := _sky_at((-flat * 0.9986 + Vector3.UP * 0.0523), moon_dir, moon_int, tw, cam_alt)
+	return [horizon, zenith, toward, away]
+
+
+func _sky_at(d: Vector3, moon_dir: Vector3, moon_int: float, tw: float, alt: float) -> Vector3:
+	var c := sky_radiance(d, _sun_dir, SUN_INTENSITY, alt) + twilight_sky(d, _sun_dir, tw) + night_sky(d, NIGHT_GLOW)
+	if moon_int > 1e-7:
+		c += sky_radiance(d, moon_dir, moon_int, alt)
+	return c
 
 
 func _night_lum() -> float:

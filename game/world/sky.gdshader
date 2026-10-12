@@ -28,6 +28,11 @@ uniform float milkyway_intensity = 0.0;
 // sun's depression). night_glow is the moonless night sky (airglow, starlight).
 uniform float twilight_level = 0.0;
 uniform float night_glow = 6.0e-4;
+// Overcast (main cloud layer, 0..1) and its grey: used only for the lighting
+// copy of the sky (ambient light and reflections), since the volumetric
+// clouds cover the visible sky themselves.
+uniform float overcast = 0.0;
+uniform vec3 overcast_color = vec3(0.3);
 const float MILKYWAY_SCALE = 0.40457495;
 
 const float RE = 6360e3;
@@ -197,6 +202,9 @@ void sky() {
 		if (AT_CUBEMAP_PASS) {
 			vec4 cl = clouds(d, c);
 			c = mix(c, cl.rgb, cl.a);
+			// Under the cloud deck the sky is a grey dome, brighter overhead.
+			vec3 deck = overcast_color * (0.75 + 0.35 * max(d.y, 0.0));
+			c = mix(c, deck, overcast * smoothstep(-0.1, 0.05, d.y));
 		}
 		COLOR = c;
 		ALPHA = 1.0;

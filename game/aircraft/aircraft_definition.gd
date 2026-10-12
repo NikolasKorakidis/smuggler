@@ -14,6 +14,11 @@ extends Resource
 @export var cockpit_look_pitch_deg := -4.0
 ## Start-up checklist (text file, see aircraft/<model>/checklist.txt).
 @export_file("*.txt") var checklist := ""
+## Windshield glass (for rain on it), relative to the pilot's eye: centre (m,
+## x right, y up, -z ahead), width and slant height (m), angle from horizontal.
+@export var windshield_center := Vector3(0.0, 0.12, -0.5)
+@export var windshield_size := Vector2(0.8, 0.5)
+@export var windshield_rake_deg := 50.0
 @export_group("Engine")
 ## Battery master switch; without one nothing is electric (Cub).
 @export var has_master := true

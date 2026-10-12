@@ -22,6 +22,9 @@ uniform int rect_count = 0;
 uniform float rough_normal_y = 0.94;
 // Towards the sun (world axes). Hills shadow the ground beyond the shadow-map range.
 uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);
+// Rain-soaked ground 0..1 (Weather.wetness): darker soil and grass, glossy
+// asphalt, puddles in the low patches once soaked.
+uniform float wetness = 0.0;
 
 uniform vec3 grass_dry : source_color = vec3(0.50, 0.46, 0.27);
 uniform vec3 grass_green : source_color = vec3(0.27, 0.32, 0.13);
@@ -130,6 +133,10 @@ void fragment() {
 	col = mix(col, mix(rock, scrub, smoothstep(0.4, 0.7, detail) * 0.6), rough);
 	col *= 0.8 + 0.4 * detail * (0.7 + 0.3 * detail2);
 	float rough_px = mix(0.95, 0.9, rough);
+	// How each surface takes the rain: darkening and gloss (natural ground first).
+	float wet_dark = mix(0.7, 0.8, rough);
+	float wet_gloss = 0.12;
+	float puddle_ok = 0.0;
 
 	for (int i = 0; i < rect_count; i++) {
 		vec2 d = xz - rect_a[i].xy;
@@ -159,8 +166,14 @@ void fragment() {
 			m = max(m, bar * step(6.0, from_end) * step(from_end, 36.0));
 			s = mix(s, paint, m * (0.55 + 0.3 * detail));
 			rough_px = mix(rough_px, 0.85, inside);
+			wet_dark = mix(wet_dark, 0.72, inside);
+			wet_gloss = mix(wet_gloss, 0.8, inside);
+			puddle_ok = mix(puddle_ok, 0.5, inside);
 		} else if (kind == 1 || kind == 2) {
 			s = dirt * (0.85 + 0.3 * detail2) * (0.9 + 0.2 * macro2);
+			wet_dark = mix(wet_dark, 0.55, inside);
+			wet_gloss = mix(wet_gloss, 0.4, inside);
+			puddle_ok = mix(puddle_ok, 1.0, inside);
 			if (kind == 1) {
 				// Worn wheel tracks either side of the centreline.
 				float tracks = 1.0 - smoothstep(0.6, 1.6, abs(abs(across) - 1.4));
@@ -171,6 +184,8 @@ void fragment() {
 		} else {
 			// Mown grass with faint mowing stripes.
 			s = mown * (0.85 + 0.25 * detail) * (0.95 + 0.08 * step(0.5, fract(across / 6.0)));
+			wet_dark = mix(wet_dark, 0.8, inside);
+			wet_gloss = mix(wet_gloss, 0.1, inside);
 		}
 		col = mix(col, s, inside);
 	}
@@ -201,9 +216,21 @@ void fragment() {
 	AO = clamp(1.0 - ring * 0.6, 0.35, 1.0);
 	AO_LIGHT_AFFECT = 0.0;
 
+	float spec = 0.25;
+	if (wetness > 0.001) {
+		col *= mix(1.0, wet_dark, wetness);
+		rough_px = mix(rough_px, mix(rough_px, 0.18, wet_gloss), wetness);
+		spec = mix(spec, 0.5, wetness * wet_gloss);
+		// Puddles in hollows of dirt and (fewer) on the asphalt once soaked.
+		float pn = texture(detail_noise, xz / 23.0 + vec2(0.21, 0.63)).r * 0.6 + macro2 * 0.4;
+		float puddle = smoothstep(0.62, 0.68, pn) * puddle_ok * smoothstep(0.4, 1.0, wetness);
+		col = mix(col, col * 0.6, puddle);
+		rough_px = mix(rough_px, 0.03, puddle);
+		spec = mix(spec, 0.6, puddle);
+	}
 	ALBEDO = col;
 	ROUGHNESS = rough_px;
-	SPECULAR = 0.25;
+	SPECULAR = spec;
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 }
 

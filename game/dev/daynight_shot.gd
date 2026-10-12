@@ -1,5 +1,6 @@
 extends Node
-## Day/night screenshots: godot --path game res://dev/daynight_shot.tscn -- --hours=19 [--lights] [--panel] [--cockpit] --out=x.png
+## Day/night and weather screenshots: godot --path game res://dev/daynight_shot.tscn -- --hours=19 [--lights] [--panel] [--cockpit]
+## [--weather=N] [--storm=dist_m,bearing] [--look=az,el] [--alt=m] [--fogdebug] [--hideui] --out=x.png
 var world: Node3D
 var f := 0
 var args := {}
@@ -16,6 +17,28 @@ func _ready() -> void:
 	world._spawn_aircraft(int(args.get("aircraft", "1")))
 	world.time_of_day.time_scale = 0.0
 	world.time_of_day.set_hours(float(args.get("hours", "13")))
+	if args.has("weather"):  # --weather=<preset index>
+		world.weather.set_preset(int(args.weather), true)
+	if args.has("fogdebug"):
+		world.get_node("WeatherFX").debug_fog = 1 if String(args.fogdebug) == "true" else int(args.fogdebug)
+	if args.has("storm"):  # --storm=dist_m,bearing: a mature cell there
+		var sb: PackedStringArray = String(args.storm).split(",")
+		world.weather.spawn_storm(float(sb[0]), float(sb[1]), 0.45)
+	if args.has("nofx"):  # --nofx=fog|clouds|all: switch weather effects off (A/B)
+		var env_node: WorldEnvironment = world.get_node("WorldEnvironment")
+		for e in env_node.compositor.compositor_effects:
+			var off := String(args.nofx)
+			if off == "all" or (off == "fog" and e is FogEffect) or (off == "clouds" and e is SunshineCloudsGD):
+				e.enabled = false
+	if args.has("wet"):  # --wet=0..1 ground wetness
+		world.weather.wetness = float(args.wet)
+		world.weather.set_physics_process(false)  # hold it
+	if args.has("glassdebug"):
+		var g: MeshInstance3D = world.aircraft.find_child("Windshield", true, false)
+		g.material_override.set_shader_parameter("debug_mode", int(args.glassdebug))
+	if args.has("hideui"):
+		for ui in get_tree().root.find_children("*", "CanvasLayer", true, false):
+			ui.visible = false
 	var ac: Aircraft = world.aircraft
 	if args.has("lights"):
 		ac.lights.landing = true
@@ -42,7 +65,7 @@ func _process(_d: float) -> void:
 		var az := deg_to_rad(float(ae[0]))
 		var el := deg_to_rad(float(ae[1]))
 		var dir := Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el))
-		var at: Vector3 = world.aircraft.global_position + Vector3(0, 3, 0)
+		var at: Vector3 = world.aircraft.global_position + Vector3(0, float(args.get("alt", "3")), 0)
 		cam.global_position = at
 		cam.look_at(at + dir, Vector3.UP if absf(dir.y) < 0.99 else Vector3.BACK)
 		cam.fov = float(args.get("fov", "80"))
