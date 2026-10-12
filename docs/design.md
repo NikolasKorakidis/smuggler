@@ -20,6 +20,18 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 - Very few villages and people. None to little other air traffic.
 - Float planes: later.
 
+## World map (part two) — agreed direction, 2026-10-12
+Not built yet; discuss details (mountain heights, exact layout) when we reach this step.
+- Real places, shrunk to fit the game: south-western/southern US and northern Mexico.
+  - US: California (San Diego, Los Angeles), Arizona, New Mexico, Texas, Louisiana, Mississippi, Alabama, Florida (Tampa, Miami).
+  - Mexico: Baja California, Sonora, Chihuahua, Coahuila, Durango (Sierra Madre mountains), Sinaloa, Tamaulipas (and some jungle).
+  - Islands, small: the Bahamas and a strip of northern Cuba.
+- Scale about **1:12** (roughly 350 km side to side). Squeeze the Gulf and empty desert harder; keep mountains, jungle and coasts close to 1:12.
+- Flight times (172): a typical smuggling run **~20 minutes** (two or three per hour); the longest trip, Los Angeles to Miami, **~1.5 hours**, reserved for the last missions.
+- **Fuel burn scaled to the map** (burns faster than real) so fuel planning matters and stays fun.
+- Mountain heights: open (real elevations rebuilt at game scale was the suggestion).
+- Technical when we get there: streaming terrain tiles, floating origin, real elevation and land-cover data (SRTM/Copernicus, ESA WorldCover) as the guide.
+
 ## Flight and physics
 - All behaviours matter: stall/spin, ground handling, crosswind, engine management, weight and balance, P-factor, ground effect, icing.
 - Engine management: **full depth** (mixture, carb heat, prop, cowl flaps).
