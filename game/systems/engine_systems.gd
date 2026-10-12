@@ -34,7 +34,7 @@ var carb_ice := 0.0
 ## Rough running from melted ice going through the engine, 0..1.
 var melt_rough := 0.0
 ## Outside air (set by the aircraft): temperature and dew point come from here.
-var weather: Weather
+var weather: AnemosWeather
 
 var _swing_t := 0.0  # hand-prop swing in progress
 var _starter_was_held := false

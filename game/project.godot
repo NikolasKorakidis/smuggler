@@ -38,3 +38,26 @@ anti_aliasing/quality/screen_space_aa=2
 lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/anemos/plugin.cfg")
+
+[shader_globals]
+
+anemos_wetness={
+"type": "float",
+"value": 0.0
+}
+anemos_cloud_shadow={
+"type": "sampler2D",
+"value": ""
+}
+anemos_cloud_shadow_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 1, -1e+06)
+}
+anemos_sun_direction={
+"type": "vec3",
+"value": Vector3(0, 1, 0)
+}

@@ -23,13 +23,13 @@ func _ready() -> void:
 		if a == "--storm":  # a mature storm 3 km away
 			world.weather.spawn_storm(3000.0, 45.0, 0.45)
 		if a.begins_with("--nofx="):  # clouds, fog, rain: switch one off to see its cost
-			var fx: WeatherFX = world.get_node("WeatherFX")
+			var fx: Anemos = world.get_node("Anemos")
 			match a.trim_prefix("--nofx="):
 				"clouds": fx.atmosphere.clouds_enabled = false
 				"fog": fx.atmosphere.fog_enabled = false
 				"rain": fx.get_node("Rain").process_mode = Node.PROCESS_MODE_DISABLED
 		if a.begins_with("--cloudsteps="):
-			world.get_node("WeatherFX").clouds.steps = int(a.trim_prefix("--cloudsteps="))
+			world.get_node("Anemos").clouds.steps = int(a.trim_prefix("--cloudsteps="))
 	await _run()
 	get_tree().quit()
 

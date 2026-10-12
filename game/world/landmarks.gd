@@ -63,7 +63,7 @@ static func parking_square(parent: Node3D, xform: Transform3D) -> void:
 
 
 ## Windsock on a pole at `pos`, driven by `weather`.
-static func windsock(parent: Node3D, pos: Vector3, weather: Weather) -> Node3D:
+static func windsock(parent: Node3D, pos: Vector3, weather: AnemosWeather) -> Node3D:
 	var sock: Node3D = preload("res://world/windsock.gd").new()
 	sock.name = "Windsock"
 	sock.position = pos

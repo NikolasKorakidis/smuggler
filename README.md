@@ -191,6 +191,8 @@ Smuggler is designed, directed and test-flown by **Nikolas**. The code is writte
 
 A license for the game's code and assets hasn't been chosen yet. JSBSim is used under the LGPL.
 
+**Anemos**, the weather and cloud system in `game/addons/anemos/`, is proprietary: Copyright (c) 2026 Nikolas Korakidis, all rights reserved. Being able to read it here does not give permission to use it; see [its licence](game/addons/anemos/LICENSE.md).
+
 <br>
 
 <img src="docs/images/box-concept.jpg" alt="Concept art: Smuggler game box mockup">

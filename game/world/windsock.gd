@@ -4,7 +4,7 @@ extends Node3D
 
 const POLE_M := 6.0
 
-var weather: Weather
+var weather: AnemosWeather
 var _sock: Node3D
 var _t := 0.0
 

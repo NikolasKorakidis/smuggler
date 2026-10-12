@@ -28,9 +28,10 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Terrain frame time (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn`
 - Checklist walk (both aircraft): `godot --headless --path game --fixed-fps 120 res://dev/checklist_test.tscn`
 - Day/night transition check (window; on-screen brightness per game minute + contact sheets): `godot --path game --resolution 1280x720 res://dev/dusk_sweep.tscn -- --from=18.3 --to=20.8 --step=1 --out=<dir>`. Sky curve vs sun elevation: `godot --headless --path game -s res://dev/sky_curve.gd`
+- Anemos on its own (no Smuggler parts): `godot --headless --path game res://dev/anemos_standalone_test.tscn`
 - Weather screenshots: `godot --path game --resolution 1280x720 res://dev/daynight_shot.tscn -- --hours=15 --weather=9 --storm=9000,120 --look=120,8 [--strike=6000,118] [--cockpit] [--wet=1] [--fogdebug=1|2] [--nofx=fog|clouds] --hideui --out=x.png`
 - Cloud gallery (window; 8-24 views in one contact sheet): `godot --path game --resolution 1280x720 res://dev/cloud_gallery.tscn -- --set=day|storm|close|all --out=sheet.png`
-- Cloud type library (rewrite after changing definitions): `godot --headless --path game -s res://dev/make_cloud_types.gd`
+- Cloud type library (rewrite after changing definitions): `godot --headless --path game -s res://addons/anemos/tools/make_cloud_types.gd`
 - Thunder to WAV (to listen): `godot --headless --path game -s res://dev/thunder_render.gd -- <out_dir>`
 - Frame time with weather (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn -- --weather=9 --storm [--nofx=clouds]`
 - After editing a `.glsl` compute shader or adding a `class_name`: `godot --headless --import --path game` (running the game does not re-import)
@@ -59,6 +60,7 @@ Read `docs/tasks.md` before starting work. Update it before ending a session.
 - Every flight model change must pass `tests/fdm/` before Nikolas tests it. Benchmark: real Cessna 172 numbers (he knows it well from MSFS).
 - Performance budget: 60 fps at 1080p on the MacBook. Check it after every visual feature.
 - Weather state is one object that feeds **both** JSBSim (wind, gusts, turbulence, density) and the visuals. Never fake one without the other.
+- **Anemos** (`game/addons/anemos/`) is the weather and cloud system, owned by Nikolas, proprietary (see its LICENSE.md), built to be sold or licensed separately. Keep it standalone: no references to Smuggler code (aircraft, terrain, TimeOfDay, JSBSim) inside it; the game connects through the sky/vehicle providers, the ground shader include and `systems/weather_physics.gd`. Every Anemos file carries the copyright header. `dev/anemos_standalone_test.tscn` must keep passing.
 - No HUD in flight. Information comes from instruments and the paper map only.
 - Commit messages: imperative, short, what changed.
 

@@ -19,7 +19,7 @@ extends Node3D
 
 var geo: Geo
 var aircraft: Aircraft
-var weather: Weather
+var weather: AnemosWeather
 var time_of_day: TimeOfDay
 var _lamps: Array[OmniLight3D] = []
 var _aircraft_index := 0
@@ -27,7 +27,7 @@ var _aircraft_index := 0
 
 func _ready() -> void:
 	geo = Geo.new(origin_lat_deg, origin_lon_deg)
-	weather = Weather.new()
+	weather = AnemosWeather.new()
 	weather.name = "Weather"
 	add_child(weather)
 	$Strip.mesh.size = Vector2(strip_width_m, strip_length_m)
@@ -46,7 +46,14 @@ func _ready() -> void:
 	time_of_day.weather = weather
 	time_of_day.camera = $CameraRig
 	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg, origin_lon_deg)
-	WeatherFX.attach(self)
+	var anemos := Anemos.new()  # the weather you see, hear and fly through
+	anemos.name = "Anemos"
+	anemos.weather = weather
+	anemos.sky = time_of_day
+	anemos.environment_node = $WorldEnvironment
+	anemos.camera = $CameraRig
+	anemos.field_elevation_m = 0.0
+	add_child(anemos)
 	_spawn_aircraft(0)
 	var dev := preload("res://ui/dev_menu.gd").new()
 	dev.name = "DevMenu"
@@ -66,6 +73,8 @@ func _spawn_aircraft(index: int) -> void:
 	aircraft = preload("res://aircraft/aircraft.tscn").instantiate()
 	aircraft.definition = aircraft_definitions[index]
 	add_child(aircraft)
+	if has_node("Anemos"):
+		$Anemos.vehicle = aircraft  # rain, glass, beam and sounds follow the aircraft
 	if aircraft.setup(self):
 		$Checklist.set_aircraft(aircraft)
 		aircraft.respawned.connect($Checklist.reset)

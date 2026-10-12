@@ -20,12 +20,12 @@ func _ready() -> void:
 	if args.has("weather"):  # --weather=<preset index>
 		world.weather.set_preset(int(args.weather), true)
 	if args.has("fogdebug"):
-		world.get_node("WeatherFX").debug_fog = 1 if String(args.fogdebug) == "true" else int(args.fogdebug)
+		world.get_node("Anemos").debug_fog = 1 if String(args.fogdebug) == "true" else int(args.fogdebug)
 	if args.has("storm"):  # --storm=dist_m,bearing: a mature cell there
 		var sb: PackedStringArray = String(args.storm).split(",")
 		world.weather.spawn_storm(float(sb[0]), float(sb[1]), 0.45)
 	if args.has("nofx"):  # --nofx=fog|clouds|all: switch weather effects off (A/B)
-		var atm: AtmosphereEffect = world.get_node("WeatherFX").atmosphere
+		var atm: AnemosAtmosphere = world.get_node("Anemos").atmosphere
 		var off := String(args.nofx)
 		if off == "all":
 			atm.enabled = false
@@ -77,7 +77,7 @@ func _process(_d: float) -> void:
 		var b := deg_to_rad(float(sb[1]))
 		var at: Vector3 = world.aircraft.global_position + Vector3(sin(b), 0.0, -cos(b)) * float(sb[0])
 		at.y = world.terrain_height(at) if world.has_method("terrain_height") else 0.0
-		world.get_node("WeatherFX/Lightning").hold = true
+		world.get_node("Anemos/Lightning").hold = true
 		world.weather.lightning.emit(at, true, 1.0)
 	if f == 60:
 		get_viewport().get_texture().get_image().save_png(args.get("out", "user://dn.png"))

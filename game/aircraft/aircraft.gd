@@ -108,6 +108,35 @@ func teleport_air(local_pos: Vector3, heading_deg: float, alt_msl_m: float, kcas
 	reset_physics_interpolation()
 
 
+# --- Anemos vehicle provider (rain, glass, beam, sounds follow the aircraft) ---
+
+func anemos_velocity() -> Vector3:
+	if fdm == null or fdm.jsb == null:
+		return Vector3.ZERO
+	return Vector3(fdm.prop_get("velocities/v-east-fps"), -fdm.prop_get("velocities/v-down-fps"),
+		-fdm.prop_get("velocities/v-north-fps")) * FT
+
+
+func anemos_airspeed() -> float:
+	return fdm.prop_get("velocities/vtrue-fps") * FT if fdm and fdm.jsb else 0.0
+
+
+func anemos_is_inside(cam: Camera3D) -> bool:
+	return cam != null and airframe != null and cam.global_position.distance_to(eyepoint().global_position) < 0.5
+
+
+func anemos_beam_light() -> SpotLight3D:
+	return find_child("LandingLight", true, false) as SpotLight3D
+
+
+func anemos_load_factor() -> float:
+	return fdm.prop_get("accelerations/Nz") if fdm and fdm.jsb else 1.0
+
+
+func anemos_on_ground() -> bool:
+	return _on_ground()
+
+
 func eyepoint() -> Node3D:
 	return airframe.get_node("Eyepoint")
 
@@ -126,7 +155,7 @@ func _physics_process(delta: float) -> void:
 		engine.weather = world.weather  # outside air for carb icing
 	engine.apply(delta)
 	if world.get("weather"):
-		world.weather.apply(fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground(), global_position)
+		WeatherPhysics.apply(world.weather, fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground(), global_position)
 	fdm.step()
 	if not fdm.is_valid():
 		push_warning("FDM diverged, respawning")

@@ -70,7 +70,7 @@ func _ready() -> void:
 
 func _setup(k: int) -> void:
 	var v: Array = views[k]
-	var w: Weather = world.weather
+	var w: AnemosWeather = world.weather
 	w.set_preset(v[1], true)
 	w.cells.clear()
 	if v[6] != "" and v[6] != "none":

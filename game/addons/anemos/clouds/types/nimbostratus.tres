@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AnemosCloudType" format=3]
+
+[ext_resource type="Script" path="res://addons/anemos/clouds/cloud_type.gd" id="1_ouuhd"]
+
+[sub_resource type="Curve" id="Curve_mt2do"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.08, 1), 0.0, 0.0, 0, 0, Vector2(0.7, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 4
+
+[resource]
+script = ExtResource("1_ouuhd")
+display_name = "Nimbostratus (rain cloud)"
+profile = SubResource("Curve_mt2do")
+default_depth = 2500.0
+heaps = 0.1
+softness = 0.1
+erosion = 0.2
+billow = 250.0
+narrowing = 0.0
+density = 1.1
+extinction = 0.045
+base_wobble = 150.0
+top_wobble = 300.0
+patchiness = 0.6
+scale = 1.4

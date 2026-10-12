@@ -1,4 +1,6 @@
-# Weather — full plan
+# Weather — full plan (Anemos)
+
+The weather and cloud system is **Anemos**, a standalone, proprietary Godot addon in `game/addons/anemos/` (see its README and LICENSE).
 
 Phase 2 goal: weather you can see, hear and feel, all coming from **one Weather object** (`game/systems/weather.gd`). What the pilot sees (fog, cloud, rain, lightning) and what JSBSim flies in (wind, downdrafts, turbulence, density, icing, wet runway) are the same numbers.
 

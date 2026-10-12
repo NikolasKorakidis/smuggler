@@ -27,7 +27,7 @@ func _s(t: float) -> void:
 
 
 func _run() -> void:
-	var w: Weather = world.weather
+	var w: AnemosWeather = world.weather
 	var ac: Aircraft = world.aircraft
 	var f := ac.fdm
 	# Wind into JSBSim. Light breeze from 060: ahead of a plane facing north,
@@ -90,19 +90,19 @@ func _run() -> void:
 
 
 # Phase 2 weather: visibility, storms, carb ice, wet ground, fog, METAR.
-func _run_phase2(w: Weather, ac: Aircraft, f: FDM) -> void:
+func _run_phase2(w: AnemosWeather, ac: Aircraft, f: FDM) -> void:
 	# Rain visibility ~ 12 km x R^-0.65 (moderate rain ~3 km, violent < 1 km).
-	var v10 := Weather.KOSCHMIEDER / Weather.rain_extinction(10.0)
-	var v75 := Weather.KOSCHMIEDER / Weather.rain_extinction(75.0)
+	var v10 := AnemosWeather.KOSCHMIEDER / AnemosWeather.rain_extinction(10.0)
+	var v75 := AnemosWeather.KOSCHMIEDER / AnemosWeather.rain_extinction(75.0)
 	_check("rain visibility: 10 mm/h ~2.7 km, 75 mm/h < 1 km", absf(v10 - 2690.0) < 50.0 and v75 < 1000.0,
 		"%.0f m, %.0f m" % [v10, v75])
 
 	# Microburst (Vicroy): down at the core, out at the rim, calm at the ground.
-	var cell := StormCell.new(Vector2.ZERO, Vector2.ZERO, 1.0, 0.0, 2000.0, 1500.0)
+	var cell := AnemosStormCell.new(Vector2.ZERO, Vector2.ZERO, 1.0, 0.0, 2000.0, 1500.0)
 	cell.age = 0.5 * cell.life
 	cell.step(0.0)
 	var core := cell.wind_at(Vector3(0, 0, 0), 600.0)
-	var rim := cell.wind_at(Vector3(2000, 0, 0), StormCell.ZM)
+	var rim := cell.wind_at(Vector3(2000, 0, 0), AnemosStormCell.ZM)
 	var ground := cell.wind_at(Vector3(2000, 0, 0), 0.0)
 	_check("microburst: downdraft at the core, outflow at the rim, calm at the ground",
 		core.y < -5.0 and rim.x > 0.8 * cell.outflow_ms() and ground.length() < 0.1,

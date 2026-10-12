@@ -22,13 +22,9 @@ uniform int rect_count = 0;
 uniform float rough_normal_y = 0.94;
 // Towards the sun (world axes). Hills shadow the ground beyond the shadow-map range.
 uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);
-// Rain-soaked ground 0..1 (Weather.wetness): darker soil and grass, glossy
-// asphalt, puddles in the low patches once soaked.
-uniform float wetness = 0.0;
-// Cloud shadows: sunlight through the clouds on the cloud-base plane
-// (origin x, origin z, size m, plane y), from the cloud renderer.
-uniform sampler2D cloud_shadow : filter_linear, repeat_disable;
-uniform vec4 cloud_shadow_rect = vec4(0.0, 0.0, 1.0, -1e6);
+// Weather from Anemos: rain-soaked ground (darker soil and grass, glossy
+// asphalt, puddles once soaked) and cloud shadows.
+#include "res://addons/anemos/ground/anemos_ground.gdshaderinc"
 
 uniform vec3 grass_dry : source_color = vec3(0.50, 0.46, 0.27);
 uniform vec3 grass_green : source_color = vec3(0.27, 0.32, 0.13);
@@ -208,14 +204,7 @@ void fragment() {
 			t *= 1.33;
 		}
 		hill_shadow = vis;
-		// Clouds: follow the sun ray up to the cloud base and look it up there.
-		if (cloud_shadow_rect.w > -1e5 && sun_dir.y > 0.03) {
-			vec2 at = world_pos.xz + sun_dir.xz * (cloud_shadow_rect.w - world_pos.y) / sun_dir.y;
-			vec2 suv = (at - cloud_shadow_rect.xy) / cloud_shadow_rect.z;
-			if (all(greaterThan(suv, vec2(0.0))) && all(lessThan(suv, vec2(1.0)))) {
-				hill_shadow *= texture(cloud_shadow, suv).r;
-			}
-		}
+		hill_shadow *= anemos_cloud_sunlight(world_pos);  // clouds
 	}
 	// Ambient occlusion from the terrain shape: hollows and valley floors
 	// see less sky than ridges.
@@ -229,13 +218,13 @@ void fragment() {
 	AO_LIGHT_AFFECT = 0.0;
 
 	float spec = 0.25;
-	if (wetness > 0.001) {
-		col *= mix(1.0, wet_dark, wetness);
-		rough_px = mix(rough_px, mix(rough_px, 0.18, wet_gloss), wetness);
-		spec = mix(spec, 0.5, wetness * wet_gloss);
+	if (anemos_wetness > 0.001) {
+		col *= mix(1.0, wet_dark, anemos_wetness);
+		rough_px = mix(rough_px, mix(rough_px, 0.18, wet_gloss), anemos_wetness);
+		spec = mix(spec, 0.5, anemos_wetness * wet_gloss);
 		// Puddles in hollows of dirt and (fewer) on the asphalt once soaked.
 		float pn = texture(detail_noise, xz / 23.0 + vec2(0.21, 0.63)).r * 0.6 + macro2 * 0.4;
-		float puddle = smoothstep(0.62, 0.68, pn) * puddle_ok * smoothstep(0.4, 1.0, wetness);
+		float puddle = smoothstep(0.62, 0.68, pn) * puddle_ok * smoothstep(0.4, 1.0, anemos_wetness);
 		col = mix(col, col * 0.6, puddle);
 		rough_px = mix(rough_px, 0.03, puddle);
 		spec = mix(spec, 0.6, puddle);

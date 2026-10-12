@@ -51,7 +51,7 @@ func _ac() -> Aircraft:
 	return world.aircraft
 
 
-func _weather() -> Weather:
+func _weather() -> AnemosWeather:
 	return world.weather
 
 
@@ -263,7 +263,7 @@ func _date_text(doy: int) -> String:
 func _tab_weather() -> void:
 	var b := _tab("Weather")
 	var names := []
-	for p in Weather.PRESETS:
+	for p in AnemosWeather.PRESETS:
 		names.append(p.name)
 	_choice(b, "Preset", names, func(): return _weather().preset, func(i): _weather().set_preset(i))
 	_buttons(b, [["Apply preset now", func(): _weather().set_preset(_weather().preset, true)]])
@@ -330,16 +330,16 @@ func _tab_sky() -> void:
 var _cl_layer := 0
 
 
-func _clouds() -> Clouds:
-	return world.get_node("WeatherFX").clouds
+func _clouds() -> AnemosClouds:
+	return world.get_node("Anemos").clouds
 
 
-func _cl() -> Clouds.Layer:
+func _cl() -> AnemosClouds.Layer:
 	return _clouds().layers[_cl_layer]
 
 
 # The selected layer's type, taken over from the weather so edits stick.
-func _ct() -> CloudType:
+func _ct() -> AnemosCloudType:
 	if not _cl().manual:
 		_clouds().set_manual(_cl_layer, true)
 	return _cl().type
@@ -398,7 +398,7 @@ func _tab_clouds() -> void:
 	_readout(b, func():
 		var parts := []
 		for i in 3:
-			var l: Clouds.Layer = _clouds().layers[i]
+			var l: AnemosClouds.Layer = _clouds().layers[i]
 			parts.append("%s: %s %s %.2f %d-%d m" % [["Low", "Mid", "High"][i], "on" if l.enabled else "off",
 				l.type.display_name if l.type else "-", l.cover, int(l.base_m), int(l.top_m)])
 		return "\n".join(parts))
@@ -605,7 +605,7 @@ func _tab_rendering() -> void:
 	_check(b, "Ambient occlusion (SSAO)", func(): return _env().ssao_enabled, func(on): _env().ssao_enabled = on)
 	_check(b, "Glow / bloom", func(): return _env().glow_enabled, func(on): _env().glow_enabled = on)
 	_section(b, "WEATHER EFFECTS")
-	var fx: WeatherFX = world.get_node("WeatherFX")
+	var fx: Anemos = world.get_node("Anemos")
 	_check(b, "Volumetric clouds", func(): return fx.atmosphere.clouds_enabled, func(on): fx.atmosphere.clouds_enabled = on)
 	_slider(b, "Cloud quality (steps)", 32, 160, 8, func(): return fx.clouds.steps, func(v): fx.clouds.steps = int(v), "%.0f")
 	_check(b, "Fog, haze and rain shafts", func(): return fx.atmosphere.fog_enabled, func(on): fx.atmosphere.fog_enabled = on)

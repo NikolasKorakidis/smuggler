@@ -48,7 +48,7 @@ const GROUND_LUM := 0.1
 
 var sun: DirectionalLight3D
 var environment: Environment
-var weather: Weather  # optional: cloud cover
+var weather: AnemosWeather  # optional: cloud cover
 var camera: Camera3D  # optional: altitude for the sky
 var _moon: DirectionalLight3D
 var _sky: ShaderMaterial
@@ -342,6 +342,50 @@ static func twilight_sky(d: Vector3, sun_d: Vector3, level: float) -> Vector3:
 
 static func night_sky(d: Vector3, glow: float) -> Vector3:
 	return glow * Vector3(0.55, 0.75, 1.0) * (1.0 + 1.5 * pow(clampf(1.0 - d.y, 0.0, 1.0), 4.0))
+
+
+# --- Anemos sky provider (the weather system reads the sky through these) ---
+
+func anemos_sun() -> DirectionalLight3D:
+	return sun
+
+
+func anemos_moon() -> DirectionalLight3D:
+	return _moon
+
+
+func anemos_sun_direction() -> Vector3:
+	return _sun_dir
+
+
+func anemos_sun_elevation_deg() -> float:
+	return sun_elevation_deg()
+
+
+func anemos_sky_colors() -> Array[Vector3]:
+	return sky_ambient_colors()
+
+
+func anemos_transmittance(dir: Vector3, alt_m: float) -> Vector3:
+	return _transmittance(dir, alt_m)
+
+
+func anemos_exposure() -> float:
+	return environment.tonemap_exposure if environment else 1.0
+
+
+func anemos_hours() -> float:
+	return hours
+
+
+func anemos_flash(level: float) -> void:
+	if _sky:
+		_sky.set_shader_parameter("flash", level)
+
+
+func anemos_sky_changed(horizon: Vector3, zenith: Vector3) -> void:
+	if stars:
+		stars.set_sky(horizon, zenith)
 
 
 ## Local sidereal time in hours (game clock is local mean solar time).
