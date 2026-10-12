@@ -23,7 +23,8 @@ OUT = os.path.join(REPO, "game", "aircraft", "J3Cub", "model", "cub.glb")
 TEX_DIR = os.path.join(REPO, "art", "blender", "out")  # PNG copies for inspection (not committed)
 # Texture sizes; drop QUALITY to 0.5 while iterating.
 QUALITY = globals().get("QUALITY", 1.0)
-TEX = {"fus": (2048, 1024), "wing": (4096, 1024), "tail": (2048, 1024), "int": (1024, 512)}
+TEX = {"fus": (2048, 1024), "wing": (4096, 1024), "tail": (2048, 1024), "int": (1024, 512), "cab": (2048, 2048),
+       "pnl": (1024, 1024), "frm": (2048, 1024), "seat": (1024, 1024)}
 REG = "N7283K"
 
 # --- materials ---------------------------------------------------------------
@@ -80,6 +81,7 @@ def make_materials():
     M["pedal"] = material("Pedal_Metal", "#5E584C", 0.55, 0.7)
     M["panel"] = material("Panel_Paint", "#39423D", 0.6, 0.3)
     M["placard"] = material("Placard", "#9A968A", 0.4, 0.8)
+    M["bezel"] = material("Bezel", "#1F1E1B", 0.45, 0.6)
     M["tank"] = material("Fuel_Tank", "#5C5F57", 0.6, 0.5)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
     for key, (w, h) in TEX.items():
@@ -212,7 +214,7 @@ def tube(mb, pts, r, mat, sides=8, cap=True, squash=1.0, flat_axis=None):
     mb.loft(rings, mat, cap0=cap, cap1=cap)
 
 
-def lathe(mb, profile, mat, axis_pt, axis="x", sides=16, sign=1.0):
+def lathe(mb, profile, mat, axis_pt, axis="x", sides=16, sign=1.0, open_ends=False):
     """Revolve [(along, radius)] around an axis through axis_pt."""
     c = Vector(axis_pt)
     mf = mat if callable(mat) else (lambda i, j: mat)
@@ -236,7 +238,7 @@ def lathe(mb, profile, mat, axis_pt, axis="x", sides=16, sign=1.0):
             else:
                 pts.append(c + Vector((r * math.cos(t), r * math.sin(t), sign * a_)))
         rings.append(mb.ring(pts))
-    mb.loft(rings, mf, cap0=tip0 is None, cap1=tip1 is None)
+    mb.loft(rings, mf, cap0=tip0 is None and not open_ends, cap1=tip1 is None and not open_ends)
     for tip, rg in ((tip0, rings[0]), (tip1, rings[-1])):
         if tip is not None:
             for k in range(sides):
@@ -559,8 +561,10 @@ def build_cabin(root):
         for yy in (0.10, -0.62):
             lathe(mb, [(-0.006, 0), (-0.006, 0.022), (0.006, 0.022), (0.006, 0)], "steel",
                   (x, yy, FLOOR_Z + 0.035), "x", 10)
-    seat(mb, -0.40, -0.78, -0.88, -0.42, 0.50, "rear")
-    seat(mb, 0.38, 0.03, -0.90, -0.58, 0.48, "front")
+    for args, name in (((-0.40, -0.78, -0.88, -0.42, 0.50), "Seat_rear"), ((0.38, 0.03, -0.90, -0.58, 0.48), "Seat_front")):
+        sm = MB()
+        seat(sm, *args, name)
+        obj(name, sm, cab, smooth=45)
     # Map pocket on the left wall with a folded chart, and a handheld radio on the frame.
     wx = -(FUS_SIDE - 0.035)
     box(mb, (wx, -0.27, -0.76), (0.012, 0.28, 0.16), "belt")
@@ -647,21 +651,46 @@ def build_panel(parent):
     front = mb.ring([Vector((x, PANEL_Y, z)) for x, z in outline])
     back = mb.ring([Vector((x, PANEL_Y + 0.012, z)) for x, z in outline])
     mb.loft([front, back], "panel", cap0=True, cap1=True)
-    screw = lambda x, z, rad=0.0045: lathe(mb, [(0, 0), (0, rad), (0.003, rad * 0.8), (0.004, 0)], "steel",
-                                           (x, PANEL_Y, z), "y", 8, -1)
-    for gx, gz, d in PANEL_GAUGES:
-        for sx in (-1, 1):
-            for sz in (-1, 1):
-                screw(gx + sx * d * 0.47, EYE.z + gz + sz * d * 0.47, 0.0035)
+    def screw(x, z, rad=0.0045, y=PANEL_Y):
+        lathe(mb, [(0, 0), (0, rad), (0.0015, rad * 0.95), (0.003, rad * 0.6), (0.0035, 0)], "steel", (x, y, z), "y", 10, -1)
+        box(mb, (x, y - 0.0036, z), (rad * 1.6, 0.0008, rad * 0.28), "engine")  # slot
+
+    def flange(cx, cz, sx, sz, rad, depth=0.003):
+        pts = []
+        for ox, oz, a0 in ((sx / 2 - rad, sz / 2 - rad, 0), (-sx / 2 + rad, sz / 2 - rad, 90),
+                           (-sx / 2 + rad, -sz / 2 + rad, 180), (sx / 2 - rad, -sz / 2 + rad, 270)):
+            for k in range(5):
+                t = math.radians(a0 + k * 22.5)
+                pts.append((cx + ox + rad * math.cos(t), cz + oz + rad * math.sin(t)))
+        f = mb.ring([Vector((x, PANEL_Y - depth, z)) for x, z in pts])
+        b = mb.ring([Vector((x, PANEL_Y, z)) for x, z in pts])
+        mb.loft([f, b], "bezel", cap0=True)
+
+    def bezel_ring(cx, cz, d):
+        lathe(mb, [(0, 0.57 * d), (0.009, 0.555 * d), (0.0105, 0.525 * d), (0.0098, 0.49 * d), (0.004, 0.482 * d),
+                   (0.0, 0.482 * d)], "bezel", (cx, PANEL_Y - 0.003, cz), "y", 40, -1, open_ends=True)
+
     for k, (x, z) in enumerate(outline):
         if k % 3 == 0:
             screw(x * 0.94, cz + (z - cz) * 0.88)
-    # Combined oil gauge case, placards, compass bracket.
-    for x0, x1, z0, z1 in ((0.105, 0.229, -0.135, -0.065),):
-        for a, b in (((x0, z0), (x1, z0)), ((x1, z0), (x1, z1)), ((x1, z1), (x0, z1)), ((x0, z1), (x0, z0))):
-            tube(mb, [(a[0], PANEL_Y - 0.004, EYE.z + a[1]), (b[0], PANEL_Y - 0.004, EYE.z + b[1])], 0.004, "engine", 6)
-    box(mb, (-0.248, PANEL_Y - 0.002, EYE.z - 0.165), (0.05, 0.003, 0.014), "placard")
-    box(mb, (0.150, PANEL_Y - 0.002, EYE.z - 0.168), (0.05, 0.003, 0.014), "placard")
+    for gx, gz, d in PANEL_GAUGES[:3]:
+        flange(gx, EYE.z + gz, d * 1.2, d * 1.2, d * 0.2)
+        bezel_ring(gx, EYE.z + gz, d)
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                screw(gx + sx * d * 0.47, EYE.z + gz + sz * d * 0.47, 0.0032, PANEL_Y - 0.003)
+    # Combined oil temperature / pressure instrument: one case, two dials.
+    flange(0.167, EYE.z - 0.10, 0.128, 0.072, 0.014)
+    for gx, gz, d in PANEL_GAUGES[3:]:
+        bezel_ring(gx, EYE.z + gz, d)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            screw(0.167 + sx * 0.056, EYE.z - 0.10 + sz * 0.028, 0.0028, PANEL_Y - 0.003)
+    # Placards under the knobs (the engraving is drawn by the game).
+    for x, z in ((-0.248, -0.164), (0.205, -0.193), (-0.165, -0.197)):
+        box(mb, (x, PANEL_Y - 0.002, EYE.z + z), (0.05, 0.003, 0.013), "placard")
+        for sx in (-1, 1):
+            lathe(mb, [(0, 0), (0, 0.0015), (0.001, 0)], "steel", (x + sx * 0.022, PANEL_Y - 0.0035, EYE.z + z), "y", 6, -1)
     box(mb, (0.0, PANEL_Y + 0.02, EYE.z + 0.005), (0.07, 0.05, 0.012), "engine")
     obj("Panel_board", mb, parent, smooth=40)
 
@@ -739,10 +768,10 @@ def build_frame(parent):
     # Firewall and the nose fuel tank behind it (the panel hangs off the tank).
     fb = MB()
     ring = fb.ring(section(1.0, 0.004))
-    fb.face(ring, "steel")
+    fb.face(ring, "tank")  # firewall: dark painted sheet
     obj("Firewall", fb, parent, smooth=0)
     tb = MB()
-    box(tb, (0, 0.80, -0.405), (0.54, 0.34, 0.205), "tank")  # top level with the panel
+    box(tb, (0, 0.80, -0.42), (0.40, 0.34, 0.17), "tank")  # hidden behind the panel
     obj("Fuel_tank", tb, parent, smooth=0)
 
 
@@ -1557,7 +1586,10 @@ def rules_interior(P, Nn, part):
     col *= (0.96 + 0.06 * pt.fbm(P, 260.0, 2, seed=21))[:, None]  # weave
     stains = pt.smoothstep(pt.fbm(P, 6.0, 4, seed=22), 0.58, 0.72)
     col = pt.mix(col, col * np.array([0.72, 0.62, 0.46], np.float32), stains * 0.55)
-    low = pt.smoothstep(-z, 0.80, 1.05)  # dirt and boot scuffs near the floor
+    # Deep footwell under the panel is in shadow; dirt and boot scuffs near the floor.
+    well = pt.smoothstep(y, 0.35, 0.95) * pt.smoothstep(-z, 0.45, 0.9)
+    col *= (1.0 - 0.6 * well)[:, None]
+    low = pt.smoothstep(-z, 0.80, 1.05)
     col = pt.mix(col, col * np.array([0.55, 0.50, 0.42], np.float32), low * (0.4 + 0.4 * pt.fbm(P, 12.0, 3, seed=23)))
     s_in, s_edge = tape(y, 0.30, 0.0, 0.012)
     h_in, h_edge = tape(z, 0.30, -0.55, 0.012)
@@ -1571,6 +1603,206 @@ def rules_interior(P, Nn, part):
     col = pt.mix(col, SILVER * 1.1, pm * 0.7)
     col = pt.mix(col, col * 0.45, ps)
     return col, rough, metal, height
+
+
+# --- cabin parts: shared texture sheets, painted per material, with contact shadows ---
+
+# The panel, the seats and the tube frame get their own sheets so the parts you look at
+# most get the most detail.
+CABIN_SHEETS = {
+    "cab": ["Cabin_fixed", "Stick_rear_mesh", "Stick_front_mesh", "Pedals_rear_mesh", "Pedals_front_mesh",
+            "HeelBrake_L_mesh", "HeelBrake_R_mesh", "Throttle_rear_quadrant", "Throttle_front_quadrant",
+            "Throttle_rear_lever", "Throttle_front_lever", "Throttle_rod", "Trim_crank_mesh", "Firewall",
+            "Fuel_tank", "Window_frames", "Skylight_frame"],
+    "pnl": ["Panel_board"],
+    "seat": ["Seat_rear", "Seat_front"],
+    "frm": ["Frame"],
+}
+CABIN_MATS = {"Frame_Tube": 10, "Seat_Leather": 11, "Floor_Wood": 12, "Pedal_Metal": 13, "Steel": 14,
+              "Engine_Black": 15, "Seat_Belt": 16, "Paper_Map": 17, "Brass": 18, "Panel_Paint": 19, "Bezel": 20,
+              "Placard": 21, "Fuel_Tank": 22, "Cowl_Edge": 23, "Tyre": 24}
+
+
+def unwrap_cabin(objs):
+    wm = bpy.context.window_manager
+    win = wm.windows[0]
+    area = next(a for a in win.screen.areas if a.type == "VIEW_3D")
+    region = next(r for r in area.regions if r.type == "WINDOW")
+    with bpy.context.temp_override(window=win, area=area, region=region, active_object=objs[0],
+                                   selected_objects=objs, selected_editable_objects=objs, object=objs[0]):
+        for o in bpy.context.view_layer.objects:
+            o.select_set(False)
+        for o in objs:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = objs[0]
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.003)
+        bpy.ops.uv.pack_islands(margin=0.003)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def cabin_bvh():
+    """Everything a ray from inside the cabin can hit."""
+    from mathutils.bvhtree import BVHTree
+    verts, polys = [], []
+    for o in COLL.objects:
+        if o.type != "MESH" or o.name.startswith(("Wing", "Stab", "Elevator", "Fin", "Rudder", "Tyre", "Blades", "Disc")):
+            continue
+        mw = o.matrix_world
+        base = len(verts)
+        verts += [mw @ v.co for v in o.data.vertices]
+        polys += [[base + i for i in p.vertices] for p in o.data.polygons]
+    return BVHTree.FromPolygons(verts, polys)
+
+
+def rules_cabin(P, Nn, part):
+    """Worn paint, leather, wood and metal for the cabin parts, chosen by original material."""
+    n = len(P)
+    col = np.zeros((n, 3), np.float32)
+    rough = np.full(n, 0.6, np.float32)
+    metal = np.zeros(n, np.float32)
+    height = np.zeros(n, np.float32)
+    up = np.clip(Nn[:, 2], 0, 1)
+    dust = pt.fbm(P, 4.0, 3, seed=30)
+    fine = pt.fbm(P, 140.0, 2, seed=31)
+
+    def sel(i):
+        return part == i
+
+    # Frame tubes: blue-grey enamel, chipped to rust and bare steel, dusty on top.
+    m = sel(10)
+    if m.any():
+        p = P[m]
+        base = np.tile(C("#5B7E8E"), (m.sum(), 1)) * (0.9 + 0.2 * pt.fbm(p, 6.0, 3, seed=32))[:, None]
+        chip = pt.smoothstep(pt.fbm(p, 55.0, 3, seed=33), 0.66, 0.69)
+        speck = pt.smoothstep(pt.fbm(p, 220.0, 2, seed=34), 0.72, 0.74)
+        rust = pt.mix(np.tile(C("#4B3324"), (m.sum(), 1)), np.tile(C("#7A6A58"), (m.sum(), 1)), pt.fbm(p, 90.0, 2, seed=35))
+        c = pt.mix(base, rust, np.clip(chip + speck * 0.8, 0, 1))
+        c = pt.mix(c, c * 0.6, pt.smoothstep(pt.fbm(p, (3, 3, 18), 3, seed=36), 0.6, 0.8) * 0.5)  # rust runs
+        col[m] = c
+        rough[m] = 0.5 + 0.3 * chip
+        metal[m] = 0.15 + 0.4 * speck
+        height[m] = -chip * 0.4
+    # Seat leather: dark navy, a network of fine tan cracks, rubbed light where you sit.
+    m = sel(11)
+    if m.any():
+        p = P[m]
+        base = np.tile(C("#232A31"), (m.sum(), 1)) * (0.85 + 0.3 * pt.fbm(p, 8.0, 3, seed=40))[:, None]
+        n1 = pt.fbm(p, 28.0, 4, seed=41)
+        n2 = pt.fbm(p, 70.0, 3, seed=42)
+        crack = np.clip(1.0 - np.abs(n1 - 0.5) / 0.009, 0, 1) + 0.6 * np.clip(1.0 - np.abs(n2 - 0.5) / 0.006, 0, 1)
+        crack = np.clip(crack, 0, 1)
+        rub = pt.smoothstep(pt.fbm(p, 5.0, 3, seed=43), 0.45, 0.75) * up[m]
+        c = pt.mix(base, base * 1.8 + 0.02, rub * 0.6)
+        c = pt.mix(c, np.tile(C("#7E6444"), (m.sum(), 1)), crack * 0.7)
+        col[m] = c
+        rough[m] = 0.45 + 0.35 * crack
+        height[m] = -crack * 0.6
+    # Floorboards: wood grain along the planks, boot-worn, dirt stains.
+    m = sel(12)
+    if m.any():
+        p = P[m]
+        plank = np.floor(p[:, 0] / 0.112)
+        tint = 0.8 + 0.4 * np.abs(np.sin(plank * 12.9898)) % 0.4
+        grain = pt.fbm(p, (70.0, 2.5, 70.0), 4, seed=50)
+        rings = 0.5 + 0.5 * np.sin(grain * 40.0)
+        base = np.tile(C("#5A452E"), (m.sum(), 1)) * (tint * (0.75 + 0.35 * rings))[:, None]
+        worn = pt.smoothstep(pt.fbm(p, 6.0, 3, seed=51), 0.5, 0.8)
+        dirt = pt.smoothstep(pt.fbm(p, 12.0, 3, seed=52), 0.45, 0.75)
+        c = pt.mix(base, base * 1.5, worn * 0.4)
+        c = pt.mix(c, np.tile(C("#6B5A44"), (m.sum(), 1)), dirt * 0.5)
+        col[m] = c
+        rough[m] = 0.8
+        height[m] = rings * 0.15
+    # Panel: grey-green enamel, fine chips mostly at the edges, scratches, dust.
+    m = sel(19)
+    if m.any():
+        p = P[m]
+        base = np.tile(C("#38413C"), (m.sum(), 1)) * (0.9 + 0.2 * pt.fbm(p, 9.0, 3, seed=60))[:, None]
+        rr = np.sqrt((p[:, 0] / 0.29) ** 2 + ((p[:, 2] - (EYE.z - 0.10)) / 0.105) ** 2)
+        edge = pt.smoothstep(rr, 0.82, 1.0)
+        chip = pt.smoothstep(pt.fbm(p, 110.0, 3, seed=61) + edge * 0.3, 0.76, 0.78)
+        scratch = pt.smoothstep(pt.fbm(p, (260.0, 4.0, 18.0), 2, seed=62), 0.78, 0.8)
+        c = pt.mix(base, np.tile(C("#8E8A80"), (m.sum(), 1)), chip)
+        c = pt.mix(c, c * 1.4 + 0.03, scratch * 0.5)
+        col[m] = c
+        rough[m] = 0.55 - 0.2 * chip
+        metal[m] = chip * 0.8
+        height[m] = -chip * 0.3
+    # Gauge flanges and bezels: black, worn brown on raised edges.
+    m = sel(20)
+    if m.any():
+        p = P[m]
+        wear = pt.smoothstep(pt.fbm(p, 80.0, 3, seed=63), 0.62, 0.68)
+        col[m] = pt.mix(np.tile(C("#191817"), (m.sum(), 1)), np.tile(C("#5E4C3A"), (m.sum(), 1)), wear)
+        rough[m] = 0.4 + 0.2 * wear
+        metal[m] = 0.5 + 0.3 * wear
+    # Small metal: bolts, latches, pulleys (steel), pedals, placards, aluminium frames, brass, tank.
+    for i, hexc, r0, m0, rusty in ((14, "#8A8A86", 0.45, 0.9, 0.25), (13, "#5E584C", 0.5, 0.7, 0.6),
+                                   (21, "#A5A194", 0.4, 0.8, 0.2), (23, "#B5AE9C", 0.45, 0.7, 0.3),
+                                   (18, "#A8894A", 0.35, 1.0, 0.0), (22, "#45463F", 0.65, 0.3, 0.3)):
+        m = sel(i)
+        if not m.any():
+            continue
+        p = P[m]
+        base = np.tile(C(hexc), (m.sum(), 1)) * (0.85 + 0.25 * pt.fbm(p, 20.0, 3, seed=70 + i))[:, None]
+        rust = pt.smoothstep(pt.fbm(p, 25.0, 3, seed=80 + i), 0.64, 0.76) * rusty
+        patina = pt.smoothstep(pt.fbm(p, 30.0, 3, seed=90 + i), 0.55, 0.75) * (i == 18)
+        c = pt.mix(base, np.tile(C("#5A3A22"), (m.sum(), 1)), rust)
+        c = pt.mix(c, np.tile(C("#4F5E3E"), (m.sum(), 1)), patina * 0.6)
+        col[m] = c
+        rough[m] = r0 + 0.3 * rust
+        metal[m] = m0 * (1 - rust)
+    # Black knobs, grips, quadrant: bakelite/rubber with scuffs.
+    for i, hexc in ((15, "#151413"), (24, "#121212")):
+        m = sel(i)
+        if m.any():
+            p = P[m]
+            scuff = pt.smoothstep(pt.fbm(p, 90.0, 2, seed=95 + i), 0.65, 0.75)
+            col[m] = pt.mix(np.tile(C(hexc), (m.sum(), 1)), np.tile(C("#3A3530"), (m.sum(), 1)), scuff * 0.6)
+            rough[m] = 0.35 + 0.4 * scuff
+    # Webbing belts: olive woven strap, dirty.
+    m = sel(16)
+    if m.any():
+        p = P[m]
+        weave = 0.85 + 0.15 * np.sin(pt.fbm(p, (300, 300, 300), 1, seed=96) * 30)
+        col[m] = np.tile(C("#5E5B45"), (m.sum(), 1)) * (weave * (0.8 + 0.3 * pt.fbm(p, 15.0, 3, seed=97)))[:, None]
+        rough[m] = 0.9
+    # The chart in the map pocket: sea, islands, grid, a pencilled route.
+    m = sel(17)
+    if m.any():
+        p = P[m]
+        land = pt.smoothstep(pt.fbm(p, 9.0, 4, seed=98), 0.5, 0.52)
+        coast = np.clip(1 - np.abs(pt.fbm(p, 9.0, 4, seed=98) - 0.51) / 0.006, 0, 1)
+        c = pt.mix(np.tile(C("#A9C3CC"), (m.sum(), 1)), np.tile(C("#DCD2B0"), (m.sum(), 1)), land)
+        c = pt.mix(c, np.tile(C("#4A6A78"), (m.sum(), 1)), coast * 0.8)
+        grid = (np.abs(((p[:, 1] + 0.01) % 0.04) - 0.02) < 0.0008) | (np.abs(((p[:, 2] + 0.01) % 0.04) - 0.02) < 0.0008)
+        c = pt.mix(c, c * 0.6, grid.astype(np.float32))
+        route = np.abs((p[:, 2] + 0.66) - 0.35 * (p[:, 1] + 0.24)) < 0.0012
+        c = pt.mix(c, np.tile(C("#8C2A1E"), (m.sum(), 1)), route.astype(np.float32))
+        col[m] = c
+        rough[m] = 0.9
+    # Dust settles on everything facing up.
+    col = pt.mix(col, col * 0.7 + np.array([0.12, 0.10, 0.07], np.float32), (up * dust * 0.35)[:, None])
+    col *= (0.96 + 0.08 * fine)[:, None]
+    return col, rough, metal, height
+
+
+def paint_cabin():
+    bvh = cabin_bvh()
+    for key, names in CABIN_SHEETS.items():
+        objs = [bpy.data.objects[n] for n in names if n in bpy.data.objects]
+        unwrap_cabin(objs)
+        W, H = IMGS[key]["base"].size
+        items = [(o, CABIN_MATS, None) for o in objs]
+        ao = pt.ambient_occlusion(items, W, H, bvh, rays=12, dist=0.22, down=max(2, int(8 * QUALITY)))
+        pt.paint(items, W, H, rules_cabin, IMGS[key], TEX_DIR, normal_strength=2.0 * QUALITY, ao=ao)
+        for o in objs:  # one textured material per sheet
+            for i, m in enumerate(o.data.materials):
+                if m and m.name in CABIN_MATS:
+                    o.data.materials[i] = M["tex_" + key]
+        print("painted cabin sheet", key, W, "x", H, len(objs), "parts")
 
 
 def paint_all():
@@ -1624,6 +1856,7 @@ def build():
     bpy.context.view_layer.update()
     if globals().get("PAINT", True):
         paint_all()
+        paint_cabin()
     apply_solidify()
     return root
 

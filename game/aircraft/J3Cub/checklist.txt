@@ -3,7 +3,7 @@
 
 == BEFORE START | until:engine_running
 parking_brake_on | BRAKES         | SET             | Press . (period) to set the brakes                                     |
-fuel:ON          | FUEL VALVE     | ON              | FUEL valve on the panel, right: click it, or press B                   | FuelValve
+fuel:ON          | FUEL VALVE     | ON              | FUEL valve on the panel, lower left: click it, or press B                   | FuelValve
 throttle_closed  | THROTTLE       | CLOSED          | Throttle fully back: hold F, or pull the HOTAS lever back              |
 magnetos_off     | SWITCH         | OFF             | "Switch off!" The SWITCH knob on the panel, left, must read OFF        | Magnetos
 pulled_through   | PROPELLER      | PULL THROUGH    | Press Enter 3-4 times to pull the prop through and suck in fuel        |

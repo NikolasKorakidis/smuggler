@@ -38,6 +38,10 @@ def rasterize(items, W, H, eps=0.02):
         keep = None
         if mats:
             keep = {i for i, m in enumerate(me.materials) if m and m.name in mats}
+        slot_part = None
+        if isinstance(part, dict):
+            slot_part = {i: part[m.name] for i, m in enumerate(me.materials) if m and m.name in part}
+            keep = set(slot_part)
         loops, verts = loops.reshape(-1, 3), verts.reshape(-1, 3)
         for t in range(nt):
             if keep is not None and tmat[t] not in keep:
@@ -66,7 +70,7 @@ def rasterize(items, W, H, eps=0.02):
             P[yy, xx] = b @ p
             nn = b @ n
             N[yy, xx] = nn / np.maximum(np.linalg.norm(nn, axis=1, keepdims=True), 1e-6)
-            PART[yy, xx] = part
+            PART[yy, xx] = slot_part[tmat[t]] if slot_part is not None else part
             MASK[yy, xx] = True
     return P, N, PART, MASK
 
@@ -206,12 +210,46 @@ def textured_material(name, W, H):
     return m, imgs
 
 
-def paint(items, W, H, rules, imgs, out_dir, normal_strength=6.0):
+def ambient_occlusion(items, W, H, bvh, rays=12, dist=0.25, down=4):
+    """Soft contact shadows: fraction of short rays from each texel that escape. Computed on a
+    grid `down` times coarser than the texture (ray casting from Python is slow), then upscaled."""
+    import mathutils
+    w, h = max(W // down, 8), max(H // down, 8)
+    P, N, PART, MASK = rasterize(items, w, h)
+    rng = np.random.RandomState(7)
+    u, v = rng.rand(rays), rng.rand(rays)
+    dirs = np.stack([np.sqrt(u) * np.cos(2 * np.pi * v), np.sqrt(u) * np.sin(2 * np.pi * v), np.sqrt(1 - u)], 1)
+    ao = np.ones((h, w), np.float32)
+    for y, x in zip(*np.nonzero(MASK)):
+        n = mathutils.Vector(N[y, x])
+        if n.length < 0.5:
+            continue
+        t = n.orthogonal().normalized()
+        b = n.cross(t)
+        o = mathutils.Vector(P[y, x]) + n * 0.002
+        hit = 0
+        for dx, dy, dz in dirs:
+            if bvh.ray_cast(o, t * dx + b * dy + n * dz, dist)[0] is not None:
+                hit += 1
+        ao[y, x] = 1.0 - hit / rays
+    dilate(MASK, [ao], iters=3)
+    big = np.kron(ao, np.ones((down, down), np.float32))[:H, :W]
+    if big.shape != (H, W):
+        big = np.pad(big, ((0, H - big.shape[0]), (0, W - big.shape[1])), mode="edge")
+    k = np.ones(down * 2 + 1, np.float32) / (down * 2 + 1)  # soften the upscale steps
+    big = np.apply_along_axis(lambda r: np.convolve(r, k, mode="same"), 1, big)
+    big = np.apply_along_axis(lambda c: np.convolve(c, k, mode="same"), 0, big)
+    return big
+
+
+def paint(items, W, H, rules, imgs, out_dir, normal_strength=6.0, ao=None, ao_strength=0.85):
     """Rasterize items, run rules(P, N, PART) -> (lin rgb, rough, metal, height), write images."""
     P, N, PART, MASK = rasterize(items, W, H)
     full = dilate(MASK, [P, N, PART], iters=6)
     idx = np.nonzero(full)
     col, rough, metal, height = rules(P[idx], N[idx], PART[idx])
+    if ao is not None:
+        col = col * (1.0 - ao_strength * (1.0 - ao[idx]))[:, None]
     base = np.zeros((H, W, 3), np.float32)
     orm = np.zeros((H, W, 3), np.float32)
     hgt = np.zeros((H, W), np.float32)

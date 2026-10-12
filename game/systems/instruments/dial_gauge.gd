@@ -48,11 +48,15 @@ class DialFace extends Control:
 	func _draw() -> void:
 		var c := size * 0.5
 		var r := size.x * 0.49
-		draw_circle(c, r, Color(0.07, 0.07, 0.07))
+		var ink := GaugeBase.CREAM if g.vintage else Color(0.93, 0.93, 0.9)
+		draw_circle(c, r, Color(0.045, 0.042, 0.038) if g.vintage else Color(0.07, 0.07, 0.07))
+		if g.vintage:
+			GaugeBase.draw_wear(self, c, r, hash(g.name))
 		for i in mini(g.arc_from.size(), mini(g.arc_to.size(), g.arc_colors.size())):
 			var a0 := deg_to_rad(g.angle_for(g.arc_from[i], true) - 90.0)
 			var a1 := deg_to_rad(g.angle_for(g.arc_to[i], true) - 90.0)
-			draw_arc(c, r * 0.87, a0, a1, 48, g.arc_colors[i], r * 0.07)
+			var col := g.arc_colors[i].darkened(0.25) if g.vintage else g.arc_colors[i]
+			draw_arc(c, r * 0.87, a0, a1, 48, col, r * 0.07)
 		var ticks := int(round((g.max_value - g.min_value) / g.minor_step))
 		var per_major := maxi(1, int(round(g.major_step / g.minor_step)))
 		for i in ticks + 1:
@@ -61,7 +65,7 @@ class DialFace extends Control:
 			var major := i % per_major == 0
 			var d := GaugeBase.dir_cw(g.angle_for(g.min_value + i * g.minor_step, true))
 			var inner := r * (0.76 if major else 0.83)
-			draw_line(c + d * inner, c + d * r * 0.93, Color(0.93, 0.93, 0.9), r * (0.025 if major else 0.012))
+			draw_line(c + d * inner, c + d * r * 0.93, ink, r * (0.025 if major else 0.012))
 		if g.label_step > 0.0:
 			var labels := int(round((g.max_value - g.min_value) / g.label_step))
 			for i in labels + 1:
@@ -71,12 +75,12 @@ class DialFace extends Control:
 				if v < g.label_from:
 					continue
 				var d := GaugeBase.dir_cw(g.angle_for(v, true))
-				GaugeBase.draw_text_centered(self, c + d * r * 0.60, str(int(round((absf(v) if g.label_abs else v) / g.label_divisor))), int(r * 0.19))
+				GaugeBase.draw_text_centered(self, c + d * r * 0.60, str(int(round((absf(v) if g.label_abs else v) / g.label_divisor))), int(r * 0.19), ink)
 		if g.redline >= 0.0:
 			var d := GaugeBase.dir_cw(g.angle_for(g.redline, true))
 			draw_line(c + d * r * 0.72, c + d * r * 0.95, Color(0.9, 0.1, 0.1), r * 0.035)
-		GaugeBase.draw_text_centered(self, c + Vector2(0, -r * 0.28), g.title, int(r * 0.13), Color(1, 1, 1, 0.85))
-		GaugeBase.draw_text_centered(self, c + Vector2(0, r * 0.34), g.unit_label, int(r * 0.11), Color(1, 1, 1, 0.7))
+		GaugeBase.draw_text_centered(self, c + Vector2(0, -r * 0.28), g.title, int(r * 0.13), Color(ink, 0.85))
+		GaugeBase.draw_text_centered(self, c + Vector2(0, r * 0.34), g.unit_label, int(r * 0.11), Color(ink, 0.7))
 
 
 func _build() -> void:
