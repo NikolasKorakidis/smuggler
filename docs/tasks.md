@@ -11,6 +11,8 @@ Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
 - [x] Day/night: compressed clock (4x, Y jumps), real sun path for date/latitude, custom sky (dusk colours, stars, moon), moonlight, night exposure. 172: landing/nav/panel light switches (need master), panel clock; gauges go dark at night without panel lights. Cub: no electrics. Hangar lamp at dusk; strips unlit.
 - [x] Lighting overhaul: physically based sky, sunsets, hill shadows, haze, AgX/glow/SSAO, real moon phases, Milky Way, night vision.
 - [x] Wind feel recalibrated (smooth weather changes, gusts fade with height, Cub pitch inertia).
+- [x] Real night sky: 9,096 catalogue stars and NASA Milky Way, placed by date, time and latitude.
+- [x] Developer menu (` or F10): time, weather, aircraft/fuel/payload, teleport airborne or on final, flaps/trim/lights/brakes, engine state, render settings, debug.
 - [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction); cloud layer exists (cover per weather), add cloud shadows / low cloud.
 - [ ] Weather menu / pick conditions before a flight (instead of U), and an 80s-style radio forecast.
 - [ ] Gate scenario: gusty crosswind at dusk on the valley strip; scripted-pilot test that it is landable.

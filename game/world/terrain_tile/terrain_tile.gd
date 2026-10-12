@@ -89,6 +89,9 @@ func _ready() -> void:
 	time_of_day.camera = $CameraRig
 	time_of_day.setup($Sun, $WorldEnvironment.environment, origin_lat_deg, origin_lon_deg)
 	_spawn_aircraft(0)
+	var dev := preload("res://ui/dev_menu.gd").new()
+	dev.name = "DevMenu"
+	add_child(dev)
 
 
 func _unhandled_input(event: InputEvent) -> void:

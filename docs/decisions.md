@@ -63,3 +63,4 @@
 | 2026-10-12 | Night sky from real data: Yale Bright Star Catalogue (9,096 stars) as screen-space points + NASA SVS Deep Star Maps 2020 Milky Way layer; both rotated by local sidereal time | Nikolas: night sky not realistic. Real constellations in the right place for date/time/place; credits in docs/CREDITS.md |
 | 2026-10-12 | Star brightness on a perceptual curve (flux^0.55), Milky Way shown grey-white at eye brightness | Linear flux hid ~90% of naked-eye stars; photo colours look fake to the eye |
 | 2026-10-12 | Calendar maths via exact unix days (sidereal time, moon phase) | Approximate 365.25-day years put the sky ~5.5 h out |
+| 2026-10-12 | In-game developer menu (` / F10) that changes the live sim: weather sliders override preset blending; airborne spawn through JSBSim initial conditions | Nikolas wants to test conditions in depth without restarting; one place for every tunable |

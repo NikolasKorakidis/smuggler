@@ -27,6 +27,7 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Sound render check: `godot --headless --path game --fixed-fps 60 res://dev/audio_render.tscn`
 - Terrain frame time (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn`
 - Checklist walk (both aircraft): `godot --headless --path game --fixed-fps 120 res://dev/checklist_test.tscn`
+- Developer menu in game: ` (backtick) or F10. Screenshot every tab: `godot --path game --resolution 1920x1080 res://dev/devmenu_shot.tscn`
 - Engine start tests: `godot --headless --path game --fixed-fps 120 res://dev/engine_test.tscn`
 - JSBSim sign conventions: elevator −1 = nose up, rudder +1 = nose LEFT, steering +1 = nose right. The input layer handles this once for all aircraft.
 

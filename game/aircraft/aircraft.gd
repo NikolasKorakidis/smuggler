@@ -94,6 +94,16 @@ func flap_notch_degrees(n: int) -> int:
 	return int(round(definition.flap_detents[n] * 30.0)) if n < definition.flap_detents.size() else 0
 
 
+## Dev: put the aircraft in the air, engine running, ready to fly.
+func teleport_air(local_pos: Vector3, heading_deg: float, alt_msl_m: float, kcas: float) -> void:
+	fdm.spawn_air(world.geo, local_pos, heading_deg, alt_msl_m, kcas, world.terrain_height(local_pos))
+	engine.reset(true)
+	FlightInput.parking_brake = false
+	FlightInput.set_throttle_keyboard(0.65)
+	_place()
+	reset_physics_interpolation()
+
+
 func eyepoint() -> Node3D:
 	return airframe.get_node("Eyepoint")
 
