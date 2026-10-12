@@ -5,7 +5,8 @@
 - **Stars** (`game/world/sky/bsc5_stars.txt`): *Yale Bright Star Catalogue*, 5th revised edition (Hoffleit & Warren 1991), from the Harvard-Smithsonian Center for Astrophysics catalog server / NASA HEASARC. Positions (J2000), V magnitudes and B-V colours of the 9,096 stars with a J2000 position and magnitude.
 
 ## Weather
-- **SunshineClouds 2** (`game/addons/SunshineClouds2/`), volumetric clouds by David House (Bonkahe), MIT License (licence file in the addon folder; upstream commit in `UPSTREAM_COMMIT`). https://github.com/Bonkahe/SunshineClouds2
+- **Volumetric clouds** are our own (`game/world/weather_fx/clouds.glsl`), built on published techniques: A. Schneider, *The Real-time Volumetric Cloudscapes of Horizon Zero Dawn* (SIGGRAPH 2015, Advances in Real-Time Rendering) and *Nubis* (2017); S. Hillaire, *Physically Based Sky, Atmosphere and Cloud Rendering in Frostbite* (SIGGRAPH 2016). (An earlier build used the MIT SunshineClouds 2 addon by David House; it has been removed.)
+- **Thunder** is synthesised from the lightning channel geometry (superposed N-waves, after Few 1969 and Ribner & Roy 1982).
 - Microburst winds: D. D. Vicroy (1991), *A Simple, Analytical, Axisymmetric Microburst Model for Downdraft Estimation*, NASA TM-104053.
 
 ## Flight dynamics

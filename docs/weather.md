@@ -7,7 +7,7 @@ Gate: a gusty crosswind landing at dusk feels hard but fair; a thunderstorm is s
 ## Packages (light, permissive, no lock-in)
 | Need | Choice | Why |
 |---|---|---|
-| Volumetric clouds you can fly into | **SunshineClouds 2** (MIT, Godot 4.4+, Metal support, maintained, Godot 4.7 fix Sep 2026) | Ray-marched clouds that hide terrain correctly, become fog when you're inside, take sun/moon/point lights (lightning), and 64 "effectors" to build storm towers. Lives in `addons/`; we drive its few parameters from Weather. |
+| Volumetric clouds you can fly into | **Our own renderer** (`world/weather_fx/clouds.glsl`), after Horizon's Nubis and Frostbite | SunshineClouds 2 was tried first and looked flat and blobby; replaced by a renderer built on the techniques behind the best game skies (Ace Combat 8 uses an in-house engine with layered clouds). Weather-map cumulus fields, stratus sheets, storm towers with anvils, a mid layer, self-shadowed multiple-scattering light, silver linings, cloud shadows and god rays. |
 | Fog, haze, rain shafts | **Own compositor effect** | Godot's height fog is per-surface, not along the view ray, so thick ground fog looks wrong. An analytic fog integral is cheap and exact. |
 | Rain, windshield, lightning, sounds | **Own shaders and procedural audio** | The available rain-on-glass shaders are screen overlays or unlicensed, and none does airflow streaking. Ours are small, and the sounds come from the existing synth (no recorded assets). |
 | Microburst / downdraft wind | **Vicroy (NASA/FAA 1991) analytic model** | The standard simple model used in wind-shear simulation studies. |
@@ -32,12 +32,12 @@ Gate: a gusty crosswind landing at dusk feels hard but fair; a thunderstorm is s
 - [x] Replaces the current Godot fog; also fogs the sky.
 
 ## W3 — Clouds
-- [x] SunshineClouds 2 installed; performance tested at 1080p on the MacBook (budget 60 fps with terrain).
+- [x] Own volumetric cloud renderer (replaced SunshineClouds 2); ~2.5 ms at 1080p.
 - [x] Driven by Weather: coverage, density, base/top, drift with the wind aloft, sun and moon light, sky ambient.
 - [x] Flying into cloud = instrument conditions (whiteout, light turbulence in cumulus, smooth in stratus).
 - [x] Storm towers (cumulonimbus) from effectors, dark bases.
 - [x] High cirrus stays in our sky shader.
-- [~] Overcast days darker and flatter (done); cloud shadows on the ground (later).
+- [x] Overcast days darker and flatter; cloud shadows on the ground; god rays through gaps.
 
 ## W4 — Rain
 - [x] Rain streaks around the camera (GPU, constant density at any speed), slanted by your airspeed, lit by the landing light.
@@ -49,7 +49,7 @@ Gate: a gusty crosswind landing at dusk feels hard but fair; a thunderstorm is s
 
 ## W5 — Storms
 - [x] Lightning: cloud-to-ground bolts and in-cloud flashes; the flash lights the clouds, sky and ground.
-- [x] Thunder with real delay (distance / 343 m/s), procedural rumble, sharp crack when close.
+- [x] Thunder synthesised from each bolt's channel (N-waves, beaming, echoes, air absorption): crack and crackle close, long rumble far.
 - [x] Gust front ahead of the cell (wind shift and surge), microburst downdraft and outflow (wind shear on approach), updrafts under the base, severe turbulence in the cell.
 
 ## W6 — Aircraft and engine

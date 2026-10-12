@@ -129,4 +129,16 @@ func _fog_params() -> PackedFloat32Array:
 		out.append_array([top, 0.0, 0.0, 0.0])
 	var sr := clouds.shadow_rect()
 	out.append_array([sr.x, sr.y, sr.z, sr.w if atmosphere.clouds_enabled else -1e6])
+	# The landing light, for its beam in fog and rain.
+	var ac = world.get("aircraft")
+	var spot: SpotLight3D = ac.find_child("LandingLight", true, false) if ac else null
+	if spot and spot.is_visible_in_tree() and spot.light_energy > 0.0:
+		var sp := spot.global_position
+		var sd2 := -spot.global_basis.z
+		var c := spot.light_color * spot.light_energy * 3.0
+		out.append_array([sp.x, sp.y, sp.z, minf(spot.spot_range, 400.0)])
+		out.append_array([sd2.x, sd2.y, sd2.z, cos(deg_to_rad(spot.spot_angle))])
+		out.append_array([c.r, c.g, c.b, 0.0])
+	else:
+		out.append_array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0])
 	return out

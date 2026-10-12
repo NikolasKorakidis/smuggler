@@ -29,6 +29,8 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Checklist walk (both aircraft): `godot --headless --path game --fixed-fps 120 res://dev/checklist_test.tscn`
 - Day/night transition check (window; on-screen brightness per game minute + contact sheets): `godot --path game --resolution 1280x720 res://dev/dusk_sweep.tscn -- --from=18.3 --to=20.8 --step=1 --out=<dir>`. Sky curve vs sun elevation: `godot --headless --path game -s res://dev/sky_curve.gd`
 - Weather screenshots: `godot --path game --resolution 1280x720 res://dev/daynight_shot.tscn -- --hours=15 --weather=9 --storm=9000,120 --look=120,8 [--strike=6000,118] [--cockpit] [--wet=1] [--fogdebug=1|2] [--nofx=fog|clouds] --hideui --out=x.png`
+- Cloud gallery (window; 8-24 views in one contact sheet): `godot --path game --resolution 1280x720 res://dev/cloud_gallery.tscn -- --set=day|storm|close|all --out=sheet.png`
+- Thunder to WAV (to listen): `godot --headless --path game -s res://dev/thunder_render.gd -- <out_dir>`
 - Frame time with weather (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn -- --weather=9 --storm [--nofx=clouds]`
 - After editing a `.glsl` compute shader or adding a `class_name`: `godot --headless --import --path game` (running the game does not re-import)
 - Developer menu in game: ` (backtick) or F10. Screenshot every tab: `godot --path game --resolution 1920x1080 res://dev/devmenu_shot.tscn`

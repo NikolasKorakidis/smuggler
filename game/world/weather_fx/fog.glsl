@@ -34,6 +34,9 @@ layout(set = 0, binding = 2, std430) restrict readonly buffer Params {
 	vec4 cells[MAX_CELLS];      // x, z, radius, peak extinction
 	vec4 cell_tops[MAX_CELLS];  // x = shaft top y (cloud base)
 	vec4 shadow_rect;           // cloud shadow map: origin x, origin z, size m, plane y (w < -1e5: none)
+	vec4 spot_pos;              // landing light: position, range
+	vec4 spot_dir;              // direction, cos(cone half angle)
+	vec4 spot_col;              // colour x energy (0 = off)
 } p;
 
 layout(set = 0, binding = 3) uniform sampler2D cloud_color;  // half res: light, transmittance
@@ -309,6 +312,29 @@ void main() {
 		h_far = h_near;
 		f_far = f_near;
 		r_far = r_near;
+	}
+	// Landing light beam: light scattered by fog, haze and rain inside the cone.
+	if (dot(p.spot_col.rgb, vec3(1.0)) > 0.0) {
+		float reach = min(t, p.spot_pos.w);
+		float jit = fract(52.9829189 * fract(dot(vec2(px) + 3.1, vec2(0.06711056, 0.00583715))));
+		vec3 beam = vec3(0.0);
+		float ds = reach / 20.0;
+		for (int k = 0; k < 20; k++) {
+			float s = ds * (float(k) + jit);
+			vec3 q = o + d * s;
+			vec3 v = q - p.spot_pos.xyz;
+			float dist = max(length(v), 0.5);
+			float cone = smoothstep(p.spot_dir.w, mix(p.spot_dir.w, 1.0, 0.4), dot(v / dist, p.spot_dir.xyz));
+			if (cone <= 0.0) continue;
+			float sig = p.haze.x * exp(clamp(-(q.y - p.haze.z) / p.haze.y, -60.0, 20.0))
+				+ fog.x * slab_profile(q.y, fog.y, fog.z) + p.rain.x * slab_profile(q.y, p.rain.y, p.rain.z);
+			// Forward-scattering droplets: brightest looking along the beam.
+			float g2 = 0.5;
+			float mu2 = dot(d, v / dist);
+			float ph = (1.0 - g2 * g2) / pow(1.0 + g2 * g2 - 2.0 * g2 * mu2, 1.5);
+			beam += p.spot_col.rgb * cone * ph / (dist * dist) * sig * exp(-sig * (dist + s)) * ds;
+		}
+		col.rgb += beam;
 	}
 	imageStore(color_image, px, col);
 }

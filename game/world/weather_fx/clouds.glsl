@@ -98,7 +98,7 @@ vec2 shell(vec3 oc, vec3 d, float rb, float rt) {
 float profile(float h, float t) {
 	float st = smoothstep(0.0, 0.12, h) * (1.0 - smoothstep(0.55, 1.0, h));
 	float cu = smoothstep(0.0, 0.07, h) * (1.0 - smoothstep(0.3, 1.0, h));
-	float cb = smoothstep(0.0, 0.05, h) * (1.0 - smoothstep(0.8, 1.0, h));
+	float cb = smoothstep(0.0, 0.012, h) * (1.0 - smoothstep(0.8, 1.0, h));  // flat dark base
 	return t < 0.5 ? mix(st, cu, t * 2.0) : mix(cu, cb, (t - 0.5) * 2.0);
 }
 

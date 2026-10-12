@@ -12,7 +12,7 @@ extends CompositorEffect
 
 const MAX_CELLS := 8
 ## Floats in the fog parameter buffer (matches fog.glsl).
-const FOG_FLOATS := 16 + 16 + 4 * 12 + MAX_CELLS * 4 * 2 + 4
+const FOG_FLOATS := 16 + 16 + 4 * 12 + MAX_CELLS * 4 * 2 + 4 + 12
 ## Floats in the cloud parameter buffer after the three matrices (matches clouds.glsl).
 const CLOUD_FLOATS := 4 * 12 + 8 * 4 * 2 + 4 * 4
 const SHAPE_SIZE := 128
