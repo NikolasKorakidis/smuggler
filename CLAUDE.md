@@ -3,7 +3,7 @@
 This file is read by Claude Code at the start of every session. Keep it short and current.
 
 ## What this project is
-**Smuggler**: a single-player flight game set in a fictional 1978–1988 world. The player smuggles cargo by plane, starting with a cheap, worn-out aircraft and working up to better ones. Physics and weather come first; graphics serve them.
+**Smuggler**: a single-player flight game set in real places in Mexico and the United States, 1978–1988. The player smuggles cargo by plane, starting with a cheap, worn-out aircraft and working up to better ones. Physics and weather come first; graphics serve them.
 
 Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and tests the code.
 
@@ -27,6 +27,8 @@ Owner: Nikolas (test pilot, art director, final say on feel). Claude writes and 
 - Sound render check: `godot --headless --path game --fixed-fps 60 res://dev/audio_render.tscn`
 - Terrain frame time (window): `godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn`
 - Checklist walk (both aircraft): `godot --headless --path game --fixed-fps 120 res://dev/checklist_test.tscn`
+- Day/night transition check (window; on-screen brightness per game minute + contact sheets): `godot --path game --resolution 1280x720 res://dev/dusk_sweep.tscn -- --from=18.3 --to=20.8 --step=1 --out=<dir>`. Sky curve vs sun elevation: `godot --headless --path game -s res://dev/sky_curve.gd`
+- Developer menu in game: ` (backtick) or F10. Screenshot every tab: `godot --path game --resolution 1920x1080 res://dev/devmenu_shot.tscn`
 - Engine start tests: `godot --headless --path game --fixed-fps 120 res://dev/engine_test.tscn`
 - JSBSim sign conventions: elevator −1 = nose up, rudder +1 = nose LEFT, steering +1 = nose right. The input layer handles this once for all aircraft.
 
@@ -55,5 +57,7 @@ Read `docs/tasks.md` before starting work. Update it before ending a session.
 - Commit messages: imperative, short, what changed.
 
 ## Content rules
-- All aircraft, companies, places and people are fictional. No real manufacturer names or logos in game.
+- **Real places** in Mexico and the United States.
+- **Aircraft are not real types:** fictional, altered names; no real manufacturer or model names, logos or trade dress in game. Flight models may be based on real aircraft (the 172 benchmark stays). (Nikolas, 2026-10-12.)
+- People and companies are fictional.
 - The repo is public. Store pages, YouTube and other public material must not reveal game details Nikolas hasn't approved for release.

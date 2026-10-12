@@ -37,7 +37,7 @@ const KEYS := {
 	"fuel_selector": [KEY_B], "master": [KEY_O], "auto_start": [KEY_E | KEY_MASK_CTRL],
 	"flaps_up": [KEY_T], "flaps_down": [KEY_G], "next_aircraft": [KEY_N],
 	"debug_overlay": [KEY_F3, KEY_I], "axis_tester": [KEY_F2, KEY_J], "help": [KEY_F1, KEY_H],
-	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD], "look_target": [KEY_L], "weather_next": [KEY_U], "time_next": [KEY_Y],
+	"checklist": [KEY_K], "parking_brake": [KEY_PERIOD], "look_target": [KEY_L], "weather_next": [KEY_U], "time_next": [KEY_Y], "dev_menu": [KEY_QUOTELEFT, KEY_F10],
 	"landing_light": [KEY_L | KEY_MASK_CTRL], "nav_lights": [KEY_N | KEY_MASK_CTRL], "panel_lights": [KEY_P | KEY_MASK_CTRL],
 }
 

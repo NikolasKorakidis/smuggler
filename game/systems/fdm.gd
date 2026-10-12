@@ -56,6 +56,25 @@ func spawn(world_geo: Geo, local_pos: Vector3, heading_deg: float, terrain_m: fl
 	jsb.step_n(int(SETTLE_SECONDS * Engine.physics_ticks_per_second))
 
 
+## Places the aircraft in flight: position, true heading, altitude above
+## sea level (m) and calibrated airspeed (kt), wings level, engine running.
+func spawn_air(world_geo: Geo, local_pos: Vector3, heading_deg: float, alt_msl_m: float, kcas: float, terrain_m: float) -> void:
+	geo = world_geo
+	var g := geo.to_geo(local_pos)
+	prop("ic/lat-geod-deg", g.x)
+	prop("ic/long-gc-deg", g.y)
+	prop("ic/terrain-elevation-ft", terrain_m / FT)
+	prop("ic/h-sl-ft", alt_msl_m / FT)
+	prop("ic/psi-true-deg", heading_deg)
+	prop("ic/theta-deg", 2.0)
+	prop("ic/phi-deg", 0.0)
+	prop("ic/gamma-deg", 0.0)
+	prop("ic/vc-kts", kcas)
+	jsb.run_ic()
+	prop("position/terrain-elevation-asl-ft", terrain_m / FT)
+	start_engines()
+
+
 ## Note: "propulsion/set-running" = N *starts* engine N (-1 = all), so
 ## stopping goes through each engine's own set-running.
 func start_engines() -> void:

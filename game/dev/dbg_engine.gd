@@ -1,20 +1,16 @@
 extends Node
-var world: Node3D
+## Sky sanity: LST and where known stars end up.
 func _ready() -> void:
-	FlightInput.joysticks_enabled = false
-	world = load("res://world/terrain_tile/terrain_tile.tscn").instantiate()
-	world.start_engine_running = true
-	add_child(world)
-	world._spawn_aircraft(1)
-	var ac: Aircraft = world.aircraft
-	ac.lights.landing = true
-	for i in 10: await get_tree().process_frame
-	var spot: SpotLight3D = ac.find_child("LandingLight", true, false)
-	print("spot found=", spot != null)
-	if spot:
-		print(" visible=", spot.visible, " in_tree=", spot.is_visible_in_tree(), " energy=", spot.light_energy, " range=", spot.spot_range)
-		print(" global pos=", spot.global_position, " aircraft pos=", ac.global_position)
-		print(" beam dir=", -spot.global_basis.z, " aircraft fwd=", -ac.global_basis.z)
-		print(" light_on=", ac.light_on("landing"), " powered=", ac.engine.powered(), " master=", ac.engine.master)
-		print(" parent chain=", spot.get_parent().name, " / ", spot.get_parent().get_parent().name)
+	var w = load("res://world/test_world.tscn").instantiate()
+	add_child(w)
+	var t: TimeOfDay = w.time_of_day
+	t.time_scale = 0.0
+	t.set_hours(23.0)
+	print("LST at 23:00 local, 15 Jun 1983, lon -78: %.2f h (expect ~17.4)" % t.local_sidereal_hours())
+	var b := t.celestial_basis()
+	for s in [["Polaris", 37.95, 89.26], ["Antares", 247.35, -26.43], ["Vega", 279.23, 38.78], ["Arcturus", 213.92, 19.18]]:
+		var v: Vector3 = b * StarField._celestial(s[1], s[2])
+		var az := fposmod(rad_to_deg(atan2(v.x, -v.z)), 360.0)
+		print("  %-9s az %5.1f el %5.1f" % [s[0], az, rad_to_deg(asin(v.y))])
+	print("moon phase %.2f (0 new, 0.5 full)" % t.moon_phase())
 	get_tree().quit()
