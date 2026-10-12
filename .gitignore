@@ -17,3 +17,6 @@ smuggler-starter.zip
 
 # Original full-size images (kept locally, not committed)
 docs/images/source/
+art/blender/out/
+# Textures Godot unpacks from imported .glb models (regenerated on import)
+game/aircraft/*/model/*.webp

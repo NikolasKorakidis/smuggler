@@ -13,6 +13,9 @@ enum Style { ROTARY, TOGGLE, PUSH_PULL }
 @export var label := ""
 @export var knob_color := Color(0.12, 0.12, 0.12)
 @export var size_m := 0.03
+## Period hardware instead of plain shapes: bakelite knobs, brass and chrome,
+## position marks engraved on the escutcheon, label in dark ink for a placard.
+@export var vintage := false
 
 var aircraft: Aircraft
 var _style := Style.ROTARY
@@ -21,6 +24,8 @@ var _labels: Array[Label3D] = []
 var _highlight: StandardMaterial3D
 var _hover := false
 var _pull := 0.0  # primer animation
+var _model_meshes: Array[MeshInstance3D] = []  # knob from the aircraft's 3D model, if it has one
+var _hover_overlay: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -131,6 +136,8 @@ func _turn_kollsman(step: float) -> void:
 func set_hover(on: bool) -> void:
 	_hover = on
 	_highlight.emission_enabled = on
+	for mi in _model_meshes:
+		mi.material_overlay = _hover_overlay if on else null
 
 
 func tooltip() -> String:
@@ -221,6 +228,11 @@ func _build() -> void:
 	_highlight.emission_energy_multiplier = 0.6
 	_moving = Node3D.new()
 	add_child(_moving)
+	if vintage and _adopt_model_knob():
+		return
+	if vintage:
+		_build_vintage()
+		return
 	var r := size_m * 0.5
 	match _style:
 		Style.ROTARY:
@@ -274,6 +286,100 @@ func _build() -> void:
 	_add_label(label, Vector2(0, -r * 1.9), r * 0.5)
 
 
+# The aircraft model can supply the knob (a node named Knob_<control>, pivot on the panel
+# face, pointing at 12 o'clock) with its own placard: then this node only animates it.
+func _adopt_model_knob() -> bool:
+	if aircraft == null or aircraft.airframe == null:
+		return false
+	var knob := aircraft.airframe.find_child("Knob_" + control, true, false) as Node3D
+	if knob == null:
+		return false
+	if _style == Style.PUSH_PULL:
+		_moving.position.z = size_m * 0.4  # rest offset the animation adds to
+	knob.reparent(_moving, true)
+	for mi in knob.find_children("*", "MeshInstance3D", true, false):
+		_model_meshes.append(mi)
+	_hover_overlay = StandardMaterial3D.new()
+	_hover_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_hover_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_hover_overlay.albedo_color = Color(1.0, 0.8, 0.4, 0.25)
+	return true
+
+
+func _build_vintage() -> void:
+	var r := size_m * 0.5
+	_highlight.roughness = 0.3  # bakelite
+	var brass := _metal(Color(0.62, 0.5, 0.28), 0.45)
+	var chrome := _metal(Color(0.7, 0.7, 0.68), 0.3)
+	var mark := Color(0.16, 0.13, 0.1)
+	match control:
+		"magnetos":
+			# Brass escutcheon with engraved positions; black key knob with a pointer bar.
+			add_child(_part(_cyl_mesh(r * 1.25, r * 0.12, 32), brass, Vector3(0, 0, r * 0.06)))
+			_moving.add_child(_part(_cyl_mesh(r * 0.6, r * 0.5, 24), _highlight, Vector3(0, 0, r * 0.35)))
+			var bar := BoxMesh.new()
+			bar.size = Vector3(r * 0.42, r * 1.7, r * 0.7)
+			_moving.add_child(_part(bar, _highlight, Vector3(0, 0, r * 0.8), false))
+			var tip := BoxMesh.new()
+			tip.size = Vector3(r * 0.12, r * 0.7, r * 0.05)
+			_moving.add_child(_part(tip, _metal(GaugeBase.CREAM, 0.6), Vector3(0, r * 0.45, r * 1.16), false))
+			var names := PackedStringArray(EngineSystems.MAGNETO_NAMES)
+			if _engine() and _engine().definition.has_starter:
+				names.append("START")
+			for i in names.size():
+				_add_label(names[i], GaugeBase.dir_cw(_magneto_angle(i)) * Vector2(1, -1) * r * 0.98, r * 0.22, mark, r * 0.13)
+		"fuel_selector":
+			# Brass valve body, lever handle pointing at ON or OFF.
+			add_child(_part(_cyl_mesh(r * 0.55, r * 0.6, 16), brass, Vector3(0, 0, r * 0.3)))
+			var lever := BoxMesh.new()
+			lever.size = Vector3(r * 0.35, r * 2.0, r * 0.25)
+			_moving.add_child(_part(lever, _highlight, Vector3(0, r * 0.75, r * 0.7), false))
+			var names := _engine().definition.fuel_positions if _engine() else PackedStringArray()
+			for i in names.size():
+				_add_label(names[i], GaugeBase.dir_cw(_rotary_angle(i, names.size())) * Vector2(1, -1) * r * 2.1, r * 0.4, GaugeBase.CREAM)
+		"kollsman":
+			var knob := _cyl_mesh(r * 0.7, r * 0.9, 20)  # knurled setting knob
+			_moving.add_child(_part(knob, _highlight, Vector3(0, 0, r * 0.45)))
+		_:
+			# Push-pull: chrome hex nut and shaft, black bakelite pull knob.
+			add_child(_part(_cyl_mesh(r * 0.55, r * 0.35, 6), chrome, Vector3(0, 0, r * 0.18)))
+			add_child(_part(_cyl_mesh(r * 0.16, size_m * 1.6, 12), chrome, Vector3(0, 0, size_m * 0.8)))
+			var knob := SphereMesh.new()
+			knob.radius = r * 0.85
+			knob.height = r * 1.1
+			_moving.add_child(_part(knob, _highlight, Vector3.ZERO))
+			_moving.position.z = size_m * 0.4
+	_add_label(label, Vector2(0, -r * 2.2), r * 0.42, mark, 0.004)  # on the placard
+
+
+func _cyl_mesh(radius: float, height: float, segments: int) -> CylinderMesh:
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = height
+	c.radial_segments = segments
+	return c
+
+
+# A mesh part facing the pilot (+Z); cylinders and spheres are turned to lie along Z.
+func _part(mesh: Mesh, mat: Material, at: Vector3, along_z := true) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	if along_z:
+		mi.rotation.x = PI / 2
+	mi.position = at
+	return mi
+
+
+func _metal(c: Color, rough: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.metallic = 0.85
+	m.roughness = rough
+	return m
+
+
 func _mesh_cyl(radius: float, height: float, color := Color(-1, 0, 0)) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var c := CylinderMesh.new()
@@ -303,16 +409,16 @@ func _mesh_box(size: Vector3, color: Color) -> MeshInstance3D:
 	return mi
 
 
-func _add_label(text: String, at: Vector2, height_m: float) -> void:
+func _add_label(text: String, at: Vector2, height_m: float, color := Color(0.92, 0.92, 0.88), z := 0.001) -> void:
 	if text == "":
 		return
 	var l := Label3D.new()
 	l.text = text
 	l.font_size = 48
 	l.pixel_size = height_m / 48.0
-	l.modulate = Color(0.92, 0.92, 0.88)
+	l.modulate = color
 	l.outline_size = 0
-	l.position = Vector3(at.x, at.y, 0.001)
+	l.position = Vector3(at.x, at.y, z)
 	l.shaded = false
 	l.double_sided = false
 	add_child(l)

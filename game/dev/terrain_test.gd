@@ -58,12 +58,9 @@ func _park(spot: Vector3, heading: float, label: String) -> void:
 		_fail("%s: JSBSim ground %.3f m vs terrain %.3f m" % [label, jsb_ground, our_ground])
 	# 2. Each wheel: weight on it, and its contact point on the terrain.
 	var gaps := []
-	var up := ac.global_basis.y
-	for k in ac.airframe._wheels.size():
-		var w: MeshInstance3D = ac.airframe._wheels[k]
-		var unit: int = ac.airframe._wheel_units[k]
-		var radius: float = (w.mesh as CylinderMesh).top_radius
-		var contact: Vector3 = w.global_position - up * radius
+	for w in ac.airframe.wheel_contacts():
+		var unit: int = w.unit
+		var contact: Vector3 = w.point
 		var gap: float = contact.y - world.terrain_height(contact)
 		gaps.append("%+.3f" % gap)
 		if f.prop_get("gear/unit[%d]/WOW" % unit) < 0.5:
