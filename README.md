@@ -82,7 +82,7 @@ Start with something cheap and tired. Work your way up to bigger, faster, more c
 </tr>
 </table>
 
-> Smuggler uses real places and real aircraft types. Brand names are changed, and all people and companies are fictional.
+> Smuggler is set in real places in Mexico and the United States. The aircraft, people and companies are all fictional.
 
 ---
 

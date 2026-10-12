@@ -13,8 +13,8 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 - **Not:** no plane-vs-plane shooting. Minimal on-foot shooting allowed later (e.g. shooting back at a chasing helicopter).
 
 ## World
-- Real geography and real places. Era 1978–1988. Which real region to build first: **OPEN** (replaces the fictional "Mexico"/"USA" layout below; decided 2026-10-11).
-- Layout: two continents (a "Mexico" and a "USA") with islands in between. **FLAG:** far bigger than the 150 × 150 km v1 recommendation. Plan: build one island group + a coastal strip of each continent first, expand in Early Access.
+- Real places in **Mexico and the United States**. Era 1978–1988. (Nikolas, 2026-10-12.) Which region to build first: **OPEN**.
+- **FLAG:** both countries are far bigger than the 150 × 150 km v1 recommendation. Plan: build one region first, expand in Early Access.
 - Locations: jungle strips, beaches, roads, farms, cities, villages, oil rigs, carrier ships.
 - Landing: mostly defined strips; beaches and some flat areas also landable.
 - Very few villages and people. None to little other air traffic.
@@ -41,6 +41,7 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 ## Aircraft and progression
 - Ladder: Cub-type → 172-type → 206-type → light twin → Twin Otter-type → DC-3-type.
 - Plus an even simpler, cheaper plane for the tutorial and first missions. **OPEN:** which type (ultralight / Aeronca Champ / tired Cub).
+- Aircraft are **not real types**: each has a fictional, altered name, with no real manufacturer or model names, logos or trade dress. The "-type" labels above only say which real plane a flight model is based on. (Nikolas, 2026-10-12.)
 - Buy and upgrade planes. Upgrades: engine, long-range tanks, STOL kit, radar altimeter, paint, hidden cargo bays, radios.
 - One plane at a time; no fleet.
 - Custom liveries and registration (to dodge tracking).
@@ -71,7 +72,7 @@ Source: Nikolas's kickoff questionnaire, 2026-10-11. Items marked **OPEN** need 
 - Silent, unnamed player character (for now).
 - NPCs: mechanic, fixer, cartel contact, rival pilot, cop.
 - Story delivery: **OPEN**.
-- No ending. Real places; fictional people and companies.
+- No ending. Real places; fictional people, companies and aircraft.
 
 ## Cockpit, controls and UI
 - Cameras: cockpit and external.
@@ -108,7 +109,7 @@ Early 2027 Early Access is about 3–5 months away at ~16 hours/week. That is en
 1. **Keep the date, cut scope:** Early Access in spring 2027 = 2 planes, one island group, clear/fog/rain, basic heat. Everything else ships in updates.
 2. **Keep scope, move the date:** Early Access late 2027 or later.
 
-Decision: **OPEN** — discuss before Phase 2.
+Decision: **parked** — Nikolas, 2026-10-12: release scope doesn't matter for now.
 
 ## Conflicts to resolve
 - **Public repo vs secrecy.** Resolved 2026-10-11: repo is **public** to allow sharing and contributions. Accepted trade-off: name, concept, design doc and code are visible.

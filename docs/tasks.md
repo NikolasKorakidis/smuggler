@@ -12,6 +12,7 @@ Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
 - [x] Lighting overhaul: physically based sky, sunsets, hill shadows, haze, AgX/glow/SSAO, real moon phases, Milky Way, night vision.
 - [x] Wind feel recalibrated (smooth weather changes, gusts fade with height, Cub pitch inertia).
 - [x] Real night sky: 9,096 catalogue stars and NASA Milky Way, placed by date, time and latitude.
+- [x] Smooth day/night transitions: twilight glow that lasts to -18°, eye adaptation that never rebounds, stars appearing by brightness (brightest first, Milky Way last), constant moonlight. Dev menu: night brightness slider, exposure and star readout.
 - [x] Developer menu (` or F10): time, weather, aircraft/fuel/payload, teleport airborne or on final, flaps/trim/lights/brakes, engine state, render settings, debug.
 - [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction); cloud layer exists (cover per weather), add cloud shadows / low cloud.
 - [ ] Weather menu / pick conditions before a flight (instead of U), and an 80s-style radio forecast.
@@ -20,8 +21,7 @@ Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
 ## Nikolas
 - [ ] Fly the presets (U): gusty crosswind and hot afternoon especially. Report how gusts and turbulence feel.
 - [ ] Phase 1 gate: confirm 172 feel (stall, climb, takeoff, ground handling) incl. the new flaps.
-- [ ] Fictional names for the tutorial plane and the 172-type.
-- [ ] (Before Phase 3) Release scope vs date.
+- [ ] Altered names for the tutorial plane and the 172-type.
 
 ---
 
@@ -44,8 +44,8 @@ Gate: 172-type matches real stall, climb and takeoff figures; ground handling fe
 
 ## Nikolas
 - [ ] Fly the 172-type: compare stall, climb, takeoff and ground handling with what you know from MSFS.
-- [ ] Pick fictional names for the tutorial plane and the 172-type.
-- [ ] (Before Phase 2) Decide release scope vs date — see design.md → Scope reality check.
+- [ ] Pick altered names for the tutorial plane and the 172-type.
+- [~] Release scope vs date: parked (Nikolas 2026-10-12: doesn't matter for now).
 
 ---
 
@@ -82,5 +82,5 @@ Gate: Nikolas takes off, flies a circuit and lands with the HOTAS.
 - [x] Feedback: ground handling on the takeoff roll, tail-up speed, stall feel, landing flare.
 
 ## Open / next
-- [ ] Rename the placeholder "J3Cub" model to a fictional type before any public material (content rule).
+- [ ] Rename the placeholder "J3Cub" model to its altered name before any public material (content rule).
 - [ ] Engine starts already running (simplified start-up). Full start procedure is Phase 1.
