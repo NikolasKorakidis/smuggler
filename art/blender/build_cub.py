@@ -83,16 +83,17 @@ def make_materials():
 class MB:
     """Vertices + faces with a material key per face."""
     def __init__(self):
-        self.v, self.f, self.m, self.uv = [], [], [], []
+        self.v, self.f, self.m, self.uv, self.tag = [], [], [], [], []
 
     def vert(self, p, uv=(0.0, 0.0)):
         self.v.append(tuple(p))
         self.uv.append(tuple(uv))
         return len(self.v) - 1
 
-    def face(self, idx, mat):
+    def face(self, idx, mat, tag=-1):
         self.f.append(list(idx))
         self.m.append(mat)
+        self.tag.append(tag)
 
     def ring(self, pts, uvs=None):
         return [self.vert(p, uvs[i] if uvs else (0.0, 0.0)) for i, p in enumerate(pts)]
@@ -237,27 +238,28 @@ def lathe(mb, profile, mat, axis_pt, axis="x", sides=16, sign=1.0):
 
 # y, width, z bottom, z top, [window bottom, window top]
 FUS = [
-    (1.73, 0.20, -0.72, -0.52),
-    (1.70, 0.34, -0.79, -0.45),
-    (1.65, 0.46, -0.86, -0.38),
-    (1.55, 0.56, -0.94, -0.31),
-    (1.40, 0.62, -0.99, -0.265),
-    (1.20, 0.65, -1.03, -0.235),
-    (1.00, 0.66, -1.06, -0.22, -0.27, -0.245),
-    (0.80, 0.66, -1.08, -0.15, -0.36, -0.17),
-    (0.42, 0.66, -1.10, -0.015, -0.52, -0.07),
-    (0.00, 0.66, -1.10, -0.015, -0.52, -0.065),
-    (-0.95, 0.65, -1.07, -0.02, -0.52, -0.07),
-    (-1.20, 0.63, -1.05, -0.03),
-    (-1.60, 0.58, -1.01, -0.10),
-    (-2.50, 0.44, -0.93, -0.28),
-    (-3.50, 0.27, -0.84, -0.46),
-    (-4.30, 0.13, -0.73, -0.565),
+    (1.735, 0.14, -0.70, -0.55),
+    (1.71, 0.26, -0.76, -0.48),
+    (1.66, 0.38, -0.83, -0.41),
+    (1.57, 0.50, -0.91, -0.33),
+    (1.42, 0.60, -0.98, -0.275),
+    (1.20, 0.68, -1.03, -0.24),
+    (1.00, 0.72, -1.06, -0.22, -0.27, -0.245),
+    (0.80, 0.72, -1.08, -0.15, -0.36, -0.17),
+    (0.42, 0.72, -1.10, -0.015, -0.52, -0.07),
+    (0.00, 0.72, -1.10, -0.015, -0.52, -0.065),
+    (-0.95, 0.71, -1.07, -0.02, -0.52, -0.07),
+    (-1.20, 0.69, -1.05, -0.03),
+    (-1.60, 0.63, -1.01, -0.10),
+    (-2.50, 0.48, -0.93, -0.28),
+    (-3.50, 0.29, -0.84, -0.46),
+    (-4.30, 0.14, -0.73, -0.565),
     (-4.62, 0.035, -0.665, -0.60),
 ]
+FUS_SIDE = 0.36  # cabin half-width: struts, gear and door fittings sit on it
 FUS = [r if len(r) == 6 else r + (r[2] + 0.70 * (r[3] - r[2]), r[2] + 0.90 * (r[3] - r[2])) for r in FUS]
 EXTRA_Y = [0.97, 0.90, 0.70, 0.60, 0.50, 0.40, 0.36, 0.20, -0.15, -0.30, -0.34, -0.60,
-           -2.0, -3.0, -3.9, 1.05, 1.10, 1.15, 1.25, 1.30, 1.35, 1.48, 1.60, 1.68, 1.715]
+           -2.0, -3.0, -3.9, 1.05, 1.10, 1.15, 1.25, 1.30, 1.35, 1.48, 1.62, 1.69, 1.725]
 STATIONS = sorted(set([r[0] for r in FUS] + EXTRA_Y), reverse=True)
 
 
@@ -279,16 +281,21 @@ def section(y, inset=0.0):
     right = [(0, zb), (0.40 * w, zb), (0.5 * w, zb + min(0.06, 0.15 * h)), (0.5 * w, zs),
              (0.5 * w, zs + 0.025), (0.5 * w, zs + 0.045), (0.5 * w, zwb), (0.47 * w, zwt),
              (0.33 * w, zt - 0.012), (0.17 * w, zt - 0.003), (0, zt)]
-    # The cowling rounds off from the boxy cabin section into a barrel towards the nose bowl.
-    r = 0.0 if y <= 1.0 else min(1.0, (y - 1.0) / 0.55) ** 0.8
-    if r > 0:
+    # The windshield bulges forward and the cowling rounds off into a barrel towards the
+    # nose bowl: the upper half starts rounding at the wing leading edge, the lower at the firewall.
+    r_low = 0.0 if y <= 1.0 else min(1.0, (y - 1.0) / 0.55) ** 0.8
+    t = min(1.0, max(0.0, (y - 0.42) / 0.58))
+    r_up = 0.55 * t * t * (3 - 2 * t) if y <= 1.0 else 0.55 + 0.45 * r_low
+    if r_up > 0:
         a, b, zc, n = 0.5 * w, 0.5 * h, 0.5 * (zb + zt), 2.6
         rnd = []
         for px, pz in right:  # same direction from the centre as the box point: no twisting
             t = math.atan2((pz - zc) / b, px / a)
             c, s_ = math.cos(t), math.sin(t)
             rnd.append((a * abs(c) ** (2 / n), zc + b * math.copysign(abs(s_) ** (2 / n), s_)))
-        right = [(lerp(p[0], q[0], r), lerp(p[1], q[1], r)) for p, q in zip(right, rnd)]
+        zc = 0.5 * (zb + zt)
+        right = [(lerp(p[0], q[0], r_up if p[1] > zc else r_low), lerp(p[1], q[1], r_up if p[1] > zc else r_low))
+                 for p, q in zip(right, rnd)]
     ring = right + [(-x, z) for x, z in reversed(right[1:-1])]
     return [Vector((x, y, z)) for x, z in ring]
 
@@ -301,6 +308,73 @@ def surface_x(y, z):
         if a.z <= z <= b.z and b.z > a.z:
             return lerp(a.x, b.x, (z - a.z) / (b.z - a.z))
     return max(p.x for p in right)
+
+
+def _rear_window():
+    pts = [(-0.12, -0.50), (-0.12, -0.075), (-0.93, -0.075)]
+    for a in range(15, 91, 15):  # rear edge sweeps down and forward
+        t = math.radians(a)
+        pts.append((-0.62 - 0.31 * math.cos(t), -0.075 - 0.425 * math.sin(t)))
+    return pts
+
+
+# Side window outlines (y, z), same on both sides; the right front one is the door window.
+WINDOWS = [[(0.36, -0.50), (0.39, -0.075), (-0.07, -0.075), (-0.07, -0.50)], _rear_window()]
+
+
+def inside(poly, y, z):
+    hit = False
+    for (y1, z1), (y2, z2) in zip(poly, poly[1:] + poly[:1]):
+        if (z1 > z) != (z2 > z) and y < y1 + (z - z1) * (y2 - y1) / (z2 - z1):
+            hit = not hit
+    return hit
+
+
+def cut_windows(mb):
+    """Cut the window outlines into the cabin sides and glaze them (exact shapes, not grid steps)."""
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    tagl = bm.faces.layers.int.new("band")
+    keys = list(dict.fromkeys(mb.m + ["glass"]))
+    verts = [bm.verts.new(v) for v in mb.v]
+    for idx, m, tg in zip(mb.f, mb.m, mb.tag):
+        f = bm.faces.new([verts[i] for i in idx])
+        f.material_index = keys.index(m)
+        f[tagl] = tg
+        for lp in f.loops:
+            lp[uvl].uv = mb.uv[idx[[verts[i] for i in idx].index(lp.vert)]]
+    for side in (1, -1):
+        for poly in WINDOWS:
+            ys, zs = [p[0] for p in poly], [p[1] for p in poly]
+            for (y1, z1), (y2, z2) in zip(poly, poly[1:] + poly[:1]):
+                geom = []
+                for f in bm.faces:
+                    c = f.calc_center_median()
+                    if side * c.x > 0.2 and min(ys) - 0.06 < c.y < max(ys) + 0.06 and min(zs) - 0.06 < c.z < max(zs) + 0.06:
+                        geom.append(f)
+                if not geom:
+                    continue
+                edges = {e for f in geom for e in f.edges}
+                vs = {v for f in geom for v in f.verts}
+                no = Vector((0, -(z2 - z1), y2 - y1)).normalized()
+                bmesh.ops.bisect_plane(bm, geom=list(vs) + list(edges) + geom, plane_co=Vector((0, y1, z1)), plane_no=no)
+        bm.normal_update()
+        for f in bm.faces:
+            c = f.calc_center_median()
+            if side * c.x > 0.2 and abs(f.normal.x) > 0.5 and any(inside(poly, c.y, c.z) for poly in WINDOWS):
+                f.material_index = keys.index("glass")
+    out = MB()
+    bm.verts.index_update()
+    uv_of = {}
+    for f in bm.faces:
+        for lp in f.loops:
+            uv_of.setdefault(lp.vert.index, tuple(lp[uvl].uv))
+    for v in bm.verts:
+        out.vert(v.co, uv_of.get(v.index, (0.0, 0.0)))
+    for f in bm.faces:
+        out.face([v.index for v in f.verts], keys[f.material_index], f[tagl])
+    bm.free()
+    return out
 
 
 # Cylinder openings in the cowl sides: (centre y, centre z, half length, half height) per side.
@@ -321,7 +395,7 @@ def side_window(y):
 
 def fus_material(y, band):
     if band == 6:
-        return "glass" if (windshield(y) or side_window(y)) else "tex_fus"
+        return "glass" if windshield(y) else "tex_fus"
     if band >= 7:
         return "glass" if windshield(y) else "tex_fus"
     return "tex_fus"
@@ -340,30 +414,34 @@ def fus_uv_ring(pts, y):
     return ring, [(u, 0.01 + 0.98 * a / arc[-1]) for a in arc]
 
 
-def fus_part(c, n, mat):
-    """Which real panel a fuselage face belongs to."""
+def fus_part(c, n, mat, band):
+    """Which real panel a fuselage face belongs to (band: row of the section it came from)."""
     y, x, z = c.y, c.x, c.z
     w, zb, zt, zwb, zwt = fus_at(y)
     side = "R" if x > 0 else "L"
     if mat == "glass":
-        if y > 0.42:
+        if y > 0.40:
             return "Windshield"
-        if side == "R" and -0.30 < y < 0.36:
-            return "Door_window_R"
-        return "Window_" + side
-    if y > 1.56:
+        if y > -0.10:
+            return "Door_window_R" if side == "R" else "Window_L_front"
+        return f"Window_{side}_rear"
+    if y > 1.62:
         return "Nose_bowl"
     if y > 1.0:
-        if z > zt - 0.07 and n.z > 0.5:
+        if band >= 8:
             return "Cowl_top_" + side
-        if z < zb + 0.07:
+        if band <= 2:
             return "Cowl_bottom"
         return "Cowl_side_" + side
-    if z < zb + 0.02 and abs(x) < 0.42 * w:
+    if band == 0:
         return "Belly"
-    if side == "R" and -0.30 < y < 0.36 and zb + 0.05 < z < zwb:
+    if side == "R" and -0.07 < y < 0.37 and (2 <= band <= 5 or (band == 6 and z < -0.50)):
         return "Door_lower_R"
-    if n.z > 0.45:
+    if y < -4.40:
+        return "Tail_cone"
+    if band >= 8:
+        if -0.42 < y < 0.42:
+            return None  # open to the skylight in the wing centre section
         return "Turtle_deck" if y < -0.95 else "Cabin_roof"
     return "Skin_" + side
 
@@ -378,7 +456,7 @@ def split_parts(mb):
             n += Vector(((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)))
         if n.length:
             n.normalize()  # loft faces wind outward
-        groups.setdefault(fus_part(c, n, mb.m[fi]), []).append(fi)
+        groups.setdefault(fus_part(c, n, mb.m[fi], mb.tag[fi]), []).append(fi)
     out = {}
     for name, faces in groups.items():
         sub, remap = MB(), {}
@@ -391,6 +469,67 @@ def split_parts(mb):
             sub.face(idx, mb.m[fi])
         out[name] = sub
     return out
+
+
+def build_glazing_frames(parent):
+    """Aluminium frames round the side windows and the windshield edges."""
+    mb = MB()
+    for side in (1, -1):
+        for poly in WINDOWS:
+            pts = [Vector((side * (surface_x(y, z) + 0.004), y, z)) for y, z in poly + poly[:1]]
+            tube(mb, pts, 0.007, "cowl_edge", 6, cap=False)
+        post = [Vector((side * (surface_x(0.41, z) + 0.004), 0.41, z)) for z in (-0.50, -0.30, -0.10, -0.02)]
+        tube(mb, post, 0.008, "cowl_edge", 6)
+    base = [p + Vector((0, 0, 0.004)) for p in section(0.965) if p.z > fus_at(0.965)[3] - 0.01]
+    base.sort(key=lambda p: p.x)
+    tube(mb, base, 0.008, "cowl_edge", 6)
+    obj("Window_frames", mb, parent, smooth=60)
+
+
+def build_center_section(root):
+    """Wing centre section over the cabin: skylight in the front half, fabric behind."""
+    mb = MB()
+    xs = [k / 12 for k in range(13)]
+    cols = [-FUS_SIDE, -FUS_SIDE / 2, 0.0, FUS_SIDE / 2, FUS_SIDE]
+    rings = []
+    for X in cols:
+        side = 1 if X >= 0 else -1
+        pts = [wing_mapper(side)(abs(X), WING_LE - x * (WING_LE - WING_TE), naca4412(x, WING_LE - WING_TE)[0])
+               for x in xs]
+        uvs = [(0.005 + 0.19 * (X + FUS_SIDE) / (2 * FUS_SIDE), 0.80 + 0.19 * x) for x in xs]
+        rings.append(mb.ring(pts, uvs))
+    for i in range(len(cols) - 1):
+        for j in range(len(xs) - 1):
+            a, b = rings[i], rings[i + 1]
+            mb.face((a[j], a[j + 1], b[j + 1], b[j]), "glass" if xs[j] < 0.5 else "tex_wing")
+    obj("Center_section", mb, root, smooth=50)
+    fb = MB()
+    top = lambda X, x: wing_mapper(1 if X >= 0 else -1)(abs(X), WING_LE - x * (WING_LE - WING_TE),
+                                                       naca4412(x, WING_LE - WING_TE)[0] + 0.006)
+    tube(fb, [top(0, x) for x in (0.0, 0.1, 0.25, 0.4, 0.5)], 0.008, "cowl_edge", 6)
+    for x in (0.25, 0.5):
+        tube(fb, [top(X, x) for X in (-FUS_SIDE, 0, FUS_SIDE)], 0.008, "cowl_edge", 6)
+    obj("Skylight_frame", fb, root, smooth=60)
+
+
+def build_tail_parts(root):
+    """Fairings where the tail meets the fuselage, and inspection covers."""
+    mb = MB()
+    for side in (1, -1):
+        root_pts = [Vector((side * (half_width(y) + 0.004), y, STAB_Z + 0.004)) for y in (-3.76, -3.95, -4.15, -4.30)]
+        tube(mb, root_pts, 0.032, "cowl_edge", 8, squash=0.35, flat_axis=(0, 0, 1))
+    fin_base = [Vector((0, y, interp(FUS, y, 3) + 0.004)) for y in (-3.70, -3.95, -4.20, -4.45)]
+    tube(mb, fin_base, 0.035, "cowl_edge", 8, squash=0.4, flat_axis=(1, 0, 0))
+    obj("Tail_fairings", mb, root, smooth=50)
+    cb = MB()
+    for side in (1, -1):
+        for y, z in ((-2.25, -0.76), (-3.35, -0.70), (-1.55, -0.88)):
+            c = Vector((side * (surface_x(y, z) + 0.001), y, z))
+            lathe(cb, [(0, 0), (0, 0.045), (0.004, 0.045), (0.004, 0)], "blue", c, "x", 16, side)
+    for y in (-1.9, -3.0):
+        lathe(cb, [(0, 0), (0, 0.05), (0.004, 0.05), (0.004, 0)], "blue",
+              (0, y, interp(FUS, y, 2) - 0.001), "z", 16, -1)
+    obj("Inspection_covers", cb, root, smooth=50)
 
 
 FRAME_Y = [1.0, 0.40, -0.55, -0.95, -1.45, -2.0, -2.6, -3.2, -3.8, -4.3, -4.58]
@@ -431,27 +570,35 @@ def build_fuselage(root):
     mb = MB()
     rings = [mb.ring(*fus_uv_ring(section(y), y)) for y in STATIONS]
     mid = [(STATIONS[i] + STATIONS[i + 1]) / 2 for i in range(len(STATIONS) - 1)]
-    mb.loft(rings, lambda i, j: fus_material(mid[i], band_of(j)), cap1=True, closed=False)
+    for i in range(len(rings) - 1):
+        a, b = rings[i], rings[i + 1]
+        for j in range(len(a) - 1):
+            mb.face((a[j], a[j + 1], b[j + 1], b[j]), fus_material(mid[i], band_of(j)), band_of(j))
+    mb.face(rings[-1], "tex_fus", 0)  # tail post
     first = rings[0]
     for j in range(len(first) - 1):
         nose = mb.vert((0, FUS_Y0, -0.62), (0.004, mb.uv[first[j]][1]))
-        mb.face((first[j + 1], first[j], nose), "tex_fus")
+        mb.face((first[j + 1], first[j], nose), "tex_fus", band_of(j))
+    mb = cut_windows(mb)
     fus = empty("Fuselage", (0, 0, 0), parent=root)
     cowl = empty("Cowling", (0, 0, 0), parent=root)
     glaz = empty("Glazing", (0, 0, 0), parent=fus)
-    door_lo = empty("DoorHinge_lower_R", (0.33, 0.03, -0.98), parent=fus)
-    door_up = empty("DoorHinge_upper_R", (0.31, 0.03, -0.07), parent=fus)
+    door_lo = empty("DoorHinge_lower_R", (FUS_SIDE, 0.15, -1.04), parent=fus)
+    door_up = empty("DoorHinge_upper_R", (FUS_SIDE - 0.02, 0.15, -0.07), parent=fus)
     parents = {"Nose_bowl": cowl, "Cowl_top_L": cowl, "Cowl_top_R": cowl, "Cowl_side_L": cowl,
                "Cowl_side_R": cowl, "Cowl_bottom": cowl, "Door_lower_R": door_lo, "Door_window_R": door_up,
-               "Windshield": glaz, "Window_L": glaz, "Window_R": glaz}
+               "Windshield": glaz, "Window_L_front": glaz, "Window_L_rear": glaz, "Window_R_rear": glaz}
     parts = {}
     for name, sub in split_parts(mb).items():
+        if name is None:
+            continue
         parts[name] = obj(name, sub, parents.get(name, fus), recalc=False,
                           smooth=80 if parents.get(name) is cowl else 55)
     for name in ("Nose_bowl", "Cowl_top_L", "Cowl_top_R", "Cowl_side_L", "Cowl_side_R", "Cowl_bottom"):
         SOLID.append((name, 0.004))
     SOLID.append(("Door_lower_R", 0.008))
     build_frame(fus)
+    build_glazing_frames(fus)
 
     # Cabin lining seen from the seats: inset, inward-facing, no faces over the glass.
     ib = MB()
@@ -461,10 +608,14 @@ def build_fuselage(root):
     for i in range(len(cab) - 1):
         ym = (cab[i] + cab[i + 1]) / 2
         for j in range(n):
-            if fus_material(ym, band_of(j)) == "glass":
-                continue
             k = (j + 1) % n
             a, b = irings[i], irings[i + 1]
+            c = sum((Vector(ib.v[q]) for q in (a[j], a[k], b[k], b[j])), Vector()) / 4
+            band = band_of(j)
+            window = abs(c.x) > 0.2 and any(inside(poly, c.y, c.z) for poly in WINDOWS)
+            skylight = band >= 8 and -0.42 < ym < 0.42
+            if fus_material(ym, band) == "glass" or window or skylight:
+                continue
             ib.face((b[j], b[k], a[k], a[j]), "interior")
     ib.face(irings[0], "interior")
     ib.face(list(reversed(irings[-1])), "interior")
@@ -531,7 +682,8 @@ def chord_uv(u0, du, s_len, v0, dv, x0=0.0, x1=1.0, mirror=1.0):
 
 INC, DIH = math.radians(2.0), math.radians(1.0)
 WING_LE, WING_TE, TIP0, HALF = 0.40, -1.20, 4.95, 5.37
-AIL0, AIL1, AIL_C = 2.55, 4.85, 0.785
+AIL0, AIL1, AIL_C = 2.55, 4.50, 0.785
+TIP_LE0, TIP_TE0 = 5.02, 4.55  # where the leading / trailing edge start curving into the tip bow
 
 
 def wing_mapper(side):
@@ -543,21 +695,25 @@ def wing_mapper(side):
 
 
 def wing_station(s):
-    if s <= TIP0:
-        return (s, WING_LE, WING_TE)
-    hc = 0.80 * math.sqrt(max(0.0, 1 - ((s - TIP0) / (HALF - TIP0)) ** 2))
-    hc = max(hc, 0.01)
-    mid = 0.5 * (WING_LE + WING_TE)
-    return (s, mid + hc, mid - hc)
+    """Planform: straight wing, tip bow asymmetric (the tip point sits near the front spar)."""
+    tip_y = WING_LE - 0.30 * (WING_LE - WING_TE)
+    le, te = WING_LE, WING_TE
+    if s > TIP_LE0:
+        le = tip_y + (WING_LE - tip_y) * math.sqrt(max(0.0, 1 - ((s - TIP_LE0) / (HALF - TIP_LE0)) ** 2))
+    if s > TIP_TE0:
+        te = tip_y - (tip_y - WING_TE) * math.sqrt(max(0.0, 1 - ((s - TIP_TE0) / (HALF - TIP_TE0)) ** 2))
+    if le - te < 0.02:
+        le, te = tip_y + 0.01, tip_y - 0.01
+    return (s, le, te)
 
 
 def build_wing(root):
-    tip_s = [4.85, 4.95, 5.05, 5.15, 5.23, 5.29, 5.33, 5.36, 5.37]
+    tip_s = [AIL1, 4.55, 4.70, 4.85, 4.98, 5.08, 5.17, 5.24, 5.30, 5.34, 5.36, 5.37]
     for side, tag in ((1, "R"), (-1, "L")):
         mp = wing_mapper(side)
         uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.01, 0.76)
         mb, tb = MB(), MB()
-        for st, c1, n in (([0.0, 0.5, 1.0, 1.6, 2.1, AIL0], 1.0, 16), ([AIL0, 3.2, 4.0, AIL1], AIL_C, 14)):
+        for st, c1, n in (([FUS_SIDE, 0.6, 1.0, 1.6, 2.1, AIL0], 1.0, 16), ([AIL0, 3.2, 3.9, AIL1], AIL_C, 14)):
             surface(mb, [wing_station(s) for s in st], 0.0, c1, naca4412, mp, "tex_wing", n, uv, "cream")
         surface(tb, [wing_station(s) for s in tip_s], 0.0, 1.0, naca4412, mp, "tex_wing", 16, uv, "cream")
         w = empty("Wing_" + tag, (0, 0, 0), parent=root)
@@ -572,7 +728,7 @@ def build_wing(root):
                       bpy.data.objects["Wing_" + tag])
         ab = MB()
         uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.80, 0.19, AIL_C + 0.005, 1.0)
-        surface(ab, [wing_station(s) for s in [AIL0 + 0.02, 3.2, 4.0, AIL1 - 0.02]], AIL_C + 0.005, 1.0,
+        surface(ab, [wing_station(s) for s in [AIL0 + 0.02, 3.2, 3.9, AIL1 - 0.02]], AIL_C + 0.005, 1.0,
                 naca4412, mp, "tex_wing", 8, uv, "cream")
         obj("Aileron_" + tag, ab, hinge, smooth=50)
 
@@ -644,7 +800,7 @@ def wing_bottom(side, s, chord_frac):
 def build_struts(root):
     mb = MB()
     for side in (1, -1):
-        foot = Vector((side * 0.32, -0.10, -1.03))
+        foot = Vector((side * (FUS_SIDE - 0.01), -0.10, -1.03))
         front = wing_bottom(side, 2.10, 0.15)
         rear = wing_bottom(side, 2.10, 0.65)
         # Streamlined (teardrop-flat) section, long axis along the airflow.
@@ -659,8 +815,8 @@ def build_struts(root):
 
 
 # Uncompressed contact points from J3Cub.xml: mains z -74.18 in, tail z -35.70 in.
-AXLE_Y, AXLE_Z, AXLE_X = 0.32, -74.18 * 0.0254 + 0.255, 0.91
-TYRE_R, TYRE_W = 0.255, 0.18
+TYRE_R, TYRE_W = 0.29, 0.20  # 8.00-4 balloon tyres
+AXLE_Y, AXLE_Z, AXLE_X = 0.36, -74.18 * 0.0254 + TYRE_R, 0.91  # J3Cub.xml main gear x -14.17 in
 TAIL_R = 0.083
 TAIL_AXLE = Vector((0, -4.81, -35.70 * 0.0254 + TAIL_R))
 TAIL_PIVOT = Vector((0, -4.78, TAIL_AXLE.z + 0.075))
@@ -697,7 +853,7 @@ def build_gear(root):
     mb = MB()
     for side in (1, -1):
         # Fittings on the fuselage and the centre hinge of the split axles.
-        for c in ((side * 0.33, 0.50, -1.04), (side * 0.33, -0.10, -1.04)):
+        for c in ((side * FUS_SIDE, 0.50, -1.04), (side * FUS_SIDE, -0.10, -1.04)):
             box(mb, c, (0.03, 0.05, 0.03), "blue")
     box(mb, (0, AXLE_Y, -1.13), (0.07, 0.06, 0.04), "steel")
     # Tail post fitting for the leaf spring.
@@ -706,10 +862,10 @@ def build_gear(root):
 
     for side, tag in ((1, "R"), (-1, "L")):
         axle = Vector((side * AXLE_X, AXLE_Y, AXLE_Z))
-        inner = axle - Vector((side * 0.11, 0, 0))
+        inner = axle - Vector((side * (TYRE_W / 2 + 0.01), 0, 0))
         w = empty("Wheel_" + tag, tuple(axle), parent=root)
         wb = MB()
-        tyre(wb, TYRE_R, TYRE_W, hub_r=0.10)
+        tyre(wb, TYRE_R, TYRE_W, hub_r=0.115)
         for k in range(6):  # hub bolts
             a = k * math.pi / 3
             lathe(wb, [(0.0, 0), (0.0, 0.011), (0.012, 0.011), (0.012, 0)], "steel",
@@ -719,8 +875,8 @@ def build_gear(root):
         empty("Axle_" + tag, tuple(inner), parent=w)  # on the spin axis, so spinning doesn't move it
 
         hinge = Vector((side * 0.03, AXLE_Y, -1.13))
-        rear = Vector((side * 0.33, -0.10, -1.04))
-        top = Vector((side * 0.33, 0.50, -1.04))
+        rear = Vector((side * FUS_SIDE, -0.10, -1.04))
+        top = Vector((side * FUS_SIDE, 0.50, -1.04))
         link(f"Stretch-Axle_{tag}-1", hinge, root, lambda m: tube(m, [hinge, inner], 0.021, "blue"))
         link(f"Stretch-Axle_{tag}-2", rear, root, lambda m: tube(m, [rear, inner], 0.019, "blue"))
         # Shock strut: bungee sleeve at the top (turns), sliding rod below (turns + stretches).
@@ -842,7 +998,7 @@ def build_details(root):
     base = wing_bottom(-1, 3.4, 0.25)
     tube(mb, [base, base + Vector((0, 0, -0.10)), base + Vector((0, 0.18, -0.10))], 0.006, "steel", 6)
     # Door handle, right side.
-    box(mb, (0.336, -0.22, -0.62), (0.012, 0.07, 0.015), "steel")
+    box(mb, (FUS_SIDE + 0.006, -0.03, -0.62), (0.012, 0.07, 0.015), "steel")
     obj("Details", mb, root, smooth=50)
 
 
@@ -1137,7 +1293,7 @@ def rules_fuselage(P, Nn, part):
     spat *= ((y < 0.45) & (y > -1.8) & (z < zb + 0.25)).astype(np.float32)
     col = pt.mix(col, MUD, spat * 0.6)
 
-    side = lambda sx, yc, zc_, ha, hb: ((sx * 0.33, yc, zc_), (0, 1, 0), (0, 0, 1), ha, hb)
+    side = lambda sx, yc, zc_, ha, hb: ((sx * FUS_SIDE, yc, zc_), (0, 1, 0), (0, 0, 1), ha, hb)
     pm, ps = patches(P, Nn, [side(-1, -0.42, -0.87, 0.075, 0.06), side(1, -2.9, -0.50, 0.10, 0.07),
                              side(-1, -3.25, -0.52, 0.11, 0.08), side(1, 0.62, -0.86, 0.06, 0.05)])
     col = pt.mix(col, SILVER * (0.9 + 0.1 * pt.fbm(P, 30, 1, seed=10))[:, None], pm * 0.85)
@@ -1250,6 +1406,8 @@ def build():
     build_gear(root)
     build_controls(root)
     build_details(root)
+    build_center_section(root)
+    build_tail_parts(root)
     build_engine(root)
     build_prop(root)
     build_registration(root)

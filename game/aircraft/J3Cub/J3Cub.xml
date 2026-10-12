@@ -137,7 +137,7 @@
 
   <contact type="BOGEY" name="LEFT_MAIN">
     <location unit="IN">
-      <x> -12.60 </x>
+      <x> -14.17 </x>
       <y> -35.83 </y>
       <z> -74.18   </z>
     </location>
@@ -155,7 +155,7 @@
 
   <contact type="BOGEY" name="RIGHT_MAIN">
     <location unit="IN">
-      <x>  -12.60 </x>
+      <x>  -14.17 </x>
       <y>   35.83 </y>
       <z>  -74.18 </z>
     </location>
