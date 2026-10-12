@@ -69,6 +69,8 @@ def make_materials():
     M["tip"] = material("Prop_Tip", "#E8B830", 0.5)
     M["disc"] = material("Prop_Disc", "#202020", 0.5, alpha=0.08, double=True)
     M["reg"] = material("Registration", "#E2DAC2", 0.7, double=True)
+    M["frame"] = material("Frame_Tube", "#5E7884", 0.6, 0.3)
+    M["tank"] = material("Fuel_Tank", "#8C8A80", 0.5, 0.8)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
     for key, (w, h) in TEX.items():
         M["tex_" + key], IMGS[key] = pt.textured_material("Cub_" + key.capitalize(),
@@ -139,6 +141,19 @@ def obj(name, mb, parent=None, recalc=True, smooth=35.0):
     if parent:
         set_parent(ob, parent)
     return ob
+
+
+SOLID = []  # (object name, thickness): given real panel thickness after painting
+
+
+def apply_solidify():
+    for name, t in SOLID:
+        me = bpy.data.objects[name].data
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bmesh.ops.solidify(bm, geom=bm.faces[:], thickness=t)
+        bm.to_mesh(me)
+        bm.free()
 
 
 def empty(name, loc, rot=(0, 0, 0), parent=None):
@@ -297,6 +312,93 @@ def fus_uv_ring(pts, y):
     return ring, [(u, 0.01 + 0.98 * a / arc[-1]) for a in arc]
 
 
+def fus_part(c, n, mat):
+    """Which real panel a fuselage face belongs to."""
+    y, x, z = c.y, c.x, c.z
+    w, zb, zt, zwb, zwt = fus_at(y)
+    side = "R" if x > 0 else "L"
+    if mat == "glass":
+        if y > 0.42:
+            return "Windshield"
+        if side == "R" and -0.30 < y < 0.36:
+            return "Door_window_R"
+        return "Window_" + side
+    if y > 1.56:
+        return "Nose_bowl"
+    if y > 1.0:
+        if z > zt - 0.07 and n.z > 0.5:
+            return "Cowl_top_" + side
+        if z < zb + 0.07:
+            return "Cowl_bottom"
+        return "Cowl_side_" + side
+    if z < zb + 0.02 and abs(x) < 0.42 * w:
+        return "Belly"
+    if side == "R" and -0.30 < y < 0.36 and zb + 0.05 < z < zwb:
+        return "Door_lower_R"
+    if n.z > 0.45:
+        return "Turtle_deck" if y < -0.95 else "Cabin_roof"
+    return "Skin_" + side
+
+
+def split_parts(mb):
+    groups = {}
+    for fi, face in enumerate(mb.f):
+        pts = [Vector(mb.v[i]) for i in face]
+        c = sum(pts, Vector()) / len(pts)
+        n = Vector()
+        for a, b in zip(pts, pts[1:] + pts[:1]):
+            n += Vector(((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)))
+        if n.length:
+            n.normalize()  # loft faces wind outward
+        groups.setdefault(fus_part(c, n, mb.m[fi]), []).append(fi)
+    out = {}
+    for name, faces in groups.items():
+        sub, remap = MB(), {}
+        for fi in faces:
+            idx = []
+            for vi in mb.f[fi]:
+                if vi not in remap:
+                    remap[vi] = sub.vert(mb.v[vi], mb.uv[vi])
+                idx.append(remap[vi])
+            sub.face(idx, mb.m[fi])
+        out[name] = sub
+    return out
+
+
+FRAME_Y = [1.0, 0.40, -0.55, -0.95, -1.45, -2.0, -2.6, -3.2, -3.8, -4.3, -4.58]
+
+
+def build_frame(parent):
+    """Welded steel tube truss inside the fabric: longerons, uprights, cross tubes, diagonals."""
+    mb = MB()
+    nodes = []
+    for y in FRAME_Y:
+        sec = section(y, 0.028)
+        lo_r, up_r = sec[2], sec[7]
+        lo_l, up_l = sec[-2], sec[-7]
+        nodes.append((lo_r, up_r, lo_l, up_l))
+        tube(mb, [lo_r, up_r], 0.010, "frame", 6)
+        tube(mb, [lo_l, up_l], 0.010, "frame", 6)
+        tube(mb, [lo_r, lo_l], 0.010, "frame", 6)
+        tube(mb, [up_r, up_l], 0.010, "frame", 6)
+    for (a, b) in zip(nodes, nodes[1:]):
+        for k in range(4):
+            tube(mb, [a[k], b[k]], 0.012, "frame", 6)  # longerons
+        if b[0].y < -0.95:  # no diagonals across the door and windows
+            tube(mb, [a[0], b[1]], 0.009, "frame", 6)  # side diagonals
+            tube(mb, [a[2], b[3]], 0.009, "frame", 6)
+        tube(mb, [a[0], b[2]], 0.008, "frame", 6)  # floor diagonal
+    obj("Frame", mb, parent, smooth=60)
+    # Firewall and the nose fuel tank behind it (the panel hangs off the tank).
+    fb = MB()
+    ring = fb.ring(section(1.0, 0.004))
+    fb.face(ring, "steel")
+    obj("Firewall", fb, parent, smooth=0)
+    tb = MB()
+    box(tb, (0, 0.80, -0.36), (0.50, 0.34, 0.24), "tank")
+    obj("Fuel_tank", tb, parent, smooth=0)
+
+
 def build_fuselage(root):
     mb = MB()
     rings = [mb.ring(*fus_uv_ring(section(y), y)) for y in STATIONS]
@@ -306,7 +408,21 @@ def build_fuselage(root):
     for j in range(len(first) - 1):
         nose = mb.vert((0, FUS_Y0, -0.62), (0.005, mb.uv[first[j]][1]))
         mb.face((first[j + 1], first[j], nose), "tex_fus")
-    obj("Fuselage", mb, root, smooth=55)
+    fus = empty("Fuselage", (0, 0, 0), parent=root)
+    cowl = empty("Cowling", (0, 0, 0), parent=root)
+    glaz = empty("Glazing", (0, 0, 0), parent=fus)
+    door_lo = empty("DoorHinge_lower_R", (0.33, 0.03, -0.98), parent=fus)
+    door_up = empty("DoorHinge_upper_R", (0.31, 0.03, -0.07), parent=fus)
+    parents = {"Nose_bowl": cowl, "Cowl_top_L": cowl, "Cowl_top_R": cowl, "Cowl_side_L": cowl,
+               "Cowl_side_R": cowl, "Cowl_bottom": cowl, "Door_lower_R": door_lo, "Door_window_R": door_up,
+               "Windshield": glaz, "Window_L": glaz, "Window_R": glaz}
+    parts = {}
+    for name, sub in split_parts(mb).items():
+        parts[name] = obj(name, sub, parents.get(name, fus), recalc=False, smooth=55)
+    for name in ("Nose_bowl", "Cowl_top_L", "Cowl_top_R", "Cowl_side_L", "Cowl_side_R", "Cowl_bottom"):
+        SOLID.append((name, 0.004))
+    SOLID.append(("Door_lower_R", 0.008))
+    build_frame(fus)
 
     # Cabin lining seen from the seats: inset, inward-facing, no faces over the glass.
     ib = MB()
@@ -407,20 +523,24 @@ def wing_station(s):
 
 
 def build_wing(root):
-    mb = MB()
     tip_s = [4.85, 4.95, 5.05, 5.15, 5.23, 5.29, 5.33, 5.36, 5.37]
-    for side in (1, -1):
+    for side, tag in ((1, "R"), (-1, "L")):
         mp = wing_mapper(side)
         uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.01, 0.76)
-        for st, c1, n in (([0.0, 0.5, 1.0, 1.6, 2.1, AIL0], 1.0, 16), ([AIL0, 3.2, 4.0, AIL1], AIL_C, 14), (tip_s, 1.0, 16)):
+        mb, tb = MB(), MB()
+        for st, c1, n in (([0.0, 0.5, 1.0, 1.6, 2.1, AIL0], 1.0, 16), ([AIL0, 3.2, 4.0, AIL1], AIL_C, 14)):
             surface(mb, [wing_station(s) for s in st], 0.0, c1, naca4412, mp, "tex_wing", n, uv, "cream")
-    obj("Wing", mb, root, smooth=50)
+        surface(tb, [wing_station(s) for s in tip_s], 0.0, 1.0, naca4412, mp, "tex_wing", 16, uv, "cream")
+        w = empty("Wing_" + tag, (0, 0, 0), parent=root)
+        obj("Wing_panel_" + tag, mb, w, smooth=50)
+        obj("Wingtip_" + tag, tb, w, smooth=50)
 
     for side, tag in ((1, "R"), (-1, "L")):
         mp = wing_mapper(side)
         y_h = WING_LE - AIL_C * (WING_LE - WING_TE)
         zc = sum(naca4412(AIL_C, WING_LE - WING_TE)) / 2
-        hinge = empty("Hinge_aileron_" + tag, mp(AIL0 + 0.02, y_h, zc), (0, -side * DIH, 0), root)
+        hinge = empty("Hinge_aileron_" + tag, mp(AIL0 + 0.02, y_h, zc), (0, -side * DIH, 0),
+                      bpy.data.objects["Wing_" + tag])
         ab = MB()
         uv = chord_uv(0.005 if side > 0 else 0.505, 0.49, HALF, 0.80, 0.19, AIL_C + 0.005, 1.0)
         surface(ab, [wing_station(s) for s in [AIL0 + 0.02, 3.2, 4.0, AIL1 - 0.02]], AIL_C + 0.005, 1.0,
@@ -442,15 +562,16 @@ def build_tail(root):
 
     h = 0.5 / 0.8
     st = [0.0, 0.3, 0.6, 0.9, 1.05, 1.15, 1.25, 1.33, 1.39, 1.43, 1.449]
-    sb, eb = MB(), MB()
+    eb = MB()
     for side in (1, -1):
         mp = lambda s, y, z, side=side: Vector((side * s, y, STAB_Z + z))
         u0 = 0.005 if side > 0 else 0.255
+        sb = MB()
         surface(sb, [stab_station(s) for s in st], 0.0, h, slab(0.022, taper_back=False), mp, "tex_tail", 10,
                 chord_uv(u0, 0.24, 1.45, 0.01, 0.98), "cream")
+        obj("Stab_" + ("R" if side > 0 else "L"), sb, root, smooth=50)
         surface(eb, [stab_station(s) for s in [0.07] + st[1:]], h, 1.0, slab(0.022, True, x0=h), mp, "tex_tail", 6,
                 chord_uv(u0, 0.24, 1.45, 0.01, 0.98), "cream")
-    obj("Stabilizer", sb, root, smooth=50)
     hinge = empty("Hinge_elevator", (0, STAB_HINGE, STAB_Z), parent=root)
     obj("Elevator", eb, hinge, smooth=50)
 
@@ -680,29 +801,55 @@ PROP_R = 0.915
 
 
 def build_engine(root):
-    mb = MB()
+    """Continental A-65 type flat four: crankcase, four finned cylinders, carburettor,
+    magnetos, intake and exhaust, mount. Each part its own object."""
+    eng = empty("Engine", (0, 0, 0), parent=root)
+    cb = MB()
+    box(cb, (0, 1.36, -0.56), (0.30, 0.40, 0.22), "engine")
+    box(cb, (0, 1.36, -0.70), (0.22, 0.30, 0.08), "engine")  # oil sump
+    lathe(cb, [(0, 0), (0, 0.05), (0.04, 0.05), (0.04, 0)], "steel", (0, 1.57, -0.62), "y", 12)  # prop flange
+    obj("Engine_crankcase", cb, eng, smooth=30)
     fins = []
     for k in range(10):
         fins += [(k * 0.016, 0.058), (k * 0.016 + 0.008, 0.078)]
+    hfins = []
+    for k in range(6):
+        hfins += [(k * 0.014, 0.072), (k * 0.014 + 0.007, 0.092)]
+    n = 0
     for side in (1, -1):
         for y in ((1.28, 1.48) if side > 0 else (1.38, 1.58)):
+            n += 1
+            m = MB()
             hw = half_width(y)
             base = Vector((side * (hw - 0.07), y, -0.50))
-            lathe(mb, [(0, 0)] + fins + [(0.16, 0.058), (0.16, 0)], "engine", base, "x", 12, side)
+            lathe(m, [(0, 0)] + fins + [(0.16, 0.058), (0.16, 0)], "engine", base, "x", 12, side)
             head = base + Vector((side * 0.16, 0, 0))
-            hfins = []
-            for k in range(6):
-                hfins += [(k * 0.014, 0.072), (k * 0.014 + 0.007, 0.092)]
-            lathe(mb, [(0, 0)] + hfins + [(0.085, 0.07), (0.10, 0.05), (0.10, 0)], "engine", head, "x", 14, side)
-            rocker = head + Vector((side * 0.05, 0, 0.075))
-            rb = [rocker + Vector((sx * 0.045, sy * 0.05, sz * 0.022)) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
-            vi = [mb.vert(p) for p in rb]
-            for f in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
-                mb.face([vi[i] for i in f], "steel")
+            lathe(m, [(0, 0)] + hfins + [(0.085, 0.07), (0.10, 0.05), (0.10, 0)], "engine", head, "x", 14, side)
+            box(m, head + Vector((side * 0.05, 0, 0.075)), (0.09, 0.10, 0.044), "steel")  # rocker cover
+            tube(m, [head + Vector((side * 0.03, 0.03, 0.09)), head + Vector((side * 0.03, 0.05, 0.16))],
+                 0.006, "tyre", 5)  # spark plug lead
+            obj(f"Engine_cylinder_{n}", m, eng, smooth=45)
+    xb = MB()
+    for side in (1, -1):
         hw = half_width(1.0)
-        tube(mb, [(side * (half_width(1.53) + 0.03), 1.53, -0.60), (side * (half_width(1.40) + 0.04), 1.40, -0.67),
+        tube(xb, [(side * (half_width(1.53) + 0.03), 1.53, -0.60), (side * (half_width(1.40) + 0.04), 1.40, -0.67),
                   (side * (hw + 0.03), 1.05, -0.67), (side * (hw + 0.02), 0.92, -0.72)], 0.024, "exhaust", 10)
-    obj("Engine", mb, root, smooth=45)
+    obj("Engine_exhaust", xb, eng, smooth=45)
+    ib = MB()
+    box(ib, (0, 1.22, -0.78), (0.08, 0.09, 0.10), "steel")  # carburettor
+    for side in (1, -1):
+        tube(ib, [(0, 1.22, -0.73), (side * 0.10, 1.25, -0.66), (side * 0.20, 1.38, -0.58)], 0.016, "steel", 8)
+    obj("Engine_carburettor", ib, eng, smooth=45)
+    mg = MB()
+    for side in (1, -1):
+        lathe(mg, [(0, 0), (0, 0.042), (0.11, 0.042), (0.11, 0)], "engine", (side * 0.08, 1.15, -0.44), "y", 12, -1)
+        tube(mg, [(side * 0.08, 1.06, -0.42), (side * 0.20, 1.20, -0.40)], 0.006, "tyre", 5)
+    obj("Engine_magnetos", mg, eng, smooth=45)
+    mt = MB()
+    for sx in (1, -1):
+        for sz in (1, -1):
+            tube(mt, [(sx * 0.13, 1.18, -0.56 + sz * 0.09), (sx * 0.27, 1.0, -0.62 + sz * 0.30)], 0.011, "frame", 6)
+    obj("Engine_mount", mt, eng, smooth=60)
 
 
 def build_prop(root):
@@ -771,7 +918,7 @@ def build_registration(root):
         me.materials.append(M["reg"])
         ob = bpy.data.objects.new("Registration_" + ("R" if side > 0 else "L"), me)
         COLL.objects.link(ob)
-        set_parent(ob, root)
+        set_parent(ob, bpy.data.objects["Skin_" + ("R" if side > 0 else "L")])  # painted on that panel
 
 
 # --- weathering (procedural textures) ---------------------------------------------
@@ -977,23 +1124,25 @@ def rules_tail(P, Nn, part):
 
 def paint_all():
     os.makedirs(TEX_DIR, exist_ok=True)
-    O = bpy.data.objects
-    jobs = [
-        ("fus", [(O["Fuselage"], 1, {"Cub_Fus"})], rules_fuselage),
-        ("wing", [(O["Wing"], 2, {"Cub_Wing"}), (O["Aileron_L"], 3, None), (O["Aileron_R"], 3, None)], rules_wing),
-        ("tail", [(O["Stabilizer"], 4, {"Cub_Tail"}), (O["Elevator"], 5, {"Cub_Tail"}),
-                  (O["Fin"], 6, {"Cub_Tail"}), (O["Rudder"], 7, {"Cub_Tail"})], rules_tail),
-    ]
-    for key, items, rules in jobs:
+    part_ids = {"Aileron": 3, "Elevator": 5, "Fin": 6, "Rudder": 7, "Stab": 4}
+    jobs = {"fus": ("Cub_Fus", rules_fuselage, 1), "wing": ("Cub_Wing", rules_wing, 2),
+            "tail": ("Cub_Tail", rules_tail, 4)}
+    for key, (mat, rules, default_id) in jobs.items():
+        items = []
+        for o in COLL.objects:
+            if o.type == "MESH" and mat in [m.name for m in o.data.materials if m]:
+                pid = next((v for k, v in part_ids.items() if o.name.startswith(k)), default_id)
+                items.append((o, pid, {mat}))
         img = IMGS[key]["base"]
         W, H = img.size
         texels = pt.paint(items, W, H, rules, IMGS[key], TEX_DIR, normal_strength=3.0 * QUALITY)
-        print("painted", key, W, "x", H, texels, "texels")
+        print("painted", key, W, "x", H, texels, "texels", len(items), "parts")
 
 # --- main --------------------------------------------------------------------
 
 def build():
     global COLL
+    SOLID.clear()
     for name in ("Cube",):
         if name in bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[name])
@@ -1021,6 +1170,7 @@ def build():
     bpy.context.view_layer.update()
     if globals().get("PAINT", True):
         paint_all()
+    apply_solidify()
     return root
 
 
