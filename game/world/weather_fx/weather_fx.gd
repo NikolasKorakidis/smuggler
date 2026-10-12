@@ -42,6 +42,7 @@ func _ready() -> void:
 	add_child(RainField.new(weather, tod, world))
 	add_child(Lightning.new(weather, tod))
 	add_child(WeatherAudio.new(weather, world))
+	add_child(RainAudio.new(weather, world))
 	var comp := env_node.compositor if env_node.compositor else Compositor.new()
 	var effects := comp.compositor_effects
 	effects.append(atmosphere)

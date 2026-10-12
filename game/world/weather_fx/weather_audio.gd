@@ -7,8 +7,7 @@ extends Node
 ##   give the crack and crackle of a close strike and the rolling rumble of a
 ##   far one. Distance strips the highs, the ground and cloud base add echoes.
 ##   Each strike's thunder is made on a worker thread from its own geometry.
-## - Rain: stereo loops of drops ringing on Perspex and aluminium, a hiss, and
-##   the roar of flying into rain, mixed by rain rate and airspeed.
+## (Rain on the airframe is RainAudio.)
 ## - Turbulence: airframe thumps and rattles on sudden jolts.
 
 const RATE := 32000
@@ -16,9 +15,6 @@ const SPEED_OF_SOUND := 343.0
 
 var weather: Weather
 var world: Node3D
-var _rain_patter: AudioStreamPlayer
-var _rain_heavy: AudioStreamPlayer
-var _rain_roar: AudioStreamPlayer
 var _thumps: Array[AudioStreamWAV] = []
 var _loops_task := -1
 var _loops := {}
@@ -50,53 +46,17 @@ func _process(delta: float) -> void:
 	if _loops_task != -1 and WorkerThreadPool.is_task_completed(_loops_task):
 		WorkerThreadPool.wait_for_task_completion(_loops_task)
 		_loops_task = -1
-		_rain_patter = _loop_player(_loops.patter)
-		_rain_heavy = _loop_player(_loops.heavy)
-		_rain_roar = _loop_player(_loops.roar)
 		_thumps = _loops.thumps
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
 	var ac = world.get("aircraft")
-	var kias := 0.0
 	var cockpit := false
 	if ac and ac.fdm:
-		kias = maxf(ac.fdm.prop_get("velocities/vc-kts"), 0.0)
 		cockpit = cam.global_position.distance_to(ac.eyepoint().global_position) < 0.5
-	if _rain_patter:
-		_mix_rain(cam, kias, cockpit)
 	if ac and ac.fdm and _thumps.size() > 0:
 		_turbulence_thumps(ac, delta, cockpit)
 	_step_thunder(delta, cockpit)
-
-
-# --- rain ------------------------------------------------------------------------
-
-func _mix_rain(cam: Camera3D, kias: float, cockpit: bool) -> void:
-	var rate := weather.rain_at(cam.global_position)
-	if weather.in_cloud(cam.global_position):
-		rate = maxf(rate, 1.5)  # cloud droplets hiss on the glass too
-	var r := clampf(log(1.0 + rate) / log(51.0), 0.0, 1.0)  # 0 dry .. 1 at 50 mm/h
-	var speed := clampf(kias / 110.0, 0.0, 1.0)
-	var cabin := 4.0 if cockpit else -2.0  # rain drums on the cabin roof
-	_level(_rain_patter, r * (1.0 - 0.6 * speed) * (1.0 - smoothstep(0.6, 1.0, r) * 0.5), cabin)
-	_level(_rain_heavy, smoothstep(0.35, 0.95, r) * (1.0 - 0.4 * speed), cabin + 1.0)
-	_level(_rain_roar, r * speed * (0.6 + 0.4 * r), cabin - 1.0)
-	_rain_patter.pitch_scale = 1.0 + 0.25 * speed
-	_rain_roar.pitch_scale = 0.8 + 0.4 * speed
-
-
-func _level(p: AudioStreamPlayer, k: float, boost_db: float) -> void:
-	p.volume_db = -80.0 if k < 0.005 else linear_to_db(k) - 8.0 + boost_db
-
-
-func _loop_player(stream: AudioStreamWAV) -> AudioStreamPlayer:
-	var p := AudioStreamPlayer.new()
-	p.stream = stream
-	p.volume_db = -80.0
-	add_child(p)
-	p.play()
-	return p
 
 
 # --- turbulence ------------------------------------------------------------------
@@ -271,60 +231,10 @@ func _synth_thunder(job: Dictionary, at: Vector3, to_ground: bool, power: float,
 func _synth_loops() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1984
-	_loops.patter = _rain_loop(8.0, 700.0, 0.12, rng)
-	_loops.heavy = _rain_loop(8.0, 4500.0, 0.35, rng)
-	_loops.roar = _roar_loop(6.0, rng)
 	var th: Array[AudioStreamWAV] = []
 	for k in 4:
 		th.append(_thump(rng))
 	_loops.thumps = th
-
-
-# Drops ringing on Perspex and aluminium (two resonances) over a soft hiss; stereo.
-func _rain_loop(seconds: float, per_s: float, hiss: float, rng: RandomNumberGenerator) -> AudioStreamWAV:
-	var n := int(seconds * RATE)
-	var ch := [PackedFloat32Array(), PackedFloat32Array()]
-	for c in 2:
-		var buf: PackedFloat32Array = ch[c]
-		buf.resize(n)
-		var lp := 0.0
-		var prev := 0.0
-		for i in n:
-			var w := rng.randf_range(-1.0, 1.0)
-			lp += (w - lp) * 0.5
-			buf[i] = (lp - prev * 0.9) * hiss
-			prev = lp
-		var drops := int(seconds * per_s * 0.5)
-		for k in drops:
-			var at := rng.randi() % n
-			var amp := pow(rng.randf(), 4.0) * 0.8
-			var f1 := rng.randf_range(900.0, 1800.0) / RATE * TAU
-			var f2 := rng.randf_range(2600.0, 5200.0) / RATE * TAU
-			var len := int(RATE * rng.randf_range(0.004, 0.018))
-			for j in len:
-				var e := exp(-5.0 * float(j) / len)
-				buf[(at + j) % n] += amp * e * (sin(j * f1) * 0.6 + sin(j * f2) * 0.4 + (rng.randf() - 0.5) * 0.4 * exp(-40.0 * j / len))
-	return _wav_stereo(_loop_blend(ch[0]), _loop_blend(ch[1]), true)
-
-
-# The roar of flying into rain: dense broadband noise, a little low rumble.
-func _roar_loop(seconds: float, rng: RandomNumberGenerator) -> AudioStreamWAV:
-	var n := int(seconds * RATE)
-	var ch := [PackedFloat32Array(), PackedFloat32Array()]
-	for c in 2:
-		var buf: PackedFloat32Array = ch[c]
-		buf.resize(n)
-		var lp := 0.0
-		var low := 0.0
-		var mod := 0.0
-		for i in n:
-			var w := rng.randf_range(-1.0, 1.0)
-			lp += (w - lp) * 0.35
-			low += (w - low) * 0.01
-			if i % 64 == 0:
-				mod = lerpf(mod, rng.randf(), 0.3)
-			buf[i] = lp * (0.7 + 0.3 * mod) + low * 2.0
-	return _wav_stereo(_loop_blend(ch[0]), _loop_blend(ch[1]), true)
 
 
 # Turbulence: a low thud of the airframe and a short rattle of loose things.
@@ -346,16 +256,6 @@ func _thump(rng: RandomNumberGenerator) -> AudioStreamWAV:
 	return _wav_mono(buf, peak)
 
 
-func _loop_blend(buf: PackedFloat32Array) -> PackedFloat32Array:
-	var n := buf.size()
-	var fade := int(0.15 * RATE)
-	for j in fade:
-		var a := float(j) / fade
-		buf[j] = buf[j] * a + buf[n - fade + j] * (1.0 - a)
-	buf.resize(n - fade)
-	return buf
-
-
 static func _wav_mono(samples: PackedFloat32Array, peak: float) -> AudioStreamWAV:
 	var bytes := PackedByteArray()
 	bytes.resize(samples.size() * 2)
@@ -366,26 +266,4 @@ static func _wav_mono(samples: PackedFloat32Array, peak: float) -> AudioStreamWA
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = RATE
 	wav.data = bytes
-	return wav
-
-
-static func _wav_stereo(l: PackedFloat32Array, r: PackedFloat32Array, loop: bool) -> AudioStreamWAV:
-	var n := mini(l.size(), r.size())
-	var peak := 1e-6
-	for i in n:
-		peak = maxf(peak, maxf(absf(l[i]), absf(r[i])))
-	var g := 0.9 / peak
-	var bytes := PackedByteArray()
-	bytes.resize(n * 4)
-	for i in n:
-		bytes.encode_s16(i * 4, int(clampf(l[i] * g, -1.0, 1.0) * 32767.0))
-		bytes.encode_s16(i * 4 + 2, int(clampf(r[i] * g, -1.0, 1.0) * 32767.0))
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = RATE
-	wav.stereo = true
-	wav.data = bytes
-	if loop:
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		wav.loop_end = n
 	return wav
