@@ -118,9 +118,12 @@ func _physics_process(delta: float) -> void:
 	_apply_controls(delta)
 	var here := global_position
 	var surface: StringName = world.surface_at(here)
-	if surface != fdm.surface:
-		fdm.set_surface(surface)
+	var wet: float = world.weather.wetness if world.get("weather") else 0.0
+	if surface != fdm.surface or absf(wet - fdm.surface_wetness) > 0.02:
+		fdm.set_surface(surface, wet)
 	fdm.prop("position/terrain-elevation-asl-ft", world.terrain_height(here) / FT)
+	if engine.weather == null and world.get("weather"):
+		engine.weather = world.weather  # outside air for carb icing
 	engine.apply(delta)
 	if world.get("weather"):
 		world.weather.apply(fdm, maxf(fdm.prop_get("position/h-agl-ft") * FT, 0.0), _on_ground(), global_position)

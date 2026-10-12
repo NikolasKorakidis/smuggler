@@ -15,12 +15,22 @@ const SURFACES := {
 	&"dirt": {"rolling": 1.8, "static": 0.8, "bumpiness": 0.2},
 	&"rough": {"rolling": 6.0, "static": 0.55, "bumpiness": 0.6},
 }
+## What a soaked surface does: grip lost (braking, side force) and extra
+## rolling drag (soft ground, mud). Scaled by Weather.wetness.
+const WET := {
+	&"paved": {"grip": 0.45, "drag": 0.0},
+	&"grass_strip": {"grip": 0.5, "drag": 0.35},
+	&"grass_rough": {"grip": 0.5, "drag": 0.3},
+	&"dirt": {"grip": 0.45, "drag": 0.7},
+	&"rough": {"grip": 0.4, "drag": 0.3},
+}
 
 @export_dir var aircraft_dir := "res://aircraft"
 
 var jsb: JSBSimFDM
 var geo: Geo
 var surface := &"paved"
+var surface_wetness := 0.0
 
 
 func load_model(model: String) -> bool:
@@ -92,11 +102,13 @@ func engine_running() -> bool:
 	return prop_get("propulsion/engine/set-running") > 0.5
 
 
-func set_surface(kind: StringName) -> void:
+func set_surface(kind: StringName, wet := 0.0) -> void:
 	surface = kind
+	surface_wetness = wet
 	var s: Dictionary = SURFACES.get(kind, SURFACES[&"paved"])
-	prop("ground/rolling_friction-factor", s.rolling)
-	prop("ground/static-friction-factor", s.static)
+	var w: Dictionary = WET.get(kind, WET[&"paved"])
+	prop("ground/rolling_friction-factor", s.rolling * (1.0 + w.drag * wet))
+	prop("ground/static-friction-factor", s.static * (1.0 - w.grip * wet))
 	prop("ground/bumpiness", s.bumpiness)
 
 

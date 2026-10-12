@@ -85,3 +85,94 @@ func _run() -> void:
 	_check("parked with brakes in 20 kt gusting 32: stays put and upright",
 		ac.global_position.distance_to(p0) < 2.0 and upright,
 		"moved %.2f m, pitch %.1f roll %.1f" % [ac.global_position.distance_to(p0), f.prop_get("attitude/theta-deg"), f.prop_get("attitude/phi-deg")])
+	FlightInput.parking_brake = false
+	await _run_phase2(w, ac, f)
+
+
+# Phase 2 weather: visibility, storms, carb ice, wet ground, fog, METAR.
+func _run_phase2(w: Weather, ac: Aircraft, f: FDM) -> void:
+	# Rain visibility ~ 12 km x R^-0.65 (moderate rain ~3 km, violent < 1 km).
+	var v10 := Weather.KOSCHMIEDER / Weather.rain_extinction(10.0)
+	var v75 := Weather.KOSCHMIEDER / Weather.rain_extinction(75.0)
+	_check("rain visibility: 10 mm/h ~2.7 km, 75 mm/h < 1 km", absf(v10 - 2690.0) < 50.0 and v75 < 1000.0,
+		"%.0f m, %.0f m" % [v10, v75])
+
+	# Microburst (Vicroy): down at the core, out at the rim, calm at the ground.
+	var cell := StormCell.new(Vector2.ZERO, Vector2.ZERO, 1.0, 0.0, 2000.0, 1500.0)
+	cell.age = 0.5 * cell.life
+	cell.step(0.0)
+	var core := cell.wind_at(Vector3(0, 0, 0), 600.0)
+	var rim := cell.wind_at(Vector3(2000, 0, 0), StormCell.ZM)
+	var ground := cell.wind_at(Vector3(2000, 0, 0), 0.0)
+	_check("microburst: downdraft at the core, outflow at the rim, calm at the ground",
+		core.y < -5.0 and rim.x > 0.8 * cell.outflow_ms() and ground.length() < 0.1,
+		"core %.1f m/s down, rim %.1f m/s out (peak %.1f), ground %.2f" % [-core.y, rim.x, cell.outflow_ms(), ground.length()])
+
+	# JSBSim gets the downdraft: fly through a mature cell's core.
+	w.set_preset(0, true)
+	w.cells.clear()
+	ac.teleport_air(ac.global_position + Vector3(0, 0, -3000), 0.0, w.field_elevation_m + 450.0, 90.0)
+	await _s(0.5)
+	var over := ac.global_position
+	var c2 := w.spawn_storm(0.0, 0.0, 0.5, 1.2)
+	c2.pos = Vector2(over.x, over.z)
+	await _s(0.5)
+	var down := f.prop_get("atmosphere/wind-down-fps")
+	_check("storm core: JSBSim feels the downdraft", down > 15.0, "%.0f ft/s down (%.0f fpm)" % [down, down * 60.0])
+	w.cells.clear()
+
+	# Carb ice: humid 15 °C at cruise ices up; carb heat clears it, rough first.
+	w.set_preset(0, true)
+	w._target = {}
+	w.temp_c = 15.0
+	w.dewpoint_c = 13.0
+	ac.teleport_air(ac.global_position, 0.0, w.field_elevation_m + 900.0, 75.0)
+	ac.engine.carb_ice = 0.0
+	FlightInput.override["throttle"] = 0.6
+	await _s(240.0)
+	var iced := ac.engine.carb_ice
+	ac.engine.set_carb_heat(true)
+	var rough := 0.0
+	for i in 50:
+		await _s(1.0)
+		rough = maxf(rough, ac.engine.melt_rough)
+	_check("carb ice: humid 15 °C (RH 88%) at cruise ices up; carb heat clears it (rough while melting)",
+		iced > 0.2 and ac.engine.carb_ice < 0.05 and rough > 0.05,
+		"ice %.2f after 240 s, %.2f after 50 s of heat, roughness up to %.2f" % [iced, ac.engine.carb_ice, rough])
+	ac.engine.set_carb_heat(false)
+	w.temp_c = 15.0
+	w.dewpoint_c = 5.0
+	ac.engine.carb_ice = 0.0
+	await _s(240.0)
+	_check("carb ice: dry 15 °C (RH 51%) stays clear", ac.engine.carb_ice < 0.03, "ice %.3f" % ac.engine.carb_ice)
+	FlightInput.override.erase("throttle")
+
+	# Wet runway: less grip.
+	f.set_surface(&"paved", 0.0)
+	var dry := f.prop_get("ground/static-friction-factor")
+	f.set_surface(&"paved", 1.0)
+	var soaked := f.prop_get("ground/static-friction-factor")
+	_check("wet runway: grip falls", soaked < dry * 0.7, "static factor %.2f dry, %.2f soaked" % [dry, soaked])
+	f.set_surface(&"paved", 0.0)
+
+	# Ground soaks in steady rain.
+	w.set_preset(8, true)
+	w.wetness = 0.0
+	w.focus = ac.global_position
+	await _s(60.0)
+	_check("steady rain soaks the ground", w.wetness > 0.05, "wetness %.2f after 60 s" % w.wetness)
+
+	# Valley fog burns off by noon; METAR reads it.
+	w.set_preset(6, true)
+	var tod: TimeOfDay = world.time_of_day
+	tod.set_hours(5.9)
+	var dawn := w.fog_now()
+	var metar_fog := w.metar()
+	tod.set_hours(12.0)
+	var noon := w.fog_now()
+	_check("valley fog at dawn, gone by noon", dawn.y > 0.9 and noon.y < 0.01, "%s / %s" % [dawn, noon])
+	_check("METAR shows fog", metar_fog.contains("FG"), metar_fog)
+	w.set_preset(9, true)
+	w.cells.clear()
+	var c3 := w.spawn_storm(5000.0, 90.0, 0.5)
+	_check("METAR shows a thunderstorm nearby", w.metar().contains("TS") and w.metar().contains("CB"), w.metar())

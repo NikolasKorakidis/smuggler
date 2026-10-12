@@ -40,6 +40,8 @@ func _ready() -> void:
 	clouds.name = "Clouds"
 	add_child(clouds)
 	add_child(RainField.new(weather, tod, world))
+	add_child(Lightning.new(weather, tod))
+	add_child(WeatherAudio.new(weather, world))
 	var comp := env_node.compositor if env_node.compositor else Compositor.new()
 	var effects := comp.compositor_effects
 	effects.append(clouds.effect)  # clouds first, then fog over them
@@ -61,6 +63,8 @@ func _process(delta: float) -> void:
 		_away = c[3]
 		clouds.horizon = _horizon
 		clouds.zenith = _zenith
+		if tod.stars:
+			tod.stars.set_sky(_horizon, _zenith)
 	fog.set_params(_fog_params())
 	_set_wetness(weather.wetness)
 

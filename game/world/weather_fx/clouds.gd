@@ -35,8 +35,8 @@ func _init(w: Weather, t: TimeOfDay) -> void:
 	effect.resolution_scale = 2  # quarter resolution, upscaled (soft clouds)
 	# Right after the sky (not before transparents) so refracting glass sees the clouds.
 	effect.effect_callback_type = CompositorEffect.EFFECT_CALLBACK_TYPE_POST_SKY
-	effect.max_step_count = 64
-	effect.max_lighting_steps = 12
+	effect.max_step_count = 48
+	effect.max_lighting_steps = 10
 	effect.min_step_distance = 90.0
 	effect.max_step_distance = 220.0
 	effect.lighting_travel_distance = 3000.0
@@ -85,9 +85,11 @@ func _process(delta: float) -> void:
 
 	# Light. The effect raises colour x energy to the power 2.2, so hand it the
 	# 1/2.2 root to keep brightness proportional to the real light.
+	# Only the lights that are actually shining (each costs a lighting march).
 	var dir_data: Array[Vector4] = []
-	_add_light(dir_data, tod.sun, 10, 0.55)
-	if tod._moon:
+	if tod.sun.visible and tod.sun.light_energy > 0.002:
+		_add_light(dir_data, tod.sun, 10, 0.55)
+	if tod._moon and tod._moon.visible and tod._moon.light_energy > 0.002 and tod.sun.light_energy < 0.2:
 		_add_light(dir_data, tod._moon, 6, 0.55)
 	# Soft light from overhead: the sky dome (keeps twilight clouds lit).
 	var sky := (zenith * 0.6 + horizon * 0.4) * 0.9

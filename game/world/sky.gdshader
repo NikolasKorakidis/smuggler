@@ -32,6 +32,8 @@ uniform float night_glow = 6.0e-4;
 // copy of the sky (ambient light and reflections), since the volumetric
 // clouds cover the visible sky themselves.
 uniform float overcast = 0.0;
+// Lightning flash lighting the sky and clouds, 0..1+.
+uniform float flash = 0.0;
 uniform vec3 overcast_color = vec3(0.3);
 const float MILKYWAY_SCALE = 0.40457495;
 
@@ -246,6 +248,7 @@ void sky() {
 			float ext = smoothstep(-0.01, 0.25, h);
 			c += mw * milkyway_intensity * 0.012 * ext * (1.0 - behind_cloud);
 		}
+		c += vec3(0.55, 0.58, 0.7) * flash * 0.05 * (0.4 + 0.6 * clamp(h + 0.2, 0.0, 1.0));
 		COLOR = c;
 	}
 }

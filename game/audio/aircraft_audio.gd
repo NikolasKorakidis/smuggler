@@ -207,6 +207,7 @@ func _roughness(firing: bool) -> float:
 		r += 0.06 * (1.0 - engine.warmth) * lerpf(1.0, 0.3, clampf(_load, 0.0, 1.0))  # cold engine
 		if engine.carb_heat:
 			r += 0.03
+		r += 0.25 * engine.carb_ice + engine.melt_rough  # ice choking it, meltwater
 		r += 0.9 * smoothstep(0.3, 0.0, engine.fuel_line_fraction())  # fuel starvation
 	if _catch_t < CATCH_S:
 		r += 0.5 * (1.0 - _catch_t / CATCH_S)

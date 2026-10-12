@@ -14,7 +14,9 @@ Rule: one Weather object feeds JSBSim and the visuals (systems/weather.gd).
 - [x] Real night sky: 9,096 catalogue stars and NASA Milky Way, placed by date, time and latitude.
 - [x] Smooth day/night transitions: twilight glow that lasts to -18°, eye adaptation that never rebounds, stars appearing by brightness (brightest first, Milky Way last), constant moonlight. Dev menu: night brightness slider, exposure and star readout.
 - [x] Developer menu (` or F10): time, weather, aircraft/fuel/payload, teleport airborne or on final, flaps/trim/lights/brakes, engine state, render settings, debug.
-- [ ] Fog (visibility), rain (particles, windshield, wet grass/dirt friction); cloud layer exists (cover per weather), add cloud shadows / low cloud.
+- [x] Weather in depth (see docs/weather.md): humidity, visibility, fog decks that burn off, volumetric clouds (cumulus..stratus, storm towers), steady rain and storm rain shafts, thunderstorm cells (growth, microburst downdraft/outflow, gust front, updraft, turbulence, lightning), wet ground, rain on the windshield, rain streaks, lightning bolts and flashes, thunder and rain sounds, carburettor icing, wet-runway friction, METAR line, dev menu "Sky & rain".
+- [ ] Weather: cloud shadows on the ground; landing-light beam in fog/rain; rainbow; splashes on the runway.
+- [ ] Performance with volumetric clouds (1080p budget): tune and measure on a quiet machine.
 - [ ] Weather menu / pick conditions before a flight (instead of U), and an 80s-style radio forecast.
 - [ ] Gate scenario: gusty crosswind at dusk on the valley strip; scripted-pilot test that it is landable.
 

@@ -54,6 +54,12 @@ func set_visibility(limiting_mag: float, clear: float) -> void:
 	visible = limiting_mag > -1.8 and clear > 0.002
 
 
+## Sky colour behind the stars (they are drawn solid, see the shader).
+func set_sky(horizon: Vector3, zenith: Vector3) -> void:
+	_mat.set_shader_parameter("sky_horizon", horizon)
+	_mat.set_shader_parameter("sky_zenith", zenith)
+
+
 func _process(_delta: float) -> void:
 	if camera:
 		global_position = camera.global_position

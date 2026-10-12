@@ -36,6 +36,8 @@ func _ready() -> void:
 	if args.has("glassdebug"):
 		var g: MeshInstance3D = world.aircraft.find_child("Windshield", true, false)
 		g.material_override.set_shader_parameter("debug_mode", int(args.glassdebug))
+	if args.has("nomw"):
+		world.time_of_day.milkyway_brightness = 0.0
 	if args.has("hideui"):
 		for ui in get_tree().root.find_children("*", "CanvasLayer", true, false):
 			ui.visible = false
@@ -69,6 +71,13 @@ func _process(_d: float) -> void:
 		cam.global_position = at
 		cam.look_at(at + dir, Vector3.UP if absf(dir.y) < 0.99 else Vector3.BACK)
 		cam.fov = float(args.get("fov", "80"))
+	if f == 57 and args.has("strike"):  # --strike=dist_m,bearing: a bolt 3 frames before the shot
+		var sb: PackedStringArray = String(args.strike).split(",")
+		var b := deg_to_rad(float(sb[1]))
+		var at: Vector3 = world.aircraft.global_position + Vector3(sin(b), 0.0, -cos(b)) * float(sb[0])
+		at.y = world.terrain_height(at) if world.has_method("terrain_height") else 0.0
+		world.get_node("WeatherFX/Lightning").hold = true
+		world.weather.lightning.emit(at, true, 1.0)
 	if f == 60:
 		get_viewport().get_texture().get_image().save_png(args.get("out", "user://dn.png"))
 		get_tree().quit()

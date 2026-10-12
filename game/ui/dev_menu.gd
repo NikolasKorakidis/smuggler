@@ -96,6 +96,7 @@ func _build() -> void:
 	root.add_child(_status)
 	_tab_time()
 	_tab_weather()
+	_tab_sky()
 	_tab_flight()
 	_tab_aircraft()
 	_tab_engine()
@@ -274,14 +275,64 @@ func _tab_weather() -> void:
 	_wslider(b, "Turbulence", 0, 1, 0.01, "turbulence", "%.2f")
 	_section(b, "AIR")
 	_wslider(b, "Temperature", -10, 45, 0.5, "temp_c", "%.1f °C")
+	_wslider(b, "Dew point", -20, 30, 0.5, "dewpoint_c", func(v): return "%.1f °C (RH %d%%)" % [v, int(_weather().relative_humidity() * 100.0)])
 	_wslider(b, "QNH", 970, 1040, 0.5, "qnh_hpa", func(v): return "%.1f hPa (%.2f\")" % [v, v * 0.02953])
-	_wslider(b, "Cloud cover", 0, 1, 0.01, "cloud_cover", "%.2f")
 	_slider(b, "Blend time", 0, 120, 1, func(): return _weather().transition_s,
 		func(v): _weather().transition_s = v, "%.0f s")
 	_readout(b, func():
 		var f := _ac().fdm
 		return "%s\nDensity altitude %d ft   Pressure altitude %d ft" % [_weather().summary(),
 			int(f.prop_get("atmosphere/density-altitude")), int(f.prop_get("atmosphere/pressure-altitude"))])
+
+
+func _tab_sky() -> void:
+	var b := _tab("Sky & rain")
+	_section(b, "VISIBILITY AND FOG")
+	_wslider(b, "Visibility (clear air)", 0.5, 60, 0.5, "visibility_km", "%.1f km")
+	_wslider(b, "Haze layer depth", 200, 3000, 50, "haze_height_m", "%.0f m")
+	_wslider(b, "Fog deck top", 0, 500, 5, "fog_top_m", func(v): return "none" if v < 2.0 else "%.0f m above field" % v)
+	_wslider(b, "Visibility in fog", 30, 2000, 10, "fog_visibility_m", "%.0f m")
+	_check(b, "Fog burns off after sunrise", func(): return _weather().fog_burns_off, func(on): _weather().fog_burns_off = on)
+	_section(b, "CLOUDS")
+	_wslider(b, "Cloud cover", 0, 1, 0.01, "cloud_cover", func(v): return "%.2f (%d oktas)" % [v, int(round(v * 8.0))])
+	_wslider(b, "Cloud base", 100, 3500, 25, "cloud_base_m", func(v): return "%.0f m (%d ft)" % [v, int(v / 0.3048)])
+	_wslider(b, "Cloud top", 200, 6000, 50, "cloud_top_m", "%.0f m")
+	_wslider(b, "Cumulus .. stratus", 0, 1, 0.05, "cloud_type", "%.2f")
+	_wslider(b, "High cirrus", 0, 1, 0.05, "cirrus", "%.2f")
+	_section(b, "RAIN")
+	_wslider(b, "Steady rain", 0, 80, 0.5, "rain_mmh", "%.1f mm/h")
+	_slider(b, "Ground wetness", 0, 1, 0.01, func(): return _weather().wetness, func(v): _weather().wetness = v, "%.2f")
+	_section(b, "THUNDERSTORMS")
+	_wslider(b, "New storms per hour", 0, 12, 0.5, "storms_per_hour", "%.1f")
+	_wslider(b, "Storm strength", 0.5, 1.5, 0.05, "storm_power", "%.2f")
+	_buttons(b, [["Storm 8 km ahead", func(): _weather().spawn_storm(8000.0, _heading(), 0.4)],
+		["Storm overhead", func(): _weather().spawn_storm(0.0, 0.0, 0.45)],
+		["Growing, 15 km upwind", func(): _weather().spawn_storm(15000.0, _weather().wind_dir_deg, 0.05)],
+		["Clear storms", func(): _weather().cells.clear()]])
+	_buttons(b, [["Lightning 2 km ahead", func(): _strike(2000.0)], ["Lightning 6 km ahead", func(): _strike(6000.0)]])
+	_readout(b, func():
+		var w := _weather()
+		var here := _ac().global_position
+		var near := ""
+		var best := INF
+		for c in w.cells:
+			var d := Vector2(here.x, here.z).distance_to(c.pos)
+			if d < best:
+				best = d
+				var stage := "growing" if c.progress() < 0.25 else ("mature" if c.progress() < 0.7 else "dying")
+				near = "nearest %.1f km, %s, outflow %.0f kt" % [d / 1000.0, stage, c.outflow_ms() / 0.514444]
+		return "%s\nRain here %.1f mm/h   Storms %d %s" % [w.metar(), w.rain_at(here), w.cells.size(), near])
+
+
+func _heading() -> float:
+	return _ac().fdm.prop_get("attitude/psi-deg")
+
+
+func _strike(dist: float) -> void:
+	var b := deg_to_rad(_heading())
+	var at := _ac().global_position + Vector3(sin(b), 0.0, -cos(b)) * dist
+	at.y = world.terrain_height(at)
+	_weather().lightning.emit(at, true, 1.0)
 
 
 func _wslider(b: VBoxContainer, text: String, lo: float, hi: float, step: float, field: String, fmt: Variant) -> void:
@@ -430,6 +481,9 @@ func _tab_engine() -> void:
 	_slider(b, "Primer (strokes in)", 0, 10, 0.5, func(): return _ac().engine.prime, func(v): _ac().engine.prime = v, "%.1f")
 	_slider(b, "Engine warmth", 0, 1, 0.05, func(): return _ac().engine.warmth, func(v): _ac().engine.warmth = v,
 		func(v): return "warm" if v > 0.5 else "cold")
+	_slider(b, "Carburettor ice", 0, 1, 0.01, func(): return _ac().engine.carb_ice, func(v): _ac().engine.carb_ice = v, "%.2f")
+	_readout(b, func(): return "Carb icing risk now %d%% (temperature/dew point and throttle)   Meltwater roughness %.2f" % [
+		int(_ac().engine.carb_ice_risk() * 100.0), _ac().engine.melt_rough])
 	_readout(b, func():
 		var f := _ac().fdm
 		return "RPM %.0f   Power %.0f hp   Oil %.0f °F / %.0f psi   Fuel flow %.1f gph   %s" % [
@@ -470,9 +524,16 @@ func _tab_rendering() -> void:
 		func(v): sun.directional_shadow_max_distance = v, "%.0f m")
 	_check(b, "Ambient occlusion (SSAO)", func(): return _env().ssao_enabled, func(on): _env().ssao_enabled = on)
 	_check(b, "Glow / bloom", func(): return _env().glow_enabled, func(on): _env().glow_enabled = on)
+	_section(b, "WEATHER EFFECTS")
+	var fx: WeatherFX = world.get_node("WeatherFX")
+	_check(b, "Volumetric clouds", func(): return fx.clouds.effect.enabled, func(on): fx.clouds.effect.enabled = on)
+	_choice(b, "Cloud resolution", ["Native", "Half", "Quarter", "Eighth"], func(): return fx.clouds.effect.resolution_scale,
+		func(i): fx.clouds.effect.resolution_scale = i)
+	_check(b, "Fog, haze and rain shafts", func(): return fx.fog.enabled, func(on): fx.fog.enabled = on)
+	_check(b, "Falling rain", func(): return fx.get_node("Rain").process_mode != Node.PROCESS_MODE_DISABLED,
+		func(on): _toggle_node(fx.get_node("Rain"), on))
+	_choice(b, "Fog debug view", ["Off", "Distances", "Media"], func(): return fx.debug_fog, func(i): fx.debug_fog = i)
 	_section(b, "ATMOSPHERE")
-	_slider(b, "Haze density", 0, 0.0003, 0.000005, func(): return _env().fog_density,
-		func(v): _env().fog_density = v, func(v): return "%.6f" % v)
 	_slider(b, "Milky Way", 0, 3, 0.05, func(): return _tod().milkyway_brightness,
 		func(v): _tod().milkyway_brightness = v, "%.2fx")
 	_slider(b, "Night brightness (eye)", 2, 12, 0.5, func(): return _tod().night_exposure,
@@ -482,6 +543,11 @@ func _tab_rendering() -> void:
 	_slider(b, "Cockpit field of view", 30, 100, 1, func(): return cam.cockpit_fov, _set_cockpit_fov, "%.0f°")
 	_readout(b, func(): return "FPS %d   Draw calls %d" % [Engine.get_frames_per_second(),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
+
+
+func _toggle_node(n: Node3D, on: bool) -> void:
+	n.process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+	n.visible = on
 
 
 func _set_cockpit_fov(v: float) -> void:

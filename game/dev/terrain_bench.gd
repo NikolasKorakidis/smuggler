@@ -1,6 +1,6 @@
 extends Node
 ## Frame-time check of the terrain tile from typical views (needs a window):
-## godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn [-- --shots=<dir>]
+## godot --path game --resolution 1920x1080 res://dev/terrain_bench.tscn [-- --shots=<dir>] [--weather=N] [--storm]
 ## Vsync is switched off so the numbers show real headroom.
 
 const WARMUP_FRAMES := 90
@@ -18,11 +18,24 @@ func _ready() -> void:
 	cam = world.get_node("CameraRig")
 	world.get_node("Checklist").visible = false
 	for a in OS.get_cmdline_user_args():
-		if a == "--smaa":  # MSAA off, SMAA on (the clouds addon can't use MSAA on Metal)
-			get_viewport().msaa_3d = Viewport.MSAA_DISABLED
-			get_viewport().screen_space_aa = Viewport.SCREEN_SPACE_AA_SMAA
-		if a.begins_with("--clouds="):  # SunshineClouds 2 spike: resolution 0 native .. 3 eighth
-			_add_clouds(int(a.trim_prefix("--clouds=")))
+		if a.begins_with("--weather="):  # weather preset for the whole run
+			world.weather.set_preset(int(a.trim_prefix("--weather=")), true)
+		if a == "--storm":  # a mature storm 3 km away
+			world.weather.spawn_storm(3000.0, 45.0, 0.45)
+		if a.begins_with("--nofx="):  # clouds, fog, rain: switch one off to see its cost
+			var fx: WeatherFX = world.get_node("WeatherFX")
+			match a.trim_prefix("--nofx="):
+				"clouds": fx.clouds.effect.enabled = false
+				"fog": fx.fog.enabled = false
+				"rain": fx.get_node("Rain").process_mode = Node.PROCESS_MODE_DISABLED
+		if a.begins_with("--cloudq="):  # max steps, lighting steps, blur quality
+			var q := a.trim_prefix("--cloudq=").split(",")
+			var e: SunshineCloudsGD = world.get_node("WeatherFX").clouds.effect
+			e.max_step_count = float(q[0])
+			e.max_lighting_steps = float(q[1])
+			e.blur_quality = float(q[2])
+		if a.begins_with("--cloudres="):
+			world.get_node("WeatherFX").clouds.effect.resolution_scale = int(a.trim_prefix("--cloudres="))
 	await _run()
 	get_tree().quit()
 
@@ -62,36 +75,27 @@ func _place(from: Vector3, to: Vector3) -> void:
 
 
 func _measure(label: String, shots: String) -> void:
+	var vp := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(vp, true)
 	for i in WARMUP_FRAMES:
 		await get_tree().process_frame
+	var gpu := 0.0
+	var cpu := 0.0
 	var t0 := Time.get_ticks_usec()
 	var worst := 0
 	var last := t0
 	for i in MEASURE_FRAMES:
 		await get_tree().process_frame
+		gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+		cpu += RenderingServer.viewport_get_measured_render_time_cpu(vp)
 		var now := Time.get_ticks_usec()
 		worst = maxi(worst, now - last)
 		last = now
 	var avg_ms := (Time.get_ticks_usec() - t0) / 1000.0 / MEASURE_FRAMES
-	print("%-26s avg %5.2f ms (%3.0f fps)  worst %5.2f ms  draws %d  prims %dk" % [label, avg_ms, 1000.0 / avg_ms,
-		worst / 1000.0,
+	print("%-26s avg %5.2f ms (%3.0f fps)  gpu %5.2f  render-cpu %5.2f  worst %5.2f ms  draws %d  prims %dk" % [label, avg_ms, 1000.0 / avg_ms,
+		gpu / MEASURE_FRAMES, cpu / MEASURE_FRAMES, worst / 1000.0,
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000])
 	if shots != "":
 		get_viewport().get_texture().get_image().save_png("%s/%s.png" % [shots, label])
 
-
-func _add_clouds(res: int) -> void:
-	var driver := SunshineCloudsDriverGD.new()
-	world.add_child(driver)
-	var c: SunshineCloudsGD = load("res://addons/SunshineClouds2/SunshineCloudsGDTestResource.tres").duplicate()
-	c.resolution_scale = res
-	c.cloud_floor = 1200.0
-	c.cloud_ceiling = 4000.0
-	c.clouds_coverage = 0.6
-	driver.tracked_directional_lights = [world.get_node("Sun")]
-	driver.tracked_directional_light_shadow_steps = [8]
-	driver.clouds_resource = c
-	driver.update_continuously = true
-	driver.retrieve_texture_data()
-	print("clouds on, resolution scale ", res)

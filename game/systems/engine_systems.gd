@@ -13,6 +13,10 @@ const PRIME_DECAY := 0.02  # strokes per second, fuel evaporating
 const FUEL_LINE_S := 20.0  # engine keeps running this long after fuel OFF
 const HAND_PROP_SWING_S := 0.6
 const CARB_HEAT_IMPEDANCE := 2.5  # intake impedance multiplier (~80 rpm drop)
+## Carburettor ice build-up per second in the worst conditions (tuned against
+## the FAA carburettor icing probability chart, SAIB CE-09-35).
+const CARB_ICE_RATE := 0.002
+const CARB_HEAT_MELT_S := 40.0
 
 var definition: AircraftDefinition
 var fdm: FDM
@@ -25,6 +29,12 @@ var carb_heat := false
 var fuel_selector := 1
 var prime := 0.0  # primer strokes in the cylinders
 var warmth := 0.0  # 0 cold .. 1 at operating temperature
+## Ice in the carburettor venturi, 0..1: chokes the engine; badly iced it quits.
+var carb_ice := 0.0
+## Rough running from melted ice going through the engine, 0..1.
+var melt_rough := 0.0
+## Outside air (set by the aircraft): temperature and dew point come from here.
+var weather: Weather
 
 var _swing_t := 0.0  # hand-prop swing in progress
 var _starter_was_held := false
@@ -55,6 +65,8 @@ func reset(running: bool) -> void:
 	fuel_selector = definition.fuel_default
 	prime = 0.0
 	warmth = 1.0 if running else 0.0
+	carb_ice = 0.0
+	melt_rough = 0.0
 	_spark_allowed = running
 	_catch_progress = 0.0
 	_fuel_line_t = FUEL_LINE_S
@@ -241,6 +253,13 @@ func apply(delta: float) -> void:
 		if magnetos != 0 and _feeding() and mixture > 0.4:
 			fdm.start_engines()
 
+	_step_carb_ice(delta, rpm, is_running)
+	if carb_ice > 0.95 and is_running:
+		fdm.stop_engines()  # choked by ice
+		_spark_allowed = false
+	if carb_ice > 0.85:
+		_spark_allowed = false  # won't restart until the ice has melted
+
 	# Hand JSBSim the result. JSBSim magnetos: 1 left, 2 right, 3 both.
 	var jsb_mag: int = [0, 2, 1, 3][magnetos]
 	fdm.prop("propulsion/magneto_cmd", jsb_mag if _spark_allowed else 0)
@@ -248,7 +267,51 @@ func apply(delta: float) -> void:
 	fdm.prop("fcs/mixture-cmd-norm", mixture if definition.has_mixture else 1.0)
 	if _base_impedance > 0.0:
 		fdm.prop("propulsion/engine/air-intake-impedance-factor",
-			_base_impedance * (CARB_HEAT_IMPEDANCE if carb_heat else 1.0))
+			_base_impedance * (CARB_HEAT_IMPEDANCE if carb_heat else 1.0) * (1.0 + 2.0 * carb_ice + 6.0 * carb_ice * carb_ice))
+
+
+# The venturi and evaporating fuel cool the intake air (most at part throttle);
+# ice forms when that air is below freezing and below its dew point. Carb heat
+# melts it; the water makes the engine run rough for a moment first.
+func _step_carb_ice(delta: float, rpm: float, running: bool) -> void:
+	if weather == null:
+		return
+	var h := maxf(fdm.prop_get("position/h-sl-ft") * 0.3048 - weather.field_elevation_m, 0.0)
+	var oat := weather.temp_at(h)
+	var td := weather.dewpoint_at(h)
+	var throttle := clampf(fdm.prop_get("fcs/throttle-pos-norm"), 0.0, 1.0)
+	var t_carb := oat + 35.0 if carb_heat else oat - (12.0 + 16.0 * (1.0 - throttle))
+	if carb_heat or t_carb > 2.0:
+		var melt := delta / CARB_HEAT_MELT_S if carb_heat else delta * (t_carb - 2.0) / 600.0
+		var melting := carb_ice > 0.01
+		carb_ice = maxf(carb_ice - melt, 0.0)
+		# Water from the melting ice goes through the engine: rough for a while.
+		melt_rough = move_toward(melt_rough, 0.6 * clampf(carb_ice * 4.0, 0.0, 1.0) if melting else 0.0, delta * (1.5 if melting else 0.4))
+	else:
+		melt_rough = move_toward(melt_rough, 0.0, delta * 0.4)
+	if not carb_heat and t_carb <= 2.0 and running:
+		carb_ice = minf(carb_ice + delta * CARB_ICE_RATE * _icing(oat, td, t_carb) * clampf(rpm / 2400.0, 0.2, 1.2), 1.0)
+
+
+# How readily ice forms (0..~1.3): needs humid air (the chart's main driver),
+# an intake below freezing but not so cold the air is dry, and more water in
+# warm humid air. Part throttle cools the intake most (glide power is worst).
+func _icing(oat: float, td: float, t_carb: float) -> float:
+	var rh := exp(17.62 * td / (243.12 + td) - 17.62 * oat / (243.12 + oat))
+	var humid := pow(smoothstep(0.4, 1.0, rh), 1.5)
+	var freezing := smoothstep(2.0, -2.0, t_carb) * smoothstep(-25.0, -12.0, t_carb)
+	var water := clampf(0.5 * exp(0.06 * td), 0.3, 1.3)
+	return humid * freezing * water
+
+
+## How likely carb ice is right now (0 none .. 1 serious), for the dev menu.
+func carb_ice_risk() -> float:
+	if weather == null:
+		return 0.0
+	var h := maxf(fdm.prop_get("position/h-sl-ft") * 0.3048 - weather.field_elevation_m, 0.0)
+	var oat := weather.temp_at(h)
+	var t_carb := oat - (12.0 + 16.0 * (1.0 - clampf(fdm.prop_get("fcs/throttle-pos-norm"), 0.0, 1.0)))
+	return clampf(_icing(oat, weather.dewpoint_at(h), t_carb), 0.0, 1.0)
 
 
 func status_text() -> String:
@@ -260,6 +323,8 @@ func status_text() -> String:
 	if definition.has_mixture:
 		parts.append("MIX %d%%" % int(mixture * 100))
 	parts.append("CARB HEAT %s" % ("ON" if carb_heat else "OFF"))
+	if carb_ice > 0.02:
+		parts.append("ICE %d%%" % int(carb_ice * 100.0))
 	parts.append("PRIME %.1f" % prime)
 	parts.append("%s" % ("WARM" if warmth > 0.5 else "COLD"))
 	return "  ".join(parts)

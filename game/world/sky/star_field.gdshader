@@ -1,16 +1,21 @@
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, fog_disabled, shadows_disabled;
+render_mode unshaded, cull_disabled, fog_disabled, shadows_disabled;
 // Catalogue stars as constant-size screen points on a far sphere. Per star:
 // COLOR = colour from B-V, INSTANCE_CUSTOM = (brightness, size px, twinkle
 // phase, magnitude). A star shows once the sky is dark enough for its
 // magnitude (limiting_magnitude), fading in over about a magnitude; it dims
-// near the horizon (more air) and twinkles more low down. star_intensity
-// dims all of them for cloud.
+// near the horizon (more air) and twinkles more low down. star_intensity dims
+// all of them for cloud cover.
+// Drawn as solid points (not blended) so the volumetric clouds and fog, which
+// run after the sky, cover them like any distant object. Each star pixel adds
+// the star to an estimate of the sky behind it (sky_horizon/sky_zenith).
 
 uniform float star_intensity = 1.0;
 uniform float limiting_magnitude = 6.5;
 uniform float time = 0.0;
 uniform float pixel_scale = 1.0;
+uniform vec3 sky_horizon = vec3(0.0);
+uniform vec3 sky_zenith = vec3(0.0);
 
 varying vec4 star;
 varying float horizon;
@@ -42,5 +47,8 @@ void fragment() {
 	float air = 1.0 / max(horizon + 0.05, 0.05);
 	float tw = 1.0 + 0.25 * sin(TIME * 11.0 + star.z * 40.0) * clamp(air * 0.15, 0.0, 1.0);
 	float vis = 1.0 - smoothstep(limiting_magnitude - 1.2, limiting_magnitude + 0.3, star.w);
-	ALBEDO = tint * star.x * core * ext * tw * vis * star_intensity;
+	vec3 light = tint * star.x * core * ext * tw * vis * star_intensity;
+	if (dot(light, vec3(0.33)) < 0.002) discard;  // the sky shows through around the point
+	vec3 sky = mix(sky_horizon, sky_zenith, sqrt(clamp(horizon, 0.0, 1.0)));
+	ALBEDO = sky + light;
 }
