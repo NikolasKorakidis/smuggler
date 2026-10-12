@@ -61,7 +61,7 @@ def make_materials():
     M["cream"] = material("Fabric_Cream", "#E3D9BF", 0.85)
     M["glass"] = material("Glass", "#C8D4D4", 0.05, alpha=0.18, double=True)
     M["interior"] = material("Interior_Fabric", "#8A8068", 0.9)
-    M["engine"] = material("Engine_Black", "#1A1A1A", 0.55, 0.6)
+    M["engine"] = material("Engine_Black", "#1C1B1A", 0.45, 0.7)
     M["exhaust"] = material("Exhaust_Rust", "#5A3420", 0.7, 0.5)
     M["steel"] = material("Steel", "#8C8C8C", 0.45, 1.0)
     M["tyre"] = material("Tyre", "#141414", 0.92)
@@ -70,6 +70,8 @@ def make_materials():
     M["disc"] = material("Prop_Disc", "#202020", 0.5, alpha=0.08, double=True)
     M["reg"] = material("Registration", "#E2DAC2", 0.7, double=True)
     M["frame"] = material("Frame_Tube", "#5E7884", 0.6, 0.3)
+    M["cowl_edge"] = material("Cowl_Edge", "#B9B09A", 0.5, 0.6)
+    M["cavity"] = material("Engine_Cavity", "#141210", 0.9)
     M["tank"] = material("Fuel_Tank", "#8C8A80", 0.5, 0.8)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
     for key, (w, h) in TEX.items():
@@ -235,9 +237,11 @@ def lathe(mb, profile, mat, axis_pt, axis="x", sides=16, sign=1.0):
 
 # y, width, z bottom, z top, [window bottom, window top]
 FUS = [
-    (1.68, 0.30, -0.78, -0.46),
-    (1.60, 0.50, -0.90, -0.34),
-    (1.45, 0.60, -0.98, -0.27),
+    (1.73, 0.20, -0.72, -0.52),
+    (1.70, 0.34, -0.79, -0.45),
+    (1.65, 0.46, -0.86, -0.38),
+    (1.55, 0.56, -0.94, -0.31),
+    (1.40, 0.62, -0.99, -0.265),
     (1.20, 0.65, -1.03, -0.235),
     (1.00, 0.66, -1.06, -0.22, -0.27, -0.245),
     (0.80, 0.66, -1.08, -0.15, -0.36, -0.17),
@@ -253,7 +257,7 @@ FUS = [
 ]
 FUS = [r if len(r) == 6 else r + (r[2] + 0.70 * (r[3] - r[2]), r[2] + 0.90 * (r[3] - r[2])) for r in FUS]
 EXTRA_Y = [0.97, 0.90, 0.70, 0.60, 0.50, 0.40, 0.36, 0.20, -0.15, -0.30, -0.34, -0.60,
-           -2.0, -3.0, -3.9, 1.10, 1.30, 1.53, 1.64]
+           -2.0, -3.0, -3.9, 1.05, 1.10, 1.15, 1.25, 1.30, 1.35, 1.48, 1.60, 1.68, 1.715]
 STATIONS = sorted(set([r[0] for r in FUS] + EXTRA_Y), reverse=True)
 
 
@@ -275,8 +279,32 @@ def section(y, inset=0.0):
     right = [(0, zb), (0.40 * w, zb), (0.5 * w, zb + min(0.06, 0.15 * h)), (0.5 * w, zs),
              (0.5 * w, zs + 0.025), (0.5 * w, zs + 0.045), (0.5 * w, zwb), (0.47 * w, zwt),
              (0.33 * w, zt - 0.012), (0.17 * w, zt - 0.003), (0, zt)]
+    # The cowling rounds off from the boxy cabin section into a barrel towards the nose bowl.
+    r = 0.0 if y <= 1.0 else min(1.0, (y - 1.0) / 0.55) ** 0.8
+    if r > 0:
+        a, b, zc, n = 0.5 * w, 0.5 * h, 0.5 * (zb + zt), 2.6
+        rnd = []
+        for px, pz in right:  # same direction from the centre as the box point: no twisting
+            t = math.atan2((pz - zc) / b, px / a)
+            c, s_ = math.cos(t), math.sin(t)
+            rnd.append((a * abs(c) ** (2 / n), zc + b * math.copysign(abs(s_) ** (2 / n), s_)))
+        right = [(lerp(p[0], q[0], r), lerp(p[1], q[1], r)) for p, q in zip(right, rnd)]
     ring = right + [(-x, z) for x, z in reversed(right[1:-1])]
     return [Vector((x, y, z)) for x, z in ring]
+
+
+def surface_x(y, z):
+    """Half-width of the fuselage skin at station y and height z."""
+    right = [p for p in section(y) if p.x >= 0][:11]
+    right.sort(key=lambda p: p.z)
+    for a, b in zip(right, right[1:]):
+        if a.z <= z <= b.z and b.z > a.z:
+            return lerp(a.x, b.x, (z - a.z) / (b.z - a.z))
+    return max(p.x for p in right)
+
+
+# Cylinder openings in the cowl sides: (centre y, centre z, half length, half height) per side.
+CYL_OPEN = {1: (1.43, -0.50, 0.17, 0.11), -1: (1.47, -0.50, 0.17, 0.11)}
 
 
 def band_of(j, n_right=11):
@@ -299,7 +327,7 @@ def fus_material(y, band):
     return "tex_fus"
 
 
-FUS_Y0, FUS_LEN = 1.72, 6.34
+FUS_Y0, FUS_LEN = 1.745, 6.365
 
 
 def fus_uv_ring(pts, y):
@@ -406,7 +434,7 @@ def build_fuselage(root):
     mb.loft(rings, lambda i, j: fus_material(mid[i], band_of(j)), cap1=True, closed=False)
     first = rings[0]
     for j in range(len(first) - 1):
-        nose = mb.vert((0, FUS_Y0, -0.62), (0.005, mb.uv[first[j]][1]))
+        nose = mb.vert((0, FUS_Y0, -0.62), (0.004, mb.uv[first[j]][1]))
         mb.face((first[j + 1], first[j], nose), "tex_fus")
     fus = empty("Fuselage", (0, 0, 0), parent=root)
     cowl = empty("Cowling", (0, 0, 0), parent=root)
@@ -418,7 +446,8 @@ def build_fuselage(root):
                "Windshield": glaz, "Window_L": glaz, "Window_R": glaz}
     parts = {}
     for name, sub in split_parts(mb).items():
-        parts[name] = obj(name, sub, parents.get(name, fus), recalc=False, smooth=55)
+        parts[name] = obj(name, sub, parents.get(name, fus), recalc=False,
+                          smooth=80 if parents.get(name) is cowl else 55)
     for name in ("Nose_bowl", "Cowl_top_L", "Cowl_top_R", "Cowl_side_L", "Cowl_side_R", "Cowl_bottom"):
         SOLID.append((name, 0.004))
     SOLID.append(("Door_lower_R", 0.008))
@@ -729,6 +758,25 @@ def build_gear(root):
          lambda m: tube(m, [leaf0, TAIL_PIVOT + Vector((0, 0, 0.02))], 0.022, "steel", 8, squash=0.3))
 
 
+def finned_block(mb, base, sx, sy, height, n_fins, mat):
+    """Air-cooled cylinder head: a stack of rounded-rectangle cooling fins rising from base."""
+    def rr(scale, z):
+        hx, hy, k = sx / 2 * scale, sy / 2 * scale, 0.015
+        pts = []
+        for cx, cy, a0 in ((hx - k, hy - k, 0), (-hx + k, hy - k, 90), (-hx + k, -hy + k, 180), (hx - k, -hy + k, 270)):
+            for a in (0, 45, 90):
+                t = math.radians(a0 + a)
+                pts.append(base + Vector((cx + k * math.cos(t), cy + k * math.sin(t), z)))
+        return mb.ring(pts)
+    rings = []
+    step = height / n_fins
+    for i in range(n_fins):
+        z = i * step
+        rings += [rr(0.80, z), rr(1.0, z + step * 0.15), rr(1.0, z + step * 0.45), rr(0.80, z + step * 0.6)]
+    rings.append(rr(0.80, height))
+    mb.loft(rings, mat, cap0=True, cap1=True)
+
+
 def box(mb, c, size, mat):
     c = Vector(c)
     hx, hy, hz = (v / 2 for v in size)
@@ -780,14 +828,16 @@ def build_details(root):
         # Tie-down ring under each wing.
         lathe(mb, [(-0.004, 0.012), (-0.004, 0.022), (0.004, 0.022), (0.004, 0.012)], "steel",
               wing_bottom(side, 3.0, 0.40) + Vector((0, 0, -0.03)), "y", 8)
-        # Nose bowl air intakes either side of the spinner.
-        lathe(mb, [(-0.002, 0), (-0.002, 0.042), (0.004, 0.042), (0.004, 0)], "engine",
-              (side * 0.085, 1.684, -0.57), "y", 12)
     # Fuel tank cap with the cork-float wire gauge in front of the windscreen.
     lathe(mb, [(0, 0), (0, 0.035), (0.022, 0.035), (0.022, 0)], "steel", (0, 0.93, -0.226), "z", 12)
     tube(mb, [(0, 0.93, -0.20), (0, 0.93, 0.02), (0, 0.97, 0.02)], 0.003, "steel", 5)
+    # Air inlet grille in the nose bowl chin.
+    box(mb, (0, 1.712, -0.745), (0.17, 0.012, 0.065), "cavity")
+    for k in range(-4, 5):
+        box(mb, (k * 0.018, 1.718, -0.745), (0.005, 0.01, 0.062), "engine")
     # Carburettor air scoop under the cowl.
-    box(mb, (0, 1.30, -1.045), (0.12, 0.18, 0.06), "engine")
+    lathe(mb, [(0, 0), (0, 0.045), (0.16, 0.04), (0.17, 0)], "blue", (0, 1.38, -1.0), "y", 12, -1)
+    lathe(mb, [(0, 0), (0, 0.036), (0.005, 0.036), (0.005, 0)], "cavity", (0, 1.381, -1.0), "y", 12)
     # Pitot tube under the left wing.
     base = wing_bottom(-1, 3.4, 0.25)
     tube(mb, [base, base + Vector((0, 0, -0.10)), base + Vector((0, 0.18, -0.10))], 0.006, "steel", 6)
@@ -810,31 +860,53 @@ def build_engine(root):
     lathe(cb, [(0, 0), (0, 0.05), (0.04, 0.05), (0.04, 0)], "steel", (0, 1.57, -0.62), "y", 12)  # prop flange
     obj("Engine_crankcase", cb, eng, smooth=30)
     fins = []
-    for k in range(10):
-        fins += [(k * 0.016, 0.058), (k * 0.016 + 0.008, 0.078)]
-    hfins = []
-    for k in range(6):
-        hfins += [(k * 0.014, 0.072), (k * 0.014 + 0.007, 0.092)]
+    for k in range(8):
+        fins += [(k * 0.016, 0.054), (k * 0.016 + 0.008, 0.072)]
     n = 0
-    for side in (1, -1):
-        for y in ((1.28, 1.48) if side > 0 else (1.38, 1.58)):
-            n += 1
-            m = MB()
-            hw = half_width(y)
-            base = Vector((side * (hw - 0.07), y, -0.50))
-            lathe(m, [(0, 0)] + fins + [(0.16, 0.058), (0.16, 0)], "engine", base, "x", 12, side)
-            head = base + Vector((side * 0.16, 0, 0))
-            lathe(m, [(0, 0)] + hfins + [(0.085, 0.07), (0.10, 0.05), (0.10, 0)], "engine", head, "x", 14, side)
-            box(m, head + Vector((side * 0.05, 0, 0.075)), (0.09, 0.10, 0.044), "steel")  # rocker cover
-            tube(m, [head + Vector((side * 0.03, 0.03, 0.09)), head + Vector((side * 0.03, 0.05, 0.16))],
-                 0.006, "tyre", 5)  # spark plug lead
-            obj(f"Engine_cylinder_{n}", m, eng, smooth=45)
     xb = MB()
     for side in (1, -1):
-        hw = half_width(1.0)
-        tube(xb, [(side * (half_width(1.53) + 0.03), 1.53, -0.60), (side * (half_width(1.40) + 0.04), 1.40, -0.67),
-                  (side * (hw + 0.03), 1.05, -0.67), (side * (hw + 0.02), 0.92, -0.72)], 0.024, "exhaust", 10)
+        y0, z0, ay, az = CYL_OPEN[side]
+        for y in (y0 - 0.083, y0 + 0.083):
+            n += 1
+            m = MB()
+            sx = surface_x(y, z0)
+            hx = sx + 0.03  # head centre: sticks out of the opening a few centimetres
+            head = Vector((side * hx, y, z0))
+            finned_block(m, head + Vector((0, 0, -0.065)), 0.11, 0.115, 0.12, 8, "engine")
+            box(m, head + Vector((0, 0, 0.075)), (0.095, 0.105, 0.035), "engine")  # rocker cover
+            box(m, head + Vector((0, 0, 0.096)), (0.07, 0.08, 0.008), "steel")
+            lathe(m, [(0, 0)] + fins + [(0.13, 0.054), (0.13, 0)], "engine",
+                  head - Vector((side * 0.055, 0, 0)), "x", 12, -side)  # barrel, inside the cowl
+            plug = head + Vector((side * 0.057, 0.025, 0.02))
+            lathe(m, [(0, 0), (0, 0.009), (0.025, 0.009), (0.025, 0)], "steel", plug, "x", 6, side)
+            tube(m, [plug + Vector((side * 0.025, 0, 0)), plug + Vector((side * 0.035, 0, 0.03)),
+                     plug + Vector((side * 0.0, -0.05, 0.06)), plug + Vector((-side * 0.06, -0.12, 0.06))],
+                 0.005, "tyre", 5)  # ignition lead, back over the head towards the magnetos
+            obj(f"Engine_cylinder_{n}", m, eng, smooth=40)
+            # Exhaust: down from the head into a collector along the cowl side.
+            port = head + Vector((side * 0.02, 0, -0.07))
+            tube(xb, [port, port + Vector((side * 0.02, -0.01, -0.06)),
+                      Vector((side * (surface_x(y - 0.03, -0.645) + 0.032), y - 0.04, -0.645))], 0.022, "exhaust", 10)
+        ys = [y0 + 0.06, y0 - 0.12, 1.22, 1.10]
+        tube(xb, [Vector((side * (surface_x(yy, -0.645) + 0.032), yy, -0.645)) for yy in ys], 0.026, "exhaust", 12)
+        boss = Vector((side * (surface_x(1.06, -0.645) - 0.01), 1.06, -0.645))
+        lathe(xb, [(0, 0.06), (0, 0.065), (0.035, 0.065), (0.035, 0.045), (0.02, 0.03), (0.02, 0)],
+              "exhaust", boss, "x", 16, side)  # carb heat muff where the pipe enters
     obj("Engine_exhaust", xb, eng, smooth=45)
+    rim = MB()
+    for side in (1, -1):
+        y0, z0, ay, az = CYL_OPEN[side]
+        pts = []
+        for k in range(29):
+            t = 2 * math.pi * k / 28
+            y, z = y0 + ay * math.cos(t), z0 + az * math.sin(t)
+            pts.append(Vector((side * (surface_x(y, z) + 0.004), y, z)))
+        tube(rim, pts, 0.008, "cowl_edge", 6, cap=False)
+        # Dark cavity behind the heads so the opening reads as a hole.
+        cav = [Vector((side * (surface_x(p.y, p.z) - 0.10), p.y, p.z)) for p in pts[:-1]]
+        ring = [rim.vert(p) for p in cav]
+        rim.face(ring, "cavity")
+    obj("Cowl_openings", rim, bpy.data.objects["Cowling"], smooth=50)
     ib = MB()
     box(ib, (0, 1.22, -0.78), (0.08, 0.09, 0.10), "steel")  # carburettor
     for side in (1, -1):
@@ -884,8 +956,8 @@ def build_prop(root):
     obj("Blades", bb, p, smooth=50)
 
     sb = MB()
-    lathe(sb, [(-0.04, 0), (-0.04, 0.085), (0.02, 0.083), (0.08, 0.06), (0.13, 0.03), (0.16, 0)],
-          "steel", PROP, "y", 16)
+    lathe(sb, [(-0.02, 0), (-0.02, 0.068), (0.03, 0.064), (0.075, 0.042), (0.11, 0.016), (0.125, 0)],
+          "engine", PROP, "y", 16)
     obj("Spinner", sb, p, smooth=60)
 
     db = MB()
@@ -1015,14 +1087,28 @@ def rules_fuselage(P, Nn, part):
     fr = (y < -1.05)
     height += np.where(fr, fr_in * 0.6, 0)
     col = pt.mix(col, col * 0.78, np.where(fr, fr_edge * 0.5, 0))
-    seam = np.exp(-((y - 1.0) / 0.003) ** 2) + np.exp(-((y - 1.40) / 0.003) ** 2) * cowl
-    seam += np.exp(-((z - zs) / 0.003) ** 2) * cowl
+    seam = np.exp(-((y - 1.0) / 0.003) ** 2) + np.exp(-((y - 1.60) / 0.003) ** 2) * cowl
+    seam += np.exp(-((z - zs) / 0.003) ** 2) * cowl * (y < 1.60)
+    seam += np.exp(-(x / 0.004) ** 2) * cowl * (z > zt - 0.05) * (y < 1.60)  # top cowl halves meet
     col = pt.mix(col, col * 0.35, np.clip(seam, 0, 1) * 0.8)
-    rivet_row = (np.abs(y - 1.0) < 0.012) | ((np.abs(y - 1.40) < 0.012) & cowl)
+    rivet_row = (np.abs(y - 1.0) < 0.012) | ((np.abs(y - 1.60) < 0.012) & cowl)
     rv = ((np.abs((z + 0.0175) % 0.035 - 0.0175) < 0.004) & rivet_row).astype(np.float32)
     height += rv * 0.3
     col = pt.mix(col, col * 0.7, rv * 0.35)
 
+    # Cylinder openings: dark engine bay seen through the cowl, rivets round the edge.
+    for sgn, (oy, oz, ay, az) in CYL_OPEN.items():
+        e = np.sqrt(((y - oy) / ay) ** 2 + ((z - oz) / az) ** 2)
+        on = (np.sign(x) == sgn) & cowl
+        hole = (e < 1.0) & on
+        col = np.where(hole[:, None], np.array([0.012, 0.010, 0.009], np.float32), col)
+        ring = on & (e > 1.05) & (e < 1.16)
+        ang = np.arctan2((z - oz) / az, (y - oy) / ay)
+        rv2 = ring & (np.abs(((ang * 14 / np.pi) % 1.0) - 0.5) < 0.12)
+        col = pt.mix(col, col * 0.55, rv2.astype(np.float32) * 0.6)
+        height += rv2 * 0.3
+        stain = on & (e < 1.8) & (e >= 1.0)
+        col = pt.mix(col, SOOT, stain * np.clip(1.8 - e, 0, 1) * 0.35 * pt.fbm(P, 20.0, 2, seed=17))
     col, chip = chips(P, Nn, col, rough, metal, blue, np.where(cowl, 0.80, 0.86),
                       np.where(cowl[:, None], METAL, np.where(blue[:, None], PRIMER, CREAM * 0.8)))
     metal = np.where(cowl, chip * 0.9, metal)
