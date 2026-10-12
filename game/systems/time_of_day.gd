@@ -23,6 +23,9 @@ const BETA_OZONE := Vector3(0.65e-6, 1.88e-6, 0.085e-6)
 @export var year := 1983
 @export_range(1, 365) var day_of_year := 166  # mid June
 @export var latitude_deg := 25.0
+@export var longitude_deg := -99.0
+## Milky Way brightness relative to the stars.
+@export var milkyway_brightness := 1.0
 
 var sun: DirectionalLight3D
 var environment: Environment
@@ -30,15 +33,17 @@ var weather: Weather  # optional: cloud cover
 var camera: Camera3D  # optional: altitude for the sky
 var _moon: DirectionalLight3D
 var _sky: ShaderMaterial
+var stars: StarField
 var _sun_dir := Vector3.UP
 var _cloud_time := 0.0
 
 
 ## Call once the world has its Sun and WorldEnvironment.
-func setup(sun_light: DirectionalLight3D, env: Environment, lat_deg: float) -> void:
+func setup(sun_light: DirectionalLight3D, env: Environment, lat_deg: float, lon_deg := -99.0) -> void:
 	sun = sun_light
 	environment = env
 	latitude_deg = lat_deg
+	longitude_deg = lon_deg
 	_sky = ShaderMaterial.new()
 	_sky.shader = preload("res://world/sky.gdshader")
 	env.sky.sky_material = _sky
@@ -75,6 +80,11 @@ func setup(sun_light: DirectionalLight3D, env: Environment, lat_deg: float) -> v
 	_moon.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	sun.add_sibling(_moon)
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY  # the sky shader draws its own sun
+	_sky.set_shader_parameter("milkyway", preload("res://world/sky/milkyway_4k.webp"))
+	stars = StarField.new()
+	stars.name = "Stars"
+	stars.camera = camera
+	sun.add_sibling(stars)
 	_update()
 
 
@@ -123,10 +133,16 @@ func sun_direction() -> Vector3:
 	return _sun_dir
 
 
+## Days since 1970-01-01 00:00 UT for the game clock (local mean solar time).
+func unix_days() -> float:
+	var jan1 := Time.get_unix_time_from_datetime_dict({"year": year, "month": 1, "day": 1, "hour": 0, "minute": 0, "second": 0})
+	var ut_hours := hours - longitude_deg / 15.0
+	return jan1 / 86400.0 + (day_of_year - 1) + ut_hours / 24.0
+
+
 ## 0 new moon, 0.5 full, from the date.
 func moon_phase() -> float:
-	var days := (year - 1970) * 365.25 + day_of_year - 1 + hours / 24.0
-	return fposmod((days - NEW_MOON_EPOCH) / SYNODIC_DAYS, 1.0)
+	return fposmod((unix_days() - NEW_MOON_EPOCH) / SYNODIC_DAYS, 1.0)
 
 
 func moon_illumination() -> float:
@@ -165,7 +181,15 @@ func _update() -> void:
 	_sky.set_shader_parameter("sun_intensity", 22.0)
 	_sky.set_shader_parameter("moon_intensity", 22.0 * 2.5e-4 * lit * clampf(moon_dir.y * 5.0, 0.0, 1.0))
 	_sky.set_shader_parameter("moon_phase", phase)
-	_sky.set_shader_parameter("star_intensity", 0.5 * night * night * (1.0 - 0.8 * cover))
+	# Stars and Milky Way: only once the sky is dark enough, hidden by cloud.
+	var star_vis := pow(night, 2.5) * (1.0 - 0.85 * cover)
+	var cel := celestial_basis()
+	_sky.set_shader_parameter("star_intensity", star_vis)
+	_sky.set_shader_parameter("celestial_to_world", cel)
+	_sky.set_shader_parameter("milkyway_intensity", star_vis * milkyway_brightness)
+	if stars:
+		stars.celestial_basis = cel
+		stars.set_intensity(star_vis)
 	_sky.set_shader_parameter("camera_altitude", cam_alt)
 	_sky.set_shader_parameter("cloud_cover", cover)
 	_sky.set_shader_parameter("cloud_time", _cloud_time)
@@ -178,6 +202,23 @@ func _update() -> void:
 	environment.adjustment_saturation = lerpf(1.0, 0.45, night)
 	environment.ambient_light_energy = lerpf(1.0, 0.6, night)
 	environment.glow_intensity = lerpf(0.5, 0.9, night)
+
+
+## Local sidereal time in hours (game clock is local mean solar time).
+func local_sidereal_hours() -> float:
+	var days_since_j2000 := unix_days() - 10957.5  # J2000.0 = 2000-01-01 12:00 UT
+	var gmst := 18.697374558 + 24.06570982441908 * days_since_j2000
+	return fposmod(gmst + longitude_deg / 15.0, 24.0)
+
+
+## Turns the celestial frame (x: vernal equinox, z: north pole) into world
+## axes (x east, y up, -z north) for the current time and latitude.
+func celestial_basis() -> Basis:
+	var lst := deg_to_rad(local_sidereal_hours() * 15.0)
+	var lat := deg_to_rad(latitude_deg)
+	# Hour-angle frame -> horizon: x_h -> (0, cos lat, sin lat), y_h -> east, z_h -> pole.
+	var to_world := Basis(Vector3(0.0, cos(lat), sin(lat)), Vector3(1.0, 0.0, 0.0), Vector3(0.0, sin(lat), -cos(lat)))
+	return to_world * Basis(Vector3(0, 0, 1), -lst)
 
 
 # Fraction of sunlight reaching an observer at `alt_m` along `dir`.

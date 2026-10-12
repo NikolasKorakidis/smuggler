@@ -60,3 +60,6 @@
 | 2026-10-11 | Night: moon phase from the date (1983 calendar), Milky Way, airglow, desaturated night vision, exposure up to 6x | Real nights vary: crescent nights are dark, full-moon nights readable |
 | 2026-10-11 | Perf after overhaul: terrain 81-127 fps at 1080p on M4 (was 164-288) | Still above the 60 fps budget; sky radiance updates incrementally, clouds at half res, atmosphere at quarter res |
 | 2026-10-11 | Fair-weather cloud layer driven by Weather.cloud_cover | Sky realism; base for the fog/rain/cloud step |
+| 2026-10-12 | Night sky from real data: Yale Bright Star Catalogue (9,096 stars) as screen-space points + NASA SVS Deep Star Maps 2020 Milky Way layer; both rotated by local sidereal time | Nikolas: night sky not realistic. Real constellations in the right place for date/time/place; credits in docs/CREDITS.md |
+| 2026-10-12 | Star brightness on a perceptual curve (flux^0.55), Milky Way shown grey-white at eye brightness | Linear flux hid ~90% of naked-eye stars; photo colours look fake to the eye |
+| 2026-10-12 | Calendar maths via exact unix days (sidereal time, moon phase) | Approximate 365.25-day years put the sky ~5.5 h out |

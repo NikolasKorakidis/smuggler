@@ -35,6 +35,17 @@ func _ready() -> void:
 
 func _process(_d: float) -> void:
 	f += 1
+	if args.has("look"):  # --look=az,el (degrees): free camera looking at the sky
+		var cam: Camera3D = world.get_node("CameraRig")
+		cam.target = null
+		var ae: PackedStringArray = String(args.look).split(",")
+		var az := deg_to_rad(float(ae[0]))
+		var el := deg_to_rad(float(ae[1]))
+		var dir := Vector3(sin(az) * cos(el), sin(el), -cos(az) * cos(el))
+		var at: Vector3 = world.aircraft.global_position + Vector3(0, 3, 0)
+		cam.global_position = at
+		cam.look_at(at + dir, Vector3.UP if absf(dir.y) < 0.99 else Vector3.BACK)
+		cam.fov = float(args.get("fov", "80"))
 	if f == 60:
 		get_viewport().get_texture().get_image().save_png(args.get("out", "user://dn.png"))
 		get_tree().quit()
