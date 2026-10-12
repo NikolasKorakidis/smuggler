@@ -1,189 +1,268 @@
 class_name Clouds
 extends Node
-## Volumetric clouds (SunshineClouds 2 compositor effect, MIT) driven by the
-## Weather: cover, base and top, cumulus/stratus shape, drift with the wind
-## aloft, storm towers from the storm cells, lightning glowing inside them.
-## Lit by the same sun, moon and sky as everything else.
+## Our volumetric clouds (clouds.glsl through AtmosphereEffect), driven by the
+## Weather: a low layer (cumulus .. stratus, storm towers with anvils) and a
+## thin mid layer, drifting and leaning with the wind, lit by the same sun,
+## moon and sky as everything else, lightning glowing inside.
 ##
-## Drives the effect directly instead of through the addon's driver node, so
-## light levels change smoothly (the driver rounds them) and an extra soft
-## light from overhead keeps clouds lit by the sky at twilight.
+## The 2D weather map (where clouds are) is generated once on a worker
+## thread; its histogram turns "cover 0.3" into a threshold that really covers
+## 30% of the sky. The same map answers "is this point in cloud?" on the CPU.
 
-const RESOURCE := "res://addons/SunshineClouds2/SunshineCloudsGDTestResource.tres"
-## Storm tower: heights above the cloud base (m) and radius factors.
-const TOWER := [[500.0, 2.4], [1800.0, 2.3], [3300.0, 2.1], [4900.0, 1.9], [6500.0, 1.8], [8000.0, 2.2], [9300.0, 3.6]]
-const STORM_TOP := 10500.0
+const MAP_SIZE := 512
+const MAP_TILE_M := 51200.0  # one map tile spans 51.2 km, then repeats
+const SHAPE_TILE_M := 4500.0
+const DETAIL_TILE_M := 380.0
+const PLANET_R := 6360000.0
+const STORM_TOP_ABOVE_BASE := 9500.0
 
-var effect: SunshineCloudsGD
 var weather: Weather
 var tod: TimeOfDay
+var atmosphere: AtmosphereEffect
 ## Sky radiance near the horizon and overhead (set by WeatherFX).
 var horizon := Vector3(0.5, 0.6, 0.8)
 var zenith := Vector3(0.1, 0.2, 0.5)
+## Ray-march steps (quality).
+var steps := 96
 
-var _gradient := Gradient.new()
-var _gradient_tex := GradientTexture1D.new()
-var _shape_key := Vector2(-1, -1)
-var _pos := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]  # extra large, large, medium, small
-var _flashes: Array[Dictionary] = []  # lightning glowing in the cloud
+var _map: Image
+var _map_tex: ImageTexture
+var _task := -1
+# Sorted samples of the three coverage fields (cumulus, stratus, mid) for quantiles.
+var _q_cu := PackedFloat32Array()
+var _q_st := PackedFloat32Array()
+var _q_mid := PackedFloat32Array()
+var _shape_off := Vector2.ZERO
+var _detail_off := Vector2.ZERO
+var _map_off := Vector2.ZERO
+var _flashes: Array[Dictionary] = []
 
 
-func _init(w: Weather, t: TimeOfDay) -> void:
+func _init(w: Weather, t: TimeOfDay, effect: AtmosphereEffect) -> void:
 	weather = w
 	tod = t
-	effect = (load(RESOURCE) as SunshineCloudsGD).duplicate()
-	effect.resolution_scale = 2  # quarter resolution, upscaled (soft clouds)
-	# Right after the sky (not before transparents) so refracting glass sees the clouds.
-	effect.effect_callback_type = CompositorEffect.EFFECT_CALLBACK_TYPE_POST_SKY
-	effect.max_step_count = 48
-	effect.max_lighting_steps = 10
-	effect.min_step_distance = 90.0
-	effect.max_step_distance = 220.0
-	effect.lighting_travel_distance = 3000.0
-	effect.extra_large_noise_scale = 60000.0
-	effect.large_noise_scale = 14000.0
-	effect.medium_noise_scale = 4200.0
-	effect.small_noise_scale = 1300.0
-	effect.curl_noise_strength = 450.0
-	effect.clouds_density = 1.0
-	effect.atmospheric_density = 0.0  # our fog effect does the haze
-	effect.fog_effect_ground = 0.0
-	effect.use_environment_fog = 0.0
-	_gradient_tex.width = 128
-	_gradient_tex.gradient = _gradient
-	effect.height_gradient = _gradient_tex
+	atmosphere = effect
+	name = "Clouds"
+
+
+func _ready() -> void:
 	weather.lightning.connect(_on_lightning)
+	weather.cloud_probe = density_at
+	_task = WorkerThreadPool.add_task(_build_map)
+
+
+func _exit_tree() -> void:
+	if _task != -1:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+
+
+# Weather map: R cumulus cells, G regional patchiness, B mid-scale, A fine.
+func _build_map() -> void:
+	var cells := FastNoiseLite.new()
+	cells.noise_type = FastNoiseLite.TYPE_CELLULAR
+	cells.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	cells.cellular_distance_function = FastNoiseLite.DISTANCE_EUCLIDEAN
+	cells.frequency = 0.045  # cells ~2.2 km apart (100 m per pixel)
+	cells.cellular_jitter = 1.0
+	cells.seed = 11
+	var regional := FastNoiseLite.new()
+	regional.noise_type = FastNoiseLite.TYPE_PERLIN
+	regional.fractal_type = FastNoiseLite.FRACTAL_FBM
+	regional.fractal_octaves = 3
+	regional.frequency = 0.006
+	regional.seed = 23
+	var mid := FastNoiseLite.new()
+	mid.noise_type = FastNoiseLite.TYPE_PERLIN
+	mid.fractal_type = FastNoiseLite.FRACTAL_FBM
+	mid.fractal_octaves = 4
+	mid.frequency = 0.02
+	mid.seed = 37
+	var fine := FastNoiseLite.new()
+	fine.noise_type = FastNoiseLite.TYPE_CELLULAR
+	fine.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	fine.frequency = 0.12
+	fine.seed = 41
+	var imgs := []
+	for n in [cells, regional, mid, fine]:
+		var im: Image = n.get_seamless_image(MAP_SIZE, MAP_SIZE, false, false, 0.1, true)
+		im.convert(Image.FORMAT_L8)
+		imgs.append(im)
+	var data := PackedByteArray()
+	data.resize(MAP_SIZE * MAP_SIZE * 4)
+	var c_data: PackedByteArray = imgs[0].get_data()
+	var r_data: PackedByteArray = imgs[1].get_data()
+	var m_data: PackedByteArray = imgs[2].get_data()
+	var f_data: PackedByteArray = imgs[3].get_data()
+	var n := MAP_SIZE * MAP_SIZE
+	var cu := PackedFloat32Array()
+	var st := PackedFloat32Array()
+	var md := PackedFloat32Array()
+	cu.resize(n / 16)
+	st.resize(n / 16)
+	md.resize(n / 16)
+	for i in n:
+		# Cellular distance is small at the cell centre: invert so centres are high.
+		var r := 255 - c_data[i]
+		var a := 255 - f_data[i]
+		data[i * 4] = r
+		data[i * 4 + 1] = r_data[i]
+		data[i * 4 + 2] = m_data[i]
+		data[i * 4 + 3] = a
+		if i % 16 == 0:
+			var k := i / 16
+			cu[k] = (r * 0.65 + a * 0.2 + r_data[i] * 0.15) / 255.0
+			st[k] = (r_data[i] * 0.55 + m_data[i] * 0.35 + a * 0.1) / 255.0
+			md[k] = (m_data[i] * 0.5 + a * 0.3 + r_data[i] * 0.2) / 255.0
+	cu.sort()
+	st.sort()
+	md.sort()
+	_q_cu = cu
+	_q_st = st
+	_q_mid = md
+	_map = Image.create_from_data(MAP_SIZE, MAP_SIZE, false, Image.FORMAT_RGBA8, data)
+
+
+static func _quantile(sorted: PackedFloat32Array, q: float) -> float:
+	if sorted.is_empty():
+		return 0.5
+	return sorted[clampi(int(q * (sorted.size() - 1)), 0, sorted.size() - 1)]
 
 
 func _process(delta: float) -> void:
+	if _task != -1:
+		if not WorkerThreadPool.is_task_completed(_task):
+			return
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+		_map_tex = ImageTexture.create_from_image(_map)
+		atmosphere.weather_texture = _map_tex
+	if _map_tex == null:
+		return
 	var w := weather
 	var field := w.field_elevation_m
-	var storms := not w.cells.is_empty()
-	var floor_y := field + w.cloud_base_m
-	var top_y := field + maxf(w.cloud_top_m, w.cloud_base_m + 200.0)
-	var ceiling := maxf(top_y, field + w.cloud_base_m + STORM_TOP) if storms else top_y
-	effect.cloud_floor = floor_y
-	effect.cloud_ceiling = ceiling
-	_update_shape((top_y - floor_y) / maxf(ceiling - floor_y, 1.0), w.cloud_type)
-	effect.clouds_coverage = _coverage_param(w.cloud_cover)
-	effect.clouds_detail_power = lerpf(1.1, 0.5, w.cloud_type)
-	effect.clouds_sharpness = lerpf(0.75, 0.45, w.cloud_type)
-	effect.lighting_density = lerpf(1.0, 1.6, w.cloud_type)
-
-	# Drift with the wind at cloud height (detail churns a little faster).
+	var cumulus := 1.0 - w.cloud_type
+	# Wind: clouds drift with the wind at their height; detail churns faster.
 	var wind := w.air_velocity(w.cloud_base_m)
-	var speeds := [0.6, 1.0, 1.15, 1.4]
-	var domains := [effect.extra_large_noise_scale, effect.large_noise_scale, effect.medium_noise_scale, effect.small_noise_scale]
+	var wind2 := Vector2(wind.x, wind.z)
+	_map_off = _wrap2(_map_off - wind2 * delta, MAP_TILE_M)
+	_shape_off = _wrap2(_shape_off - wind2 * delta * 1.05, SHAPE_TILE_M)
+	_detail_off = _wrap2(_detail_off - wind2 * delta * 1.4 - Vector2(0.6, 0.3) * delta, DETAIL_TILE_M)
+	# Lean downwind with height (the tops are blown further).
+	var aloft := w.air_velocity(w.cloud_top_m)
+	var lean := Vector2(aloft.x - wind.x, aloft.z - wind.z) * 0.02
+
+	var base_y := field + w.cloud_base_m
+	var top_y := field + maxf(w.cloud_top_m, w.cloud_base_m + 250.0)
+	var cover := clampf(w.cloud_cover, 0.0, 1.0)
+	var tau := lerpf(_quantile(_q_st, 1.0 - cover), _quantile(_q_cu, 1.0 - cover), cumulus)
+	if cover >= 0.999:
+		tau = -1.0
+	var any_storm := not w.cells.is_empty()
+	var density := 1.0 if cover > 0.005 or any_storm else 0.0
+	if cover <= 0.005:
+		tau = 2.0  # no layer cloud, storms only (the shader skips the layer)
+	var out := PackedFloat32Array()
+	# low: bottom, top, extinction, type (0.5 cumulus .. 0 stratus)
+	out.append_array([base_y, top_y, lerpf(0.035, 0.07, cumulus), 0.5 * cumulus])
+	# cov: threshold, softness, edge erosion, density
+	out.append_array([tau, lerpf(0.09, 0.07, cumulus), lerpf(0.3, 0.5, cumulus), density])
+	# mid layer
+	if w.mid_cover > 0.01:
+		out.append_array([field + w.mid_base_m, field + w.mid_top_m, _quantile(_q_mid, 1.0 - w.mid_cover), 0.02])
+	else:
+		out.append_array([0.0, 0.0, 2.0, 0.0])
+	out.append_array([_shape_off.x, _shape_off.y, _detail_off.x, _detail_off.y])
+	out.append_array([_map_off.x, _map_off.y, lean.x, lean.y])
+	out.append_array([SHAPE_TILE_M, DETAIL_TILE_M, MAP_TILE_M, PLANET_R])
+	# Sun, or the moon once the sun is down.
+	var sun := tod.sun
+	var light := sun
+	if tod._moon and tod._moon.light_energy > sun.light_energy:
+		light = tod._moon
+	var ld := light.global_transform.basis.z.normalized()
+	var e := light.light_energy if light.visible else 0.0
+	var lc := light.light_color * e * 1.1
+	out.append_array([ld.x, ld.y, ld.z, 0.5])
+	out.append_array([lc.r, lc.g, lc.b, 0.0])
+	# Sky light on the tops; from below the ground bounce (sunlit grass and soil).
+	var top_amb := zenith * 1.1 + horizon * 0.12
+	var sun_e := sun.light_energy if sun.visible else 0.0
+	var sun_up := maxf(sun.global_transform.basis.z.y, 0.0)
+	var ground := sun.light_color * sun_e * sun_up * 0.035
+	var bottom_amb := horizon * 0.12 + Vector3(ground.r, ground.g * 0.95, ground.b * 0.8)
+	out.append_array([top_amb.x, top_amb.y, top_amb.z, 0.0])
+	out.append_array([bottom_amb.x, bottom_amb.y, bottom_amb.z, 0.0])
+	_step_flashes(delta)
+	var n_storms := mini(w.cells.size(), 8)
+	out.append_array([float(n_storms), float(mini(_flashes.size(), 4)), 0.0, float(steps)])
+	out.append_array([field, 60000.0, 0.12, 6.0])
+	var storms := PackedFloat32Array()
+	var storms_b := PackedFloat32Array()
+	for i in 8:
+		if i < n_storms:
+			var c := w.cells[i]
+			var k := c.cloud_k()
+			storms.append_array([c.pos.x, c.pos.y, c.radius * 1.7 * (0.5 + 0.5 * k), base_y + STORM_TOP_ABOVE_BASE * (0.3 + 0.7 * k)])
+			storms_b.append_array([clampf(k * (0.6 + 0.4 * c.strength), 0.0, 1.0), 1.5 * c.mature_k() + 0.3, 0.0, 0.0])
+		else:
+			storms.append_array([0.0, 0.0, 1.0, 0.0])
+			storms_b.append_array([0.0, 0.0, 0.0, 0.0])
+	out.append_array(storms)
+	out.append_array(storms_b)
 	for i in 4:
-		_pos[i] = _wrap(_pos[i] + wind * speeds[i] * delta, domains[i] * 0.5)
-	effect.extra_large_scale_clouds_position = _pos[0]
-	effect.large_scale_clouds_position = _pos[1]
-	effect.medium_scale_clouds_position = _pos[2]
-	effect.detail_clouds_position = _pos[3] + Vector3.UP * 0.4 * Time.get_ticks_msec() / 1000.0
-	effect.wind_direction = wind.normalized() if wind.length() > 0.1 else Vector3.RIGHT
-	effect.current_time = wrapf(effect.current_time + delta * effect.dither_speed, 0.0, effect.dither_speed * 64.0)
+		if i < _flashes.size():
+			var f: Dictionary = _flashes[i]
+			out.append_array([f.pos.x, f.pos.y, f.pos.z, f.level])
+		else:
+			out.append_array([0.0, 0.0, 0.0, 0.0])
+	atmosphere.set_cloud_params(out)
 
-	# Light. The effect raises colour x energy to the power 2.2, so hand it the
-	# 1/2.2 root to keep brightness proportional to the real light.
-	# Only the lights that are actually shining (each costs a lighting march).
-	var dir_data: Array[Vector4] = []
-	if tod.sun.visible and tod.sun.light_energy > 0.002:
-		_add_light(dir_data, tod.sun, 10, 0.55)
-	if tod._moon and tod._moon.visible and tod._moon.light_energy > 0.002 and tod.sun.light_energy < 0.2:
-		_add_light(dir_data, tod._moon, 6, 0.55)
-	# Soft light from overhead: the sky dome (keeps twilight clouds lit).
-	var sky := (zenith * 0.6 + horizon * 0.4) * 0.9
-	var sky_e := maxf(maxf(sky.x, sky.y), maxf(sky.z, 1e-6))
-	dir_data.append(Vector4(0.0, 1.0, 0.0, 3.0))
-	dir_data.append(Vector4(pow(sky.x / sky_e, 1.0 / 2.2), pow(sky.y / sky_e, 1.0 / 2.2), pow(sky.z / sky_e, 1.0 / 2.2), pow(sky_e, 1.0 / 2.2)))
-	# Ambient is scaled by the summed light energies inside the effect: divide it out.
-	var total := 0.0
-	for i in range(1, dir_data.size(), 2):
-		var up := smoothstep(-0.03, 0.07, dir_data[i - 1].y)
-		total += dir_data[i].w * up
-	var amb := (zenith + horizon) * 0.35 / maxf(total, 1e-4)
-	effect.cloud_ambient_color = Color(amb.x, amb.y, amb.z)
-	effect.ambient_occlusion_color = Color(0.35, 0.38, 0.45, 0.7)  # darker undersides
-	effect.atmosphere_color = Color(horizon.x, horizon.y, horizon.z)
 
-	var point_data: Array[Vector4] = []
+func _step_flashes(delta: float) -> void:
 	for i in range(_flashes.size() - 1, -1, -1):
 		var f: Dictionary = _flashes[i]
 		f.t += delta
 		if f.t > f.len:
 			_flashes.remove_at(i)
 			continue
-		# Flicker: a few return strokes in a fraction of a second.
-		var k: float = (1.0 - f.t / f.len) * (0.6 + 0.4 * sin(f.t * 90.0 + f.seed))
-		point_data.append(Vector4(f.pos.x, f.pos.y, f.pos.z, f.range))
-		point_data.append(Vector4(0.85, 0.88, 1.0, pow(f.power * k * 40.0, 1.0 / 2.2)))
-
-	var eff_data: Array[Vector4] = []
-	for c in w.cells:
-		var k := c.cloud_k()
-		if k <= 0.01:
-			continue
-		for level in TOWER:
-			if eff_data.size() >= 128:
-				break
-			var h: float = level[0] * (0.35 + 0.65 * k)  # the tower grows upward
-			eff_data.append(Vector4(c.pos.x, floor_y + h, c.pos.y, c.radius * level[1] * (0.6 + 0.4 * k)))
-			eff_data.append(Vector4(2.2 * k * c.strength, 0.0, 0.0, 0.0))
-	RenderingServer.call_on_render_thread(_hand_over.bind(dir_data, point_data, eff_data))
-
-
-func _hand_over(dir_data: Array[Vector4], point_data: Array[Vector4], eff_data: Array[Vector4]) -> void:
-	effect.directional_lights_data = dir_data
-	effect.point_lights_data = point_data
-	effect.point_effector_data = eff_data
-	effect.lights_updated = true
-
-
-func _add_light(out: Array[Vector4], light: DirectionalLight3D, steps: int, scale: float) -> void:
-	var e := light.light_energy * scale if light.visible else 0.0
-	var c := light.light_color
-	var d := light.global_transform.basis.z.normalized()
-	out.append(Vector4(d.x, d.y, d.z, steps))
-	out.append(Vector4(pow(c.r, 1.0 / 2.2), pow(c.g, 1.0 / 2.2), pow(c.b, 1.0 / 2.2), pow(e, 1.0 / 2.2)))
-
-
-# Cumulus: flat base, puffy rounded tops, curling. Stratus: a flat sheet.
-# `f` = fraction of the effect's height range the layer fills (storm towers
-# use the rest).
-func _update_shape(f: float, kind: float) -> void:
-	var key := Vector2(snappedf(f, 0.01), snappedf(kind, 0.02))
-	if key == _shape_key:
-		return
-	_shape_key = key
-	var cu := [[0.0, 0.0, 0.4, 1.0, 1.0], [0.06, 1.0, 0.6, 1.0, 1.0], [0.45, 1.0, 0.9, 1.0, 0.7], [0.8, 0.55, 1.0, 1.0, 0.4], [1.0, 0.0, 1.0, 1.0, 0.3]]
-	var st := [[0.0, 0.0, 0.3, 1.0, 1.0], [0.12, 1.0, 0.35, 1.0, 1.0], [0.5, 1.0, 0.4, 1.0, 1.0], [0.88, 1.0, 0.45, 1.0, 1.0], [1.0, 0.0, 0.5, 1.0, 1.0]]
-	var offsets := PackedFloat32Array()
-	var colors := PackedColorArray()
-	for i in cu.size():
-		offsets.append(clampf(lerpf(cu[i][0], st[i][0], kind) * f, 0.0, 1.0))
-		colors.append(Color(lerpf(cu[i][1], st[i][1], kind), lerpf(cu[i][2], st[i][2], kind),
-			lerpf(cu[i][3], st[i][3], kind), lerpf(cu[i][4], st[i][4], kind)))
-	if f < 0.98:  # above the layer: only storm towers (effectors)
-		offsets.append(minf(f + 0.01, 1.0))
-		colors.append(Color(0.0, 1.0, 1.0, 0.5))
-		offsets.append(1.0)
-		colors.append(Color(0.0, 1.0, 1.0, 0.5))
-	_gradient.offsets = offsets
-	_gradient.colors = colors
-
-
-# Cover 0..1 to the effect's coverage parameter (calibrated by eye).
-func _coverage_param(cover: float) -> float:
-	if cover <= 0.01:
-		return 0.0
-	return lerpf(0.28, 0.9, pow(clampf(cover, 0.0, 1.0), 0.8))
+		# A few return strokes in a fraction of a second.
+		f.level = f.power * (1.0 - f.t / f.len) * (0.55 + 0.45 * sin(f.t * 90.0 + f.seed)) * 6.0
 
 
 func _on_lightning(at: Vector3, to_ground: bool, power: float) -> void:
-	var h := maxf(at.y, weather.field_elevation_m + weather.cloud_base_m + 1500.0)
-	_flashes.append({"pos": Vector3(at.x, h, at.z), "range": 5000.0 if to_ground else 3500.0,
-		"power": power, "t": 0.0, "len": randf_range(0.25, 0.6), "seed": randf() * 10.0})
+	var h := maxf(at.y, weather.field_elevation_m + weather.cloud_base_m + (300.0 if to_ground else 2500.0))
+	_flashes.append({"pos": Vector3(at.x, h, at.z), "power": power * (1.4 if to_ground else 1.0), "t": 0.0,
+		"len": randf_range(0.3, 0.7), "seed": randf() * 10.0, "level": 0.0})
 
 
-static func _wrap(v: Vector3, half: float) -> Vector3:
-	return Vector3(wrapf(v.x, -half, half), wrapf(v.y, -half, half), wrapf(v.z, -half, half))
+## How much cloud there is at a world point (0 clear .. 1 thick), from the
+## weather map (no fine noise): for in-cloud flying (whiteout, turbulence, wet glass).
+func density_at(at: Vector3) -> float:
+	if _map == null:
+		return 0.0
+	var w := weather
+	var h := (at.y - w.field_elevation_m - w.cloud_base_m) / maxf(w.cloud_top_m - w.cloud_base_m, 1.0)
+	var storm := 0.0
+	for c in w.cells:
+		var r := c.radius * 1.7 * (0.5 + 0.5 * c.cloud_k())
+		var top := STORM_TOP_ABOVE_BASE * (0.3 + 0.7 * c.cloud_k())
+		var hs := (at.y - w.field_elevation_m - w.cloud_base_m) / top
+		if hs > 0.0 and hs < 1.0:
+			storm = maxf(storm, (1.0 - smoothstep(0.45 * r, r, Vector2(at.x, at.z).distance_to(c.pos))) * c.cloud_k())
+	if h <= 0.0 or h >= 1.0 or w.cloud_cover <= 0.005:
+		return storm
+	var uv := (Vector2(at.x, at.z) + _map_off) / MAP_TILE_M
+	var px := _map.get_pixel(posmod(int(uv.x * MAP_SIZE), MAP_SIZE), posmod(int(uv.y * MAP_SIZE), MAP_SIZE))
+	var cumulus := 1.0 - w.cloud_type
+	var f := lerpf(px.g * 0.55 + px.b * 0.35 + px.a * 0.1, px.r * 0.65 + px.a * 0.2 + px.g * 0.15, cumulus)
+	var tau := lerpf(_quantile(_q_st, 1.0 - w.cloud_cover), _quantile(_q_cu, 1.0 - w.cloud_cover), cumulus)
+	if w.cloud_cover >= 0.999:
+		tau = -1.0
+	var cov := smoothstep(tau - 0.05, tau + 0.05, f)
+	var prof := smoothstep(0.0, 0.1, h) * (1.0 - smoothstep(lerpf(0.55, 0.3, cumulus), 1.0, h))
+	return maxf(cov * prof, storm)
+
+
+static func _wrap2(v: Vector2, tile: float) -> Vector2:
+	return Vector2(fposmod(v.x, tile), fposmod(v.y, tile))

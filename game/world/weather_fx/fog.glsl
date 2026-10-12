@@ -35,9 +35,13 @@ layout(set = 0, binding = 2, std430) restrict readonly buffer Params {
 	vec4 cell_tops[MAX_CELLS];  // x = shaft top y (cloud base)
 } p;
 
+layout(set = 0, binding = 3) uniform sampler2D cloud_color;  // half res: light, transmittance
+layout(set = 0, binding = 4) uniform sampler2D cloud_depth;  // half res: cloud distance, scene distance
+
 layout(push_constant, std430) uniform Push {
 	vec2 size;
-	vec2 pad;
+	float clouds_on;
+	float pad;
 } pc;
 
 float hash12(vec2 q) {
@@ -133,9 +137,39 @@ void main() {
 	float t = length(vp);
 	vec3 d = normalize(mat3(p.cam) * (vp / t));
 	vec3 o = p.cam[3].xyz;
+	float t_scene = sky ? 1e9 : t;
 	if (sky) {
 		t = p.haze.w;
 		haze_share = p.counts.z;
+	}
+
+	// Clouds (half resolution): pick the samples whose scene depth matches
+	// this pixel, so terrain edges stay sharp against cloud behind them.
+	vec4 cloud = vec4(0.0, 0.0, 0.0, 1.0);
+	float cloud_t = 0.0;
+	if (pc.clouds_on > 0.5) {
+		ivec2 hs = textureSize(cloud_color, 0);
+		vec2 hp = uv * vec2(hs) - 0.5;
+		ivec2 h0 = ivec2(floor(hp));
+		vec2 f = fract(hp);
+		vec4 acc = vec4(0.0);
+		float dacc = 0.0;
+		float wacc = 0.0;
+		for (int j = 0; j < 2; j++) {
+			for (int i = 0; i < 2; i++) {
+				ivec2 c = clamp(h0 + ivec2(i, j), ivec2(0), hs - 1);
+				vec2 dd = texelFetch(cloud_depth, c, 0).rg;
+				float bw = (i == 0 ? 1.0 - f.x : f.x) * (j == 0 ? 1.0 - f.y : f.y);
+				float rel = abs(dd.g - t_scene) / max(min(dd.g, t_scene), 1.0);
+				float w = bw / (0.02 + rel * rel * 50.0) + 1e-6;
+				acc += w * texelFetch(cloud_color, c, 0);
+				dacc += w * dd.r;
+				wacc += w;
+			}
+		}
+		cloud = acc / wacc;
+		cloud_t = dacc / wacc;
+		if (sky && cloud.a < 0.999) t = max(t, cloud_t);
 	}
 
 	// Fog top undulates gently: shift it by noise where this ray meets it.
@@ -158,8 +192,8 @@ void main() {
 	// Rain curtains under storm cells: each is composited as a layer at its
 	// closest approach along the ray, so haze in front of it veils it and haze
 	// behind it is hidden by it.
-	float cs[MAX_CELLS];
-	float ct[MAX_CELLS];
+	float cs[MAX_CELLS + 1];
+	float ct[MAX_CELLS + 1];  // curtain optical depth, or -1 for the cloud layer
 	int nc = 0;
 	for (int i = 0; i < int(p.counts.x); i++) {
 		float tau = cell_tau(p.cells[i], p.cell_tops[i].x, o, d, t);
@@ -178,13 +212,25 @@ void main() {
 		ct[j] = tau;
 		nc++;
 	}
+	if (cloud.a < 0.999) {
+		float sc = clamp(cloud_t, 0.0, t);
+		int j = nc;
+		while (j > 0 && cs[j - 1] < sc) {
+			cs[j] = cs[j - 1];
+			ct[j] = ct[j - 1];
+			j--;
+		}
+		cs[j] = sc;
+		ct[j] = -1.0;
+		nc++;
+	}
 
 	vec4 col = imageLoad(color_image, px);
 	if (p.counts.y > 0.5) {
 		float th = haze_tau(o, d, t);
 		float tf = slab_tau(fog, o, d, t);
 		float tc = 0.0;
-		for (int i = 0; i < nc; i++) tc += ct[i];
+		for (int i = 0; i < nc; i++) tc += max(ct[i], 0.0);
 		if (p.counts.y > 1.5) {  // debug 2: shafts, haze, fog deck amounts
 			imageStore(color_image, px, vec4(1.0 - exp(-tc), 1.0 - exp(-th), 1.0 - exp(-tf), 1.0));
 		} else {  // debug 1: distance thresholds 100 m / 1 km / 10 km
@@ -234,8 +280,12 @@ void main() {
 			col.rgb = col.rgb * trans + lit * (1.0 - trans);
 		}
 		if (i < nc) {
-			float tc = exp(-ct[i]);
-			col.rgb = col.rgb * tc + p.shaft_color.rgb * (1.0 - tc);
+			if (ct[i] < 0.0) {
+				col.rgb = col.rgb * cloud.a + cloud.rgb;  // the clouds, at their distance
+			} else {
+				float tc = exp(-ct[i]);
+				col.rgb = col.rgb * tc + p.shaft_color.rgb * (1.0 - tc);
+			}
 		}
 		h_far = h_near;
 		f_far = f_near;

@@ -25,17 +25,11 @@ func _ready() -> void:
 		if a.begins_with("--nofx="):  # clouds, fog, rain: switch one off to see its cost
 			var fx: WeatherFX = world.get_node("WeatherFX")
 			match a.trim_prefix("--nofx="):
-				"clouds": fx.clouds.effect.enabled = false
-				"fog": fx.fog.enabled = false
+				"clouds": fx.atmosphere.clouds_enabled = false
+				"fog": fx.atmosphere.fog_enabled = false
 				"rain": fx.get_node("Rain").process_mode = Node.PROCESS_MODE_DISABLED
-		if a.begins_with("--cloudq="):  # max steps, lighting steps, blur quality
-			var q := a.trim_prefix("--cloudq=").split(",")
-			var e: SunshineCloudsGD = world.get_node("WeatherFX").clouds.effect
-			e.max_step_count = float(q[0])
-			e.max_lighting_steps = float(q[1])
-			e.blur_quality = float(q[2])
-		if a.begins_with("--cloudres="):
-			world.get_node("WeatherFX").clouds.effect.resolution_scale = int(a.trim_prefix("--cloudres="))
+		if a.begins_with("--cloudsteps="):
+			world.get_node("WeatherFX").clouds.steps = int(a.trim_prefix("--cloudsteps="))
 	await _run()
 	get_tree().quit()
 

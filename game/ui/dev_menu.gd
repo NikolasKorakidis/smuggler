@@ -526,10 +526,9 @@ func _tab_rendering() -> void:
 	_check(b, "Glow / bloom", func(): return _env().glow_enabled, func(on): _env().glow_enabled = on)
 	_section(b, "WEATHER EFFECTS")
 	var fx: WeatherFX = world.get_node("WeatherFX")
-	_check(b, "Volumetric clouds", func(): return fx.clouds.effect.enabled, func(on): fx.clouds.effect.enabled = on)
-	_choice(b, "Cloud resolution", ["Native", "Half", "Quarter", "Eighth"], func(): return fx.clouds.effect.resolution_scale,
-		func(i): fx.clouds.effect.resolution_scale = i)
-	_check(b, "Fog, haze and rain shafts", func(): return fx.fog.enabled, func(on): fx.fog.enabled = on)
+	_check(b, "Volumetric clouds", func(): return fx.atmosphere.clouds_enabled, func(on): fx.atmosphere.clouds_enabled = on)
+	_slider(b, "Cloud quality (steps)", 32, 160, 8, func(): return fx.clouds.steps, func(v): fx.clouds.steps = int(v), "%.0f")
+	_check(b, "Fog, haze and rain shafts", func(): return fx.atmosphere.fog_enabled, func(on): fx.atmosphere.fog_enabled = on)
 	_check(b, "Falling rain", func(): return fx.get_node("Rain").process_mode != Node.PROCESS_MODE_DISABLED,
 		func(on): _toggle_node(fx.get_node("Rain"), on))
 	_choice(b, "Fog debug view", ["Off", "Distances", "Media"], func(): return fx.debug_fog, func(i): fx.debug_fog = i)

@@ -1,14 +1,15 @@
 class_name WeatherFX
 extends Node
 ## Everything you see and hear of the weather, driven from the world's
-## Weather and TimeOfDay: fog/haze/rain shafts (compositor), and later
-## clouds, rain, lightning and wet ground. Add with WeatherFX.attach(world).
+## Weather and TimeOfDay: clouds, fog, haze and rain shafts (AtmosphereEffect),
+## falling rain, lightning, wet ground, thunder and rain sounds.
+## Add with WeatherFX.attach(world).
 
 var world: Node3D
 var weather: Weather
 var tod: TimeOfDay
 var camera: Camera3D
-var fog: FogEffect
+var atmosphere: AtmosphereEffect
 var clouds: Clouds
 ## Fog debug view instead of the picture (dev): 0 off, 1 distances, 2 media.
 var debug_fog := 0
@@ -35,17 +36,15 @@ func _ready() -> void:
 	weather.time_of_day = tod
 	weather.field_elevation_m = world.field_elevation() if world.has_method("field_elevation") else 0.0
 	var env_node: WorldEnvironment = world.get_node("WorldEnvironment")
-	fog = FogEffect.new()
-	clouds = Clouds.new(weather, tod)
-	clouds.name = "Clouds"
+	atmosphere = AtmosphereEffect.new()
+	clouds = Clouds.new(weather, tod, atmosphere)
 	add_child(clouds)
 	add_child(RainField.new(weather, tod, world))
 	add_child(Lightning.new(weather, tod))
 	add_child(WeatherAudio.new(weather, world))
 	var comp := env_node.compositor if env_node.compositor else Compositor.new()
 	var effects := comp.compositor_effects
-	effects.append(clouds.effect)  # clouds first, then fog over them
-	effects.append(fog)
+	effects.append(atmosphere)
 	comp.compositor_effects = effects
 	env_node.compositor = comp
 	env_node.environment.fog_enabled = false  # replaced by the fog effect
@@ -65,7 +64,7 @@ func _process(delta: float) -> void:
 		clouds.zenith = _zenith
 		if tod.stars:
 			tod.stars.set_sky(_horizon, _zenith)
-	fog.set_params(_fog_params())
+	atmosphere.set_fog_params(_fog_params())
 	_set_wetness(weather.wetness)
 
 
@@ -109,17 +108,17 @@ func _fog_params() -> PackedFloat32Array:
 	out.append_array([sc.r, sc.g, sc.b, 0.0])
 	var fs := sun * 0.22 * clampf(sd.y * 4.0 + 0.3, 0.0, 1.0)
 	out.append_array([fs.r, fs.g, fs.b, 0.0])
-	var n := mini(w.cells.size(), FogEffect.MAX_CELLS)
+	var n := mini(w.cells.size(), AtmosphereEffect.MAX_CELLS)
 	# The sky model already holds ~100 km-visibility clean air.
 	var sky_share := clampf(1.0 - (Weather.KOSCHMIEDER / 50000.0) / w.haze_extinction(), 0.0, 1.0)
 	out.append_array([float(n), float(debug_fog), sky_share, 0.0])
-	for i in FogEffect.MAX_CELLS:
+	for i in AtmosphereEffect.MAX_CELLS:
 		if i < n:
-			var c := w.cells[i]
+			var c: StormCell = w.cells[i]
 			out.append_array([c.pos.x, c.pos.y, 0.9 * c.radius, Weather.rain_extinction(60.0 * c.strength * c.rain_k())])
 		else:
 			out.append_array([0.0, 0.0, 1.0, 0.0])
-	for i in FogEffect.MAX_CELLS:
+	for i in AtmosphereEffect.MAX_CELLS:
 		var top := field + (w.cells[i].base_m if i < n else 0.0)
 		out.append_array([top, 0.0, 0.0, 0.0])
 	return out

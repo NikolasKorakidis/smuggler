@@ -25,11 +25,12 @@ func _ready() -> void:
 		var sb: PackedStringArray = String(args.storm).split(",")
 		world.weather.spawn_storm(float(sb[0]), float(sb[1]), 0.45)
 	if args.has("nofx"):  # --nofx=fog|clouds|all: switch weather effects off (A/B)
-		var env_node: WorldEnvironment = world.get_node("WorldEnvironment")
-		for e in env_node.compositor.compositor_effects:
-			var off := String(args.nofx)
-			if off == "all" or (off == "fog" and e is FogEffect) or (off == "clouds" and e is SunshineCloudsGD):
-				e.enabled = false
+		var atm: AtmosphereEffect = world.get_node("WeatherFX").atmosphere
+		var off := String(args.nofx)
+		if off == "all":
+			atm.enabled = false
+		atm.clouds_enabled = off != "clouds"
+		atm.fog_enabled = off != "fog"
 	if args.has("wet"):  # --wet=0..1 ground wetness
 		world.weather.wetness = float(args.wet)
 		world.weather.set_physics_process(false)  # hold it
