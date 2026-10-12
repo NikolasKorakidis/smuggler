@@ -8,22 +8,10 @@
 [ext_resource type="Script" path="res://systems/instruments/cockpit_control.gd" id="ctl"]
 [ext_resource type="Script" path="res://systems/instruments/altimeter_gauge.gd" id="alt"]
 
-[sub_resource type="StandardMaterial3D" id="PanelMat"]
-albedo_color = Color(0.13, 0.13, 0.14, 1)
-roughness = 0.8
-
-[sub_resource type="BoxMesh" id="BoardMesh"]
-material = SubResource("PanelMat")
-size = Vector3(0.5, 0.16, 0.03)
-
 [node name="PanelCub" type="Node3D"]
 
-[node name="Board" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.12, -0.775)
-mesh = SubResource("BoardMesh")
-
 [node name="Airspeed" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.13, -0.12, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.165, -0.1, -1.068)
 script = ExtResource("dial")
 title = "AIRSPEED"
 label_from = 20.0
@@ -43,7 +31,7 @@ arc_to = PackedFloat32Array(90, 122)
 arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1, 0.95, 0.8, 0.1, 1)
 
 [node name="Altimeter" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.045, -0.12, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.055, -0.1, -1.068)
 script = ExtResource("alt")
 title = "ALT"
 unit_label = "FEET"
@@ -60,7 +48,7 @@ label_divisor = 100.0
 second_needle_ratio = 10.0
 
 [node name="Tachometer" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, -0.12, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.055, -0.1, -1.068)
 script = ExtResource("dial")
 title = "RPM"
 unit_label = "x100"
@@ -79,7 +67,7 @@ arc_to = PackedFloat32Array(2350)
 arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
 
 [node name="OilTemp" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.115, -0.105, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, -0.1, -1.068)
 script = ExtResource("dial")
 diameter_m = 0.05
 title = "OIL °F"
@@ -97,7 +85,7 @@ arc_to = PackedFloat32Array(220)
 arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
 
 [node name="OilPressure" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.165, -0.105, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.194, -0.1, -1.068)
 script = ExtResource("dial")
 diameter_m = 0.05
 title = "OIL PSI"
@@ -115,12 +103,12 @@ arc_to = PackedFloat32Array(70)
 arc_colors = PackedColorArray(0.2, 0.75, 0.25, 1)
 
 [node name="Compass" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.035, -0.74)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -1.1)
 script = ExtResource("cmp")
 diameter_m = 0.065
 
 [node name="Magnetos" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.205, -0.17, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.248, -0.135, -1.068)
 script = ExtResource("ctl")
 control = "magnetos"
 label = "SWITCH"
@@ -128,7 +116,7 @@ knob_color = Color(0.1, 0.1, 0.1, 1)
 size_m = 0.026
 
 [node name="CarbHeat" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.13, -0.175, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.205, -0.168, -1.066)
 script = ExtResource("ctl")
 control = "carb_heat"
 label = "CARB HEAT"
@@ -136,7 +124,7 @@ knob_color = Color(0.85, 0.85, 0.82, 1)
 size_m = 0.022
 
 [node name="FuelValve" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.205, -0.17, -0.758)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17, -0.245, -1.058)
 script = ExtResource("ctl")
 control = "fuel_selector"
 label = "FUEL"
@@ -144,7 +132,7 @@ knob_color = Color(0.3, 0.3, 0.3, 1)
 size_m = 0.026
 
 [node name="AltimeterKnob" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.079, -0.156, -0.754)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.089, -0.136, -1.064)
 script = ExtResource("ctl")
 control = "kollsman"
 label = ""

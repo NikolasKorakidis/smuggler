@@ -23,7 +23,7 @@ OUT = os.path.join(REPO, "game", "aircraft", "J3Cub", "model", "cub.glb")
 TEX_DIR = os.path.join(REPO, "art", "blender", "out")  # PNG copies for inspection (not committed)
 # Texture sizes; drop QUALITY to 0.5 while iterating.
 QUALITY = globals().get("QUALITY", 1.0)
-TEX = {"fus": (2048, 1024), "wing": (4096, 1024), "tail": (2048, 1024)}
+TEX = {"fus": (2048, 1024), "wing": (4096, 1024), "tail": (2048, 1024), "int": (1024, 512)}
 REG = "N7283K"
 
 # --- materials ---------------------------------------------------------------
@@ -72,7 +72,15 @@ def make_materials():
     M["frame"] = material("Frame_Tube", "#5E7884", 0.6, 0.3)
     M["cowl_edge"] = material("Cowl_Edge", "#B9B09A", 0.5, 0.6)
     M["cavity"] = material("Engine_Cavity", "#141210", 0.9)
-    M["tank"] = material("Fuel_Tank", "#8C8A80", 0.5, 0.8)
+    M["leather"] = material("Seat_Leather", "#262C33", 0.55)
+    M["wood"] = material("Floor_Wood", "#4E3D2B", 0.85)
+    M["belt"] = material("Seat_Belt", "#5E5B45", 0.9)
+    M["map"] = material("Paper_Map", "#BFCDC4", 0.85)
+    M["brass"] = material("Brass", "#A88A4C", 0.35, 1.0)
+    M["pedal"] = material("Pedal_Metal", "#5E584C", 0.55, 0.7)
+    M["panel"] = material("Panel_Paint", "#39423D", 0.6, 0.3)
+    M["placard"] = material("Placard", "#9A968A", 0.4, 0.8)
+    M["tank"] = material("Fuel_Tank", "#5C5F57", 0.6, 0.5)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
     for key, (w, h) in TEX.items():
         M["tex_" + key], IMGS[key] = pt.textured_material("Cub_" + key.capitalize(),
@@ -486,6 +494,178 @@ def build_glazing_frames(parent):
     obj("Window_frames", mb, parent, smooth=60)
 
 
+def cushion(mb, c, sx, sy, sz, mat, r=0.03):
+    """Upholstered pad: a rounded-rectangle block, slightly puffed in the middle."""
+    c = Vector(c)
+
+    def rr(scale, z):
+        hx, hy = sx / 2 * scale - r, sy / 2 * scale - r
+        pts = []
+        for cx, cy, a0 in ((hx, hy, 0), (-hx, hy, 90), (-hx, -hy, 180), (hx, -hy, 270)):
+            for a in (0, 30, 60, 90):
+                t = math.radians(a0 + a)
+                pts.append(c + Vector((cx + r * math.cos(t), cy + r * math.sin(t), z)))
+        return mb.ring(pts)
+    rings = [rr(0.94, -sz / 2), rr(1.0, -sz / 4), rr(1.02, 0), rr(1.0, sz / 4), rr(0.92, sz / 2)]
+    mb.loft(rings, mat, cap0=True, cap1=True)
+
+
+def seat(mb, y_front, y_back, z_top, back_top, width, name):
+    """Tube-frame seat: pan cushion, tilted back cushion, legs to the floor, lap belt."""
+    zf = FLOOR_Z
+    yc = 0.5 * (y_front + y_back)
+    cushion(mb, (0, yc, z_top - 0.04), width, y_front - y_back, 0.08, "leather")
+    # Back cushion: built upright, then tilted back about its bottom edge.
+    bm = MB()
+    h = back_top - z_top
+    cushion(bm, (0, 0, h / 2), width - 0.02, 0.07, h, "leather")
+    tilt = Matrix.Rotation(math.radians(-12), 4, "X")
+    for v in bm.v:
+        q = tilt @ Vector(v) + Vector((0, y_back - 0.03, z_top))
+        mb.vert(q)
+    off = len(mb.v) - len(bm.v)
+    for f, m in zip(bm.f, bm.m):
+        mb.face([i + off for i in f], m)
+    hw = width / 2 - 0.02
+    for sx in (-1, 1):
+        for yy in (y_front - 0.03, y_back + 0.03):
+            tube(mb, [(sx * hw, yy, z_top - 0.08), (sx * hw, yy, zf)], 0.011, "frame", 6)
+        tube(mb, [(sx * hw, y_front - 0.03, z_top - 0.09), (sx * hw, y_back + 0.03, z_top - 0.09)], 0.011, "frame", 6)
+        tube(mb, [(sx * hw, y_front - 0.03, zf + 0.02), (sx * hw, y_back + 0.03, z_top - 0.09)], 0.008, "frame", 6)
+        # Lap belt halves draped over the pan, buckle in the middle.
+        tube(mb, [(sx * (hw + 0.01), y_back + 0.06, z_top - 0.07), (sx * (hw - 0.02), y_back + 0.10, z_top + 0.01),
+                  (sx * 0.06, yc, z_top + 0.012)], 0.022, "belt", 6, squash=0.15)
+    box(mb, (0, yc, z_top + 0.015), (0.07, 0.05, 0.012), "steel")
+
+
+FLOOR_Z = -1.045
+
+
+def build_cabin(root):
+    """Inside the cabin. Moving controls get pivot nodes (animated by the game later)."""
+    cab = empty("Cabin", (0, 0, 0), parent=root)
+    mb = MB()
+    # Floorboards: planks running fore and aft either side of a metal centre strip.
+    for k in range(-2, 3):
+        if k == 0:
+            box(mb, (0, -0.10, FLOOR_Z - 0.004), (0.07, 1.42, 0.006), "pedal")
+            continue
+        xc = math.copysign(0.035 + 0.055 + (abs(k) - 1) * 0.112, k)
+        box(mb, (xc, -0.10, FLOOR_Z - 0.008), (0.106, 1.42, 0.014), "wood")
+    # Control cables and pulleys along the floor, both sides.
+    for sx in (-1, 1):
+        x = sx * 0.27
+        tube(mb, [(x, 0.70, FLOOR_Z + 0.03), (x, -0.62, FLOOR_Z + 0.03), (sx * 0.12, -1.6, -0.95)], 0.0025, "steel", 4)
+        for yy in (0.10, -0.62):
+            lathe(mb, [(-0.006, 0), (-0.006, 0.022), (0.006, 0.022), (0.006, 0)], "steel",
+                  (x, yy, FLOOR_Z + 0.035), "x", 10)
+    seat(mb, -0.40, -0.78, -0.88, -0.42, 0.50, "rear")
+    seat(mb, 0.38, 0.03, -0.90, -0.58, 0.48, "front")
+    # Map pocket on the left wall with a folded chart, and a handheld radio on the frame.
+    wx = -(FUS_SIDE - 0.035)
+    box(mb, (wx, -0.27, -0.76), (0.012, 0.28, 0.16), "belt")
+    box(mb, (wx + 0.012, -0.24, -0.66), (0.004, 0.22, 0.14), "map")
+    box(mb, (wx + 0.02, -0.72, -0.40), (0.035, 0.06, 0.13), "engine")
+    tube(mb, [(wx + 0.02, -0.71, -0.33), (wx + 0.02, -0.71, -0.20)], 0.004, "engine", 5)
+    # Overhead: brass fuel line from the wing tanks and the cross tube carrying the trim crank.
+    tube(mb, [(-FUS_SIDE + 0.03, 0.05, -0.035), (FUS_SIDE - 0.03, 0.05, -0.035)], 0.007, "brass", 8)
+    tube(mb, [(0, 0.05, -0.035), (0, 0.05, -0.09)], 0.008, "brass", 8)
+    tube(mb, [(-FUS_SIDE + 0.03, -0.25, -0.045), (FUS_SIDE - 0.03, -0.25, -0.045)], 0.011, "frame", 6)
+    # Door latches and hinges (right side).
+    box(mb, (FUS_SIDE - 0.025, -0.05, -0.62), (0.02, 0.08, 0.03), "steel")
+    box(mb, (FUS_SIDE - 0.035, -0.05, -0.62), (0.03, 0.02, 0.02), "pedal")
+    for yy in (0.25, -0.02):
+        lathe(mb, [(-0.02, 0), (-0.02, 0.008), (0.02, 0.008), (0.02, 0)], "steel",
+              (FUS_SIDE - 0.01, yy, -0.99), "y", 6)
+    obj("Cabin_fixed", mb, cab, smooth=45)
+
+    # Sticks (pivot at the floor; the game will tilt them with the controls).
+    for name, y, top in (("Stick_rear", -0.12, -0.52), ("Stick_front", 0.44, -0.56)):
+        piv = empty(name, (0, y, FLOOR_Z), parent=cab)
+        m = MB()
+        lathe(m, [(0, 0), (0, 0.035), (0.03, 0.03), (0.06, 0.012), (0.06, 0)], "engine", (0, y, FLOOR_Z), "z", 12)
+        tube(m, [(0, y, FLOOR_Z + 0.02), (0, y + 0.01, top - 0.08), (0, y - 0.01, top)], 0.012, "engine", 8)
+        lathe(m, [(0, 0), (0, 0.017), (0.10, 0.017), (0.11, 0)], "tyre", (0, y - 0.01, top - 0.10), "z", 10)
+        obj(name + "_mesh", m, piv, smooth=45)
+    # Rudder pedals with heel brakes behind them (rear set) and the front set under the panel.
+    for name, y, heel in (("Pedals_rear", 0.16, True), ("Pedals_front", 0.66, False)):
+        piv = empty(name, (0, y, FLOOR_Z + 0.03), parent=cab)
+        m = MB()
+        tube(m, [(-0.16, y, FLOOR_Z + 0.03), (0.16, y, FLOOR_Z + 0.03)], 0.010, "pedal", 8)
+        for sx in (-1, 1):
+            tube(m, [(sx * 0.11, y, FLOOR_Z + 0.03), (sx * 0.11, y + 0.015, FLOOR_Z + 0.13)], 0.008, "pedal", 6)
+            box(m, (sx * 0.11, y + 0.02, FLOOR_Z + 0.15), (0.075, 0.012, 0.10), "pedal")
+            for k in range(5):
+                box(m, (sx * 0.11, y + 0.027, FLOOR_Z + 0.115 + k * 0.017), (0.068, 0.004, 0.004), "engine")
+        obj(name + "_mesh", m, piv, smooth=45)
+        if heel:
+            for sx, tag in ((-1, "L"), (1, "R")):
+                hp = empty(f"HeelBrake_{tag}", (sx * 0.16, y - 0.10, FLOOR_Z + 0.01), parent=cab)
+                hm = MB()
+                box(hm, (sx * 0.16, y - 0.12, FLOOR_Z + 0.035), (0.06, 0.06, 0.008), "pedal")
+                tube(hm, [(sx * 0.16, y - 0.10, FLOOR_Z + 0.01), (sx * 0.16, y - 0.12, FLOOR_Z + 0.03)], 0.006, "pedal", 6)
+                obj(f"HeelBrake_{tag}_mesh", hm, hp, smooth=45)
+    # Throttles on the left wall, rear and front, joined by a rod.
+    for name, y in (("Throttle_rear", -0.32), ("Throttle_front", 0.30)):
+        base = Vector((wx + 0.015, y, -0.70))
+        box(mb2 := MB(), base, (0.03, 0.09, 0.06), "engine")
+        obj(name + "_quadrant", mb2, cab, smooth=30)
+        piv = empty(name, tuple(base), parent=cab)
+        m = MB()
+        tube(m, [base, base + Vector((0.02, 0.0, 0.11))], 0.007, "steel", 6)
+        lathe(m, [(0, 0), (0, 0.018), (0.02, 0.022), (0.04, 0.012), (0.045, 0)], "engine", base + Vector((0.02, 0, 0.11)), "z", 10)
+        obj(name + "_lever", m, piv, smooth=45)
+    rod = MB()
+    tube(rod, [(wx + 0.02, -0.32, -0.72), (wx + 0.02, 0.30, -0.72)], 0.004, "steel", 5)
+    obj("Throttle_rod", rod, cab, smooth=45)
+    # Trim crank on the overhead cross tube.
+    piv = empty("Trim_crank", (0, -0.25, -0.06), parent=cab)
+    m = MB()
+    lathe(m, [(0, 0), (0, 0.022), (0.02, 0.022), (0.02, 0)], "steel", (0, -0.25, -0.06), "z", 10, -1)
+    tube(m, [(0, -0.25, -0.075), (0.08, -0.25, -0.085)], 0.007, "steel", 6)
+    lathe(m, [(0, 0), (0, 0.012), (0.05, 0.012), (0.05, 0)], "engine", (0.08, -0.25, -0.085), "z", 8, -1)
+    obj("Trim_crank_mesh", m, piv, smooth=45)
+    build_panel(cab)
+
+
+# The instrument panel on the back of the fuel tank, 1.085 m ahead of the rear-seat eye.
+# Gauge positions match aircraft/J3Cub/panel.tscn (eye-relative there).
+EYE = Vector((0, -0.47, -0.30))
+PANEL_Y = EYE.y + 1.085
+PANEL_GAUGES = [(-0.165, -0.10, 0.08), (-0.055, -0.10, 0.08), (0.055, -0.10, 0.08), (0.140, -0.10, 0.05), (0.194, -0.10, 0.05)]
+
+
+def build_panel(parent):
+    mb = MB()
+    cz, w, h = EYE.z - 0.10, 0.58, 0.21
+    r = h / 2
+    outline = []
+    for cx, a0 in ((w / 2 - r, -90), (-(w / 2 - r), 90)):
+        for k in range(13):
+            t = math.radians(a0 + k * 15)
+            outline.append((cx + r * math.cos(t), cz + r * math.sin(t)))
+    front = mb.ring([Vector((x, PANEL_Y, z)) for x, z in outline])
+    back = mb.ring([Vector((x, PANEL_Y + 0.012, z)) for x, z in outline])
+    mb.loft([front, back], "panel", cap0=True, cap1=True)
+    screw = lambda x, z, rad=0.0045: lathe(mb, [(0, 0), (0, rad), (0.003, rad * 0.8), (0.004, 0)], "steel",
+                                           (x, PANEL_Y, z), "y", 8, -1)
+    for gx, gz, d in PANEL_GAUGES:
+        for sx in (-1, 1):
+            for sz in (-1, 1):
+                screw(gx + sx * d * 0.47, EYE.z + gz + sz * d * 0.47, 0.0035)
+    for k, (x, z) in enumerate(outline):
+        if k % 3 == 0:
+            screw(x * 0.94, cz + (z - cz) * 0.88)
+    # Combined oil gauge case, placards, compass bracket.
+    for x0, x1, z0, z1 in ((0.105, 0.229, -0.135, -0.065),):
+        for a, b in (((x0, z0), (x1, z0)), ((x1, z0), (x1, z1)), ((x1, z1), (x0, z1)), ((x0, z1), (x0, z0))):
+            tube(mb, [(a[0], PANEL_Y - 0.004, EYE.z + a[1]), (b[0], PANEL_Y - 0.004, EYE.z + b[1])], 0.004, "engine", 6)
+    box(mb, (-0.248, PANEL_Y - 0.002, EYE.z - 0.165), (0.05, 0.003, 0.014), "placard")
+    box(mb, (0.150, PANEL_Y - 0.002, EYE.z - 0.168), (0.05, 0.003, 0.014), "placard")
+    box(mb, (0.0, PANEL_Y + 0.02, EYE.z + 0.005), (0.07, 0.05, 0.012), "engine")
+    obj("Panel_board", mb, parent, smooth=40)
+
+
 def build_center_section(root):
     """Wing centre section over the cabin: skylight in the front half, fabric behind."""
     mb = MB()
@@ -562,7 +742,7 @@ def build_frame(parent):
     fb.face(ring, "steel")
     obj("Firewall", fb, parent, smooth=0)
     tb = MB()
-    box(tb, (0, 0.80, -0.36), (0.50, 0.34, 0.24), "tank")
+    box(tb, (0, 0.80, -0.405), (0.54, 0.34, 0.205), "tank")  # top level with the panel
     obj("Fuel_tank", tb, parent, smooth=0)
 
 
@@ -600,26 +780,28 @@ def build_fuselage(root):
     build_frame(fus)
     build_glazing_frames(fus)
 
-    # Cabin lining seen from the seats: inset, inward-facing, no faces over the glass.
+    # Cabin lining seen from the seats: inset fabric, inward-facing, windows cut exactly.
     ib = MB()
     cab = [y for y in STATIONS if 1.0 >= y >= -1.6]
-    irings = [ib.ring(section(y, 0.012)) for y in cab]
-    n = len(irings[0])
+    irings = [ib.ring(*fus_uv_ring(section(y, 0.012), y)) for y in cab]
     for i in range(len(cab) - 1):
         ym = (cab[i] + cab[i + 1]) / 2
-        for j in range(n):
-            k = (j + 1) % n
-            a, b = irings[i], irings[i + 1]
-            c = sum((Vector(ib.v[q]) for q in (a[j], a[k], b[k], b[j])), Vector()) / 4
+        a, b = irings[i], irings[i + 1]
+        for j in range(len(a) - 1):
             band = band_of(j)
-            window = abs(c.x) > 0.2 and any(inside(poly, c.y, c.z) for poly in WINDOWS)
-            skylight = band >= 8 and -0.42 < ym < 0.42
-            if fus_material(ym, band) == "glass" or window or skylight:
+            if fus_material(ym, band) == "glass" or (band >= 8 and -0.42 < ym < 0.42):
                 continue
-            ib.face((b[j], b[k], a[k], a[j]), "interior")
-    ib.face(irings[0], "interior")
-    ib.face(list(reversed(irings[-1])), "interior")
-    obj("Interior", ib, root, recalc=False, smooth=40)
+            ib.face((b[j], b[j + 1], a[j + 1], a[j]), "tex_int", band)
+    ib.face(irings[0][:-1], "interior")
+    ib.face(list(reversed(irings[-1][:-1])), "interior")
+    ib = cut_windows(ib)
+    keep = MB()
+    remap = {}
+    for idx, m, tg in zip(ib.f, ib.m, ib.tag):
+        if m == "glass":
+            continue  # window openings
+        keep.face([remap.setdefault(v, keep.vert(ib.v[v], ib.uv[v])) for v in idx], m, tg)
+    obj("Interior", keep, root, recalc=False, smooth=40)
 
 # --- lifting surfaces ----------------------------------------------------------
 
@@ -1364,11 +1546,38 @@ def rules_tail(P, Nn, part):
     return col, rough, metal, height
 
 
+def rules_interior(P, Nn, part):
+    """Cabin fabric: cream cloth, stitched panel seams, water stains, boot scuffs low down."""
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    col = np.tile(C("#C8BB98"), (len(P), 1)).astype(np.float32)
+    rough = np.full(len(P), 0.9, np.float32)
+    metal = np.zeros(len(P), np.float32)
+    height = np.zeros(len(P), np.float32)
+    col *= (0.93 + 0.12 * pt.fbm(P, 3.0, 4, seed=20))[:, None]
+    col *= (0.96 + 0.06 * pt.fbm(P, 260.0, 2, seed=21))[:, None]  # weave
+    stains = pt.smoothstep(pt.fbm(P, 6.0, 4, seed=22), 0.58, 0.72)
+    col = pt.mix(col, col * np.array([0.72, 0.62, 0.46], np.float32), stains * 0.55)
+    low = pt.smoothstep(-z, 0.80, 1.05)  # dirt and boot scuffs near the floor
+    col = pt.mix(col, col * np.array([0.55, 0.50, 0.42], np.float32), low * (0.4 + 0.4 * pt.fbm(P, 12.0, 3, seed=23)))
+    s_in, s_edge = tape(y, 0.30, 0.0, 0.012)
+    h_in, h_edge = tape(z, 0.30, -0.55, 0.012)
+    seam = np.maximum(s_in, h_in)
+    height += seam * 0.6
+    col = pt.mix(col, col * 0.72, np.maximum(s_edge, h_edge) * 0.6)
+    st = np.maximum(stitches(z, (y + 0.15) % 0.30 - 0.15, 0.03), stitches(y, (z + 0.70) % 0.30 - 0.15, 0.03))
+    col = pt.mix(col, col * 0.5, st * 0.6)
+    pm, ps = patches(P, Nn, [((-FUS_SIDE + 0.012, -0.70, -0.62), (0, 1, 0), (0, 0, 1), 0.07, 0.06),
+                             ((FUS_SIDE - 0.012, -0.85, -0.80), (0, 1, 0), (0, 0, 1), 0.06, 0.05)])
+    col = pt.mix(col, SILVER * 1.1, pm * 0.7)
+    col = pt.mix(col, col * 0.45, ps)
+    return col, rough, metal, height
+
+
 def paint_all():
     os.makedirs(TEX_DIR, exist_ok=True)
     part_ids = {"Aileron": 3, "Elevator": 5, "Fin": 6, "Rudder": 7, "Stab": 4}
     jobs = {"fus": ("Cub_Fus", rules_fuselage, 1), "wing": ("Cub_Wing", rules_wing, 2),
-            "tail": ("Cub_Tail", rules_tail, 4)}
+            "tail": ("Cub_Tail", rules_tail, 4), "int": ("Cub_Int", rules_interior, 8)}
     for key, (mat, rules, default_id) in jobs.items():
         items = []
         for o in COLL.objects:
@@ -1408,6 +1617,7 @@ def build():
     build_details(root)
     build_center_section(root)
     build_tail_parts(root)
+    build_cabin(root)
     build_engine(root)
     build_prop(root)
     build_registration(root)
