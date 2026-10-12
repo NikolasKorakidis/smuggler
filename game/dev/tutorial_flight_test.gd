@@ -4,9 +4,8 @@ extends Node
 ##   godot --headless --path game --fixed-fps 120 res://dev/tutorial_flight_test.tscn -- --aircraft=1 [--world=terrain]
 
 const P := {
-	"c172p": {"rollout_brake": 0.7, "rotate": 55.0, "climb_kias": 70.0, "app_kias": 65.0, "flare_pitch": 6.0, "rot_pitch": 9.0, "cruise_thr": 0.75},
-	# Cub: gentle heel brakes on the rollout; hard braking noses a J-3 over.
-	"J3Cub": {"rollout_brake": 0.35, "rotate": 33.0, "climb_kias": 42.0, "app_kias": 42.0, "flare_pitch": 11.0, "rot_pitch": 8.0, "cruise_thr": 0.85},
+	"c172p": {"rotate": 55.0, "climb_kias": 70.0, "app_kias": 65.0, "flare_pitch": 6.0, "rot_pitch": 9.0, "cruise_thr": 0.75},
+	"J3Cub": {"rotate": 33.0, "climb_kias": 42.0, "app_kias": 42.0, "flare_pitch": 11.0, "rot_pitch": 8.0, "cruise_thr": 0.85},
 }
 
 var world: Node3D
@@ -133,8 +132,8 @@ func _physics_process(delta: float) -> void:
 			o = {"throttle": 0.0, "pitch": 0.5 if ac.definition.jsbsim_model == "J3Cub" else 0.0}
 			o.merge(_ground_steer(land_heading))
 			if kias < 40:
-				o.brake_left = p.rollout_brake
-				o.brake_right = p.rollout_brake
+				o.brake_left = 0.7
+				o.brake_right = 0.7
 			if _gs() < 6.0:
 				e.set_carb_heat(false)
 				if not ac.definition.flap_detents.is_empty():
