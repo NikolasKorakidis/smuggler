@@ -1,6 +1,7 @@
 shader_type sky;
 render_mode use_half_res_pass, use_quarter_res_pass;
-// Physically based sky (single scattering, Rayleigh + Mie + ozone tint),
+// Physically based sky (single scattering, Rayleigh + Mie + ozone tint, plus
+// an approximate multiple-scattering glow that carries twilight to -18°),
 // computed at half resolution, with the sun disc, moon (with phase), stars,
 // Milky Way, horizon airglow and a fair-weather cloud layer added at full
 // resolution. TimeOfDay feeds the uniforms each frame.
@@ -22,6 +23,11 @@ uniform vec3 ambient_color = vec3(0.4, 0.5, 0.7);
 uniform sampler2D milkyway : source_color, filter_linear_mipmap, repeat_enable;
 uniform mat3 celestial_to_world = mat3(1.0);
 uniform float milkyway_intensity = 0.0;
+// Light scattered more than once: keeps the sky glowing through twilight long
+// after single scattering has gone dark (TimeOfDay sets the level from the
+// sun's depression). night_glow is the moonless night sky (airglow, starlight).
+uniform float twilight_level = 0.0;
+uniform float night_glow = 6.0e-4;
 const float MILKYWAY_SCALE = 0.40457495;
 
 const float RE = 6360e3;
@@ -131,6 +137,31 @@ vec3 milky_way(vec3 d) {
 	return textureLod(milkyway, uv, 1.0).rgb * MILKYWAY_SCALE;
 }
 
+// Keep twilight_sky() and night_sky() in step with TimeOfDay.
+vec3 twilight_sky(vec3 d) {
+	float depr = clamp(-degrees(asin(clamp(sun_dir.y, -1.0, 1.0))), 0.0, 18.0);
+	float deep = depr / 14.0;
+	vec3 fs = vec3(sun_dir.x, 0.0, sun_dir.z);
+	fs = length(fs) > 1e-4 ? normalize(fs) : vec3(1.0, 0.0, 0.0);
+	vec3 fd = vec3(d.x, 0.0, d.z);
+	fd = length(fd) > 1e-4 ? normalize(fd) : fs;
+	float toward = clamp(dot(fd, fs) * 0.5 + 0.5, 0.0, 1.0);
+	float y = clamp(d.y, 0.0, 1.0);
+	// Blue dome, a little paler low down, darker over the Earth's shadow.
+	vec3 dome = vec3(0.32, 0.48, 1.0) * (0.75 + 0.5 * pow(1.0 - y, 3.0)) * mix(0.6, 1.0, toward);
+	// Glow over where the sun went down, sinking and narrowing as it goes deeper.
+	float spread = mix(0.35, 0.08, clamp(deep, 0.0, 1.0));
+	float glow = pow(toward, mix(2.0, 6.0, clamp(deep, 0.0, 1.0))) * exp(-y / spread);
+	vec3 glow_col = mix(vec3(1.0, 0.5, 0.22), vec3(0.75, 0.75, 0.85), clamp(depr / 12.0, 0.0, 1.0));
+	float day_fade = 1.0 - smoothstep(0.0, 0.07, sun_dir.y);  // daylight already has its own glow
+	return twilight_level * (dome + glow_col * glow * 3.0 * day_fade);
+}
+
+vec3 night_sky(vec3 d) {
+	// Airglow is brighter towards the horizon (longer path through the glowing layer).
+	return night_glow * vec3(0.55, 0.75, 1.0) * (1.0 + 1.5 * pow(clamp(1.0 - d.y, 0.0, 1.0), 4.0));
+}
+
 vec4 clouds(vec3 d, vec3 sky_col) {
 	if (d.y <= 0.015 || cloud_cover <= 0.001) return vec4(0.0);
 	// Project onto a layer 1.8 km above the camera.
@@ -161,9 +192,8 @@ void sky() {
 		vec3 dd = normalize(vec3(d.x, max(d.y, 0.035), d.z));
 		vec3 c = scatter(dd, sun_dir, sun_intensity);
 		c += scatter(dd, moon_dir, moon_intensity);  // moonlit sky
+		c += twilight_sky(dd) + night_sky(dd);
 		if (d.y < 0.0) c *= mix(1.0, 0.6, clamp(-d.y * 10.0, 0.0, 1.0));
-		// Faint airglow near the horizon so the night horizon is just visible.
-		c += vec3(0.010, 0.013, 0.018) * pow(1.0 - abs(d.y), 6.0) * 0.6;
 		if (AT_CUBEMAP_PASS) {
 			vec4 cl = clouds(d, c);
 			c = mix(c, cl.rgb, cl.a);
@@ -200,12 +230,13 @@ void sky() {
 		}
 		if (milkyway_intensity > 0.001 && h > -0.01) {
 			float behind_cloud = clouds(d, vec3(0.0)).a;
-			// Faint and grey-white to the eye (photos exaggerate the colour);
-			// dimmer through the thick air low down.
+			// Faint and grey-white to the eye (photos exaggerate the colour and
+			// contrast): its brightest clouds are a few times the dark-sky glow
+			// around them. Dimmer through the thick air low down.
 			vec3 mw = milky_way(d);
 			mw = mix(vec3(dot(mw, vec3(0.3, 0.5, 0.2))), mw, 0.35) * vec3(0.9, 0.93, 1.0);
 			float ext = smoothstep(-0.01, 0.25, h);
-			c += mw * milkyway_intensity * 0.12 * ext * (1.0 - behind_cloud);
+			c += mw * milkyway_intensity * 0.012 * ext * (1.0 - behind_cloud);
 		}
 		COLOR = c;
 	}

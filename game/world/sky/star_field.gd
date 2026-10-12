@@ -37,7 +37,7 @@ func _ready() -> void:
 		var flux := pow(10.0, -0.4 * s.z)
 		var brightness := 1.7 * pow(flux, 0.55)
 		var size := clampf(2.0 + 0.9 * (5.0 - s.z), 1.8, 7.0)
-		mm.set_instance_custom_data(i, Color(minf(brightness, 8.0), size, rng.randf(), 0.0))
+		mm.set_instance_custom_data(i, Color(minf(brightness, 8.0), size, rng.randf(), s.z))
 	_mmi = MultiMeshInstance3D.new()
 	_mmi.multimesh = mm
 	_mmi.material_override = _mat
@@ -46,9 +46,12 @@ func _ready() -> void:
 	add_child(_mmi)
 
 
-func set_intensity(v: float) -> void:
-	_mat.set_shader_parameter("star_intensity", v)
-	visible = v > 0.002
+## Show stars brighter than `limiting_mag` (each fades in over about a
+## magnitude as the sky darkens past it); `clear` dims them all for cloud.
+func set_visibility(limiting_mag: float, clear: float) -> void:
+	_mat.set_shader_parameter("limiting_magnitude", limiting_mag)
+	_mat.set_shader_parameter("star_intensity", clear)
+	visible = limiting_mag > -1.8 and clear > 0.002
 
 
 func _process(_delta: float) -> void:

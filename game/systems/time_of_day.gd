@@ -16,6 +16,22 @@ const NEW_MOON_EPOCH := 10962.76
 const BETA_R := Vector3(5.8e-6, 13.5e-6, 33.1e-6)
 const BETA_M := 21e-6
 const BETA_OZONE := Vector3(0.65e-6, 1.88e-6, 0.085e-6)
+const SUN_INTENSITY := 22.0
+## Moonlight relative to sunlight in the sky (full moon).
+const MOON_SKY := 1.0e-3
+## Multiple-scattered sky: level at -12° and its fade per degree, fitted so
+## stars come out on the real timetable (limiting magnitude ~3 at -6°, ~5.4
+## at -12°, ~6.4 at -18°). Capped near sunset, where single scattering rules.
+const TWILIGHT_AT_12 := 2.1e-3
+const TWILIGHT_SLOPE := 0.19
+const TWILIGHT_CAP := 0.02
+## Moonless night sky (airglow, starlight) and the matching average luminance.
+const NIGHT_GLOW := 6.0e-4
+## Eye adaptation: exposure 1 at or above this sky luminance (sun ~2° up),
+## rising as the sky darkens to night_exposure under a moonless sky.
+const ADAPT_REF := 0.2
+## Brightness of moonlit ground per unit of light energy, for adaptation.
+const GROUND_LUM := 0.1
 
 ## Game seconds per real second.
 @export var time_scale := 4.0
@@ -26,6 +42,9 @@ const BETA_OZONE := Vector3(0.65e-6, 1.88e-6, 0.085e-6)
 @export var longitude_deg := -99.0
 ## Milky Way brightness relative to the stars.
 @export var milkyway_brightness := 1.0
+## How much the eye opens up on a moonless night (higher = brighter night,
+## and brighter artificial lights).
+@export var night_exposure := 6.0
 
 var sun: DirectionalLight3D
 var environment: Environment
@@ -35,6 +54,9 @@ var _moon: DirectionalLight3D
 var _sky: ShaderMaterial
 var stars: StarField
 var _sun_dir := Vector3.UP
+var _sky_lum := 1.0  # average sky luminance the eye is adapted to
+## Faintest star magnitude visible right now (6.5 on a dark moonless night).
+var limiting_magnitude := 6.5
 var _cloud_time := 0.0
 
 
@@ -123,9 +145,14 @@ func sun_elevation_deg() -> float:
 	return rad_to_deg(asin(clampf(_sun_dir.y, -1.0, 1.0)))
 
 
-## 0 in daylight, 1 at full night (sun 12° below the horizon).
+## 0 in daylight, 1 at full night (sun 12° below the horizon), eased at both ends.
 func darkness() -> float:
-	return clampf(-(sun_elevation_deg() - 2.0) / 14.0, 0.0, 1.0)
+	return smoothstep(2.0, -12.0, sun_elevation_deg())
+
+
+## How dark the sky is: 0 in daylight, 1 for a moonless night sky.
+func night_adaptation() -> float:
+	return clampf(log(ADAPT_REF / _sky_lum) / log(ADAPT_REF / _night_lum()), 0.0, 1.0)
 
 
 ## Unit vector towards the sun in world axes (x east, y up, -z north).
@@ -159,7 +186,7 @@ func _update() -> void:
 	var t := _transmittance(_sun_dir, cam_alt)
 	var tl := (t.x + t.y + t.z) / 3.0
 	var sun_col := Color(t.x, t.y, t.z) * (1.0 / maxf(maxf(t.x, maxf(t.y, t.z)), 1e-4))
-	var day := clampf((el + 1.0) / 6.0, 0.0, 1.0)
+	var day := smoothstep(-1.0, 5.0, el)
 	sun.basis = Basis.looking_at(-_sun_dir, Vector3.UP if absf(_sun_dir.y) < 0.99 else Vector3.BACK)
 	sun.light_color = sun_col
 	sun.light_energy = 2.0 * clampf(tl / 0.75, 0.0, 1.0) * day
@@ -170,38 +197,110 @@ func _update() -> void:
 	var phase := moon_phase()
 	var moon_dir := _body_direction(hours - phase * 24.0)
 	var lit := moon_illumination()
+	var moon_up := smoothstep(-0.02, 0.2, moon_dir.y)
 	_moon.basis = Basis.looking_at(-moon_dir, Vector3.UP if absf(moon_dir.y) < 0.99 else Vector3.BACK)
 	_moon.light_color = Color(0.7, 0.78, 1.0)
-	_moon.light_energy = 0.11 * lit * night * clampf(moon_dir.y * 5.0, 0.0, 1.0)
+	_moon.light_energy = 0.11 * lit * moon_up  # always there; it only stands out once the sun has gone
 	_moon.visible = _moon.light_energy > 0.002
+	var moon_int := SUN_INTENSITY * MOON_SKY * lit * moon_up
+	var twilight := twilight_level(el)
 
 	var cover := weather.cloud_cover if weather else 0.25
 	_sky.set_shader_parameter("sun_dir", _sun_dir)
 	_sky.set_shader_parameter("moon_dir", moon_dir)
-	_sky.set_shader_parameter("sun_intensity", 22.0)
-	_sky.set_shader_parameter("moon_intensity", 22.0 * 2.5e-4 * lit * clampf(moon_dir.y * 5.0, 0.0, 1.0))
+	_sky.set_shader_parameter("sun_intensity", SUN_INTENSITY)
+	_sky.set_shader_parameter("moon_intensity", moon_int)
 	_sky.set_shader_parameter("moon_phase", phase)
-	# Stars and Milky Way: only once the sky is dark enough, hidden by cloud.
-	var star_vis := pow(night, 2.5) * (1.0 - 0.85 * cover)
+	_sky.set_shader_parameter("twilight_level", twilight)
+	_sky.set_shader_parameter("night_glow", NIGHT_GLOW)
+
+	# The eye adapts to the sky actually drawn, so the picture only ever gets
+	# darker through dusk (no plateau or rebound), and a moonlit night needs
+	# less adaptation than a moonless one.
+	# Moonlit ground counts too: under a bright moon the eye adapts less.
+	_sky_lum = sky_luminance(_sun_dir, moon_dir, moon_int, twilight, cam_alt)
+	var seen := _sky_lum + GROUND_LUM * _moon.light_energy * maxf(moon_dir.y, 0.0)
+	var adapt := clampf(log(ADAPT_REF / seen) / log(ADAPT_REF / _night_lum()), 0.0, 1.0)
+	environment.tonemap_exposure = clampf(pow(ADAPT_REF / seen, log(night_exposure) / log(ADAPT_REF / _night_lum())), 1.0, night_exposure)
+	# Night vision: less colour, a little more bloom on lights.
+	environment.adjustment_saturation = lerpf(1.0, 0.45, smoothstep(0.25, 1.0, adapt))
+	environment.ambient_light_energy = lerpf(1.0, 0.6, adapt)
+	environment.glow_intensity = lerpf(0.5, 0.9, adapt)
+
+	# Stars appear as the sky darkens past their brightness (contrast against
+	# the background): each 2.15x darker sky shows one magnitude fainter, fitted
+	# to the real timetable (mag 0 at sunset, ~3 at -6°, ~5.4 at -12°, ~6.4 at
+	# -18°). The faint ones and the Milky Way need a truly dark sky. Cloud
+	# hides them.
+	limiting_magnitude = 6.5 - 3.0 * log(_sky_lum / _night_lum()) / log(10.0)
+	var clear := 1.0 - 0.85 * cover
 	var cel := celestial_basis()
-	_sky.set_shader_parameter("star_intensity", star_vis)
+	var mw := smoothstep(4.8, 6.4, limiting_magnitude) * clear
+	_sky.set_shader_parameter("star_intensity", clampf((limiting_magnitude + 1.5) / 8.0, 0.0, 1.0))
 	_sky.set_shader_parameter("celestial_to_world", cel)
-	_sky.set_shader_parameter("milkyway_intensity", star_vis * milkyway_brightness)
+	_sky.set_shader_parameter("milkyway_intensity", mw * milkyway_brightness)
 	if stars:
 		stars.celestial_basis = cel
-		stars.set_intensity(star_vis)
+		stars.set_visibility(limiting_magnitude, clear)
 	_sky.set_shader_parameter("camera_altitude", cam_alt)
 	_sky.set_shader_parameter("cloud_cover", cover)
 	_sky.set_shader_parameter("cloud_time", _cloud_time)
 	_sky.set_shader_parameter("sun_color", Vector3(sun_col.r, sun_col.g, sun_col.b) * day * 1.6
-		+ Vector3(0.25, 0.28, 0.4) * lit * 0.05 * night)
-	_sky.set_shader_parameter("ambient_color", Vector3(0.45, 0.55, 0.75) * lerpf(1.0, 0.01, night))
+		+ Vector3(0.25, 0.28, 0.4) * lit * moon_up * 0.05 * night)
+	# Cloud undersides take the light of the sky around them.
+	_sky.set_shader_parameter("ambient_color", Vector3(0.45, 0.55, 0.75) * clampf(_sky_lum / 0.5, 0.004, 1.0))
 
-	# Eye adaptation and night vision: brighter exposure, less colour.
-	environment.tonemap_exposure = lerpf(1.0, 6.0, night)
-	environment.adjustment_saturation = lerpf(1.0, 0.45, night)
-	environment.ambient_light_energy = lerpf(1.0, 0.6, night)
-	environment.glow_intensity = lerpf(0.5, 0.9, night)
+
+## Multiple-scattered sky brightness for a sun elevation (degrees): peaks at
+## sunset, fades smoothly through twilight, small in full daylight.
+static func twilight_level(el_deg: float) -> float:
+	var e := minf(el_deg, 0.0)
+	var level := 1.0 / (1.0 / (TWILIGHT_AT_12 * pow(10.0, TWILIGHT_SLOPE * (e + 12.0))) + 1.0 / TWILIGHT_CAP)
+	return level * pow(10.0, -0.25 * maxf(el_deg, 0.0))
+
+
+## Average sky luminance from sun, moon, twilight glow and night glow:
+## what the eye adapts to and what lights the ground.
+func sky_luminance(sun_d: Vector3, moon_d: Vector3, moon_int: float, twilight: float, alt_m: float) -> float:
+	var flat := Vector3(sun_d.x, 0.0, sun_d.z)
+	flat = flat.normalized() if flat.length() > 1e-4 else Vector3.RIGHT
+	var sum := 0.0
+	for d in [Vector3.UP, (flat + Vector3.UP * 0.35).normalized(), (-flat + Vector3.UP * 0.35).normalized()]:
+		var c := sky_radiance(d, sun_d, SUN_INTENSITY, alt_m) + twilight_sky(d, sun_d, twilight) + night_sky(d, NIGHT_GLOW)
+		if moon_int > 1e-7:
+			c += sky_radiance(d, moon_d, moon_int, alt_m)
+		sum += 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z
+	return sum / 3.0
+
+
+func _night_lum() -> float:
+	var sum := 0.0
+	for d in [Vector3.UP, Vector3(0.94, 0.33, 0.0), Vector3(-0.94, 0.33, 0.0)]:
+		var c := night_sky(d, NIGHT_GLOW)
+		sum += 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z
+	return sum / 3.0
+
+
+## CPU copies of twilight_sky() and night_sky() in sky.gdshader.
+static func twilight_sky(d: Vector3, sun_d: Vector3, level: float) -> Vector3:
+	var depr := clampf(-rad_to_deg(asin(clampf(sun_d.y, -1.0, 1.0))), 0.0, 18.0)
+	var deep := clampf(depr / 14.0, 0.0, 1.0)
+	var fs := Vector3(sun_d.x, 0.0, sun_d.z)
+	fs = fs.normalized() if fs.length() > 1e-4 else Vector3.RIGHT
+	var fd := Vector3(d.x, 0.0, d.z)
+	fd = fd.normalized() if fd.length() > 1e-4 else fs
+	var toward := clampf(fd.dot(fs) * 0.5 + 0.5, 0.0, 1.0)
+	var y := clampf(d.y, 0.0, 1.0)
+	var dome := Vector3(0.32, 0.48, 1.0) * (0.75 + 0.5 * pow(1.0 - y, 3.0)) * lerpf(0.6, 1.0, toward)
+	var spread := lerpf(0.35, 0.08, deep)
+	var glow := pow(toward, lerpf(2.0, 6.0, deep)) * exp(-y / spread)
+	var glow_col := Vector3(1.0, 0.5, 0.22).lerp(Vector3(0.75, 0.75, 0.85), clampf(depr / 12.0, 0.0, 1.0))
+	var day_fade := 1.0 - smoothstep(0.0, 0.07, sun_d.y)
+	return level * (dome + glow_col * glow * 3.0 * day_fade)
+
+
+static func night_sky(d: Vector3, glow: float) -> Vector3:
+	return glow * Vector3(0.55, 0.75, 1.0) * (1.0 + 1.5 * pow(clampf(1.0 - d.y, 0.0, 1.0), 4.0))
 
 
 ## Local sidereal time in hours (game clock is local mean solar time).
@@ -219,6 +318,57 @@ func celestial_basis() -> Basis:
 	# Hour-angle frame -> horizon: x_h -> (0, cos lat, sin lat), y_h -> east, z_h -> pole.
 	var to_world := Basis(Vector3(0.0, cos(lat), sin(lat)), Vector3(1.0, 0.0, 0.0), Vector3(0.0, sin(lat), -cos(lat)))
 	return to_world * Basis(Vector3(0, 0, 1), -lst)
+
+
+## Sky colour seen along `dir`, lit from `light`: the same single-scattering
+## model sky.gdshader draws (keep the two in step).
+func sky_radiance(dir: Vector3, light: Vector3, intensity: float, alt_m: float) -> Vector3:
+	var re := 6360e3
+	var ra := 6420e3
+	var o := Vector3(0.0, re + maxf(alt_m, 1.0), 0.0)
+	var b := o.dot(dir)
+	var t_max := -b + sqrt(maxf(b * b - (o.dot(o) - ra * ra), 0.0))
+	var hg := b * b - (o.dot(o) - re * re)
+	if hg >= 0.0 and -b - sqrt(hg) > 0.0:
+		t_max = -b - sqrt(hg)
+	var n := 14
+	var l := 5
+	var seg := t_max / n
+	var mu := dir.dot(light)
+	var g := 0.76
+	var phase_r := 3.0 / (16.0 * PI) * (1.0 + mu * mu)
+	var phase_m := 3.0 / (8.0 * PI) * ((1.0 - g * g) * (1.0 + mu * mu)) / ((2.0 + g * g) * pow(1.0 + g * g - 2.0 * g * mu, 1.5))
+	var sum_r := Vector3.ZERO
+	var sum_m := Vector3.ZERO
+	var od_r := 0.0
+	var od_m := 0.0
+	for i in n:
+		var p := o + dir * (seg * (i + 0.5))
+		var h := p.length() - re
+		var hr := exp(-h / 8000.0) * seg
+		var hm := exp(-h / 1200.0) * seg
+		od_r += hr
+		od_m += hm
+		var bl := p.dot(light)
+		var tl := -bl + sqrt(maxf(bl * bl - (p.dot(p) - ra * ra), 0.0))
+		var sl := tl / l
+		var odl_r := 0.0
+		var odl_m := 0.0
+		var lit := true
+		for j in l:
+			var q := p + light * (sl * (j + 0.5))
+			var hq := q.length() - re
+			if hq < 0.0:
+				lit = false
+				break
+			odl_r += exp(-hq / 8000.0) * sl
+			odl_m += exp(-hq / 1200.0) * sl
+		if lit:
+			var tau := BETA_R * (od_r + odl_r) + Vector3.ONE * BETA_M * 1.1 * (od_m + odl_m) + BETA_OZONE * (od_r + odl_r) * 1.5
+			var att := Vector3(exp(-tau.x), exp(-tau.y), exp(-tau.z))
+			sum_r += att * hr
+			sum_m += att * hm
+	return intensity * (sum_r * BETA_R * phase_r + sum_m * BETA_M * phase_m)
 
 
 # Fraction of sunlight reaching an observer at `alt_m` along `dir`.

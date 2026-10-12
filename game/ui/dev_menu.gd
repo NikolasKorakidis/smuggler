@@ -242,8 +242,9 @@ func _tab_time() -> void:
 	_slider(b, "Year", 1978, 1988, 1, func(): return _tod().year, func(v): _tod().year = int(v), "%.0f")
 	_readout(b, func():
 		var t := _tod()
-		return "Sun %+.1f°   Moon phase %.2f (%d%% lit)   Sidereal %.2f h" % [
-			t.sun_elevation_deg(), t.moon_phase(), int(t.moon_illumination() * 100.0), t.local_sidereal_hours()])
+		return "Sun %+.1f°   Moon phase %.2f (%d%% lit)   Sidereal %.2f h\nEye exposure %.2fx   Stars to magnitude %.1f" % [
+			t.sun_elevation_deg(), t.moon_phase(), int(t.moon_illumination() * 100.0), t.local_sidereal_hours(),
+			t.environment.tonemap_exposure, t.limiting_magnitude])
 
 
 func _date_text(doy: int) -> String:
@@ -474,6 +475,8 @@ func _tab_rendering() -> void:
 		func(v): _env().fog_density = v, func(v): return "%.6f" % v)
 	_slider(b, "Milky Way", 0, 3, 0.05, func(): return _tod().milkyway_brightness,
 		func(v): _tod().milkyway_brightness = v, "%.2fx")
+	_slider(b, "Night brightness (eye)", 2, 12, 0.5, func(): return _tod().night_exposure,
+		func(v): _tod().night_exposure = v, "%.1fx")
 	_section(b, "CAMERA")
 	var cam: Camera3D = world.get_node("CameraRig")
 	_slider(b, "Cockpit field of view", 30, 100, 1, func(): return cam.cockpit_fov, _set_cockpit_fov, "%.0f°")
