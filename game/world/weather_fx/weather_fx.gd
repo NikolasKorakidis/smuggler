@@ -107,8 +107,10 @@ func _fog_params() -> PackedFloat32Array:
 	out.append_array([shaft_col.x, shaft_col.y, shaft_col.z, 0.0])
 	var sd := tod.sun_direction()
 	out.append_array([sd.x, sd.y, sd.z, 0.6])
-	var sun := tod.sun.light_color * tod.sun.light_energy * (1.0 - 0.85 * w.cloud_cover)
-	var sc := sun * 0.05
+	var sun := tod.sun.light_color * tod.sun.light_energy
+	# Forward scatter in the haze; where clouds block the sun the fog pass
+	# finds the shadows itself (god rays), so no blanket dimming here.
+	var sc := sun * 0.075
 	out.append_array([sc.r, sc.g, sc.b, 0.0])
 	var fs := sun * 0.22 * clampf(sd.y * 4.0 + 0.3, 0.0, 1.0)
 	out.append_array([fs.r, fs.g, fs.b, 0.0])
@@ -125,4 +127,6 @@ func _fog_params() -> PackedFloat32Array:
 	for i in AtmosphereEffect.MAX_CELLS:
 		var top := field + (w.cells[i].base_m if i < n else 0.0)
 		out.append_array([top, 0.0, 0.0, 0.0])
+	var sr := clouds.shadow_rect()
+	out.append_array([sr.x, sr.y, sr.z, sr.w if atmosphere.clouds_enabled else -1e6])
 	return out

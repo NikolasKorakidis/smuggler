@@ -12,7 +12,7 @@ extends CompositorEffect
 
 const MAX_CELLS := 8
 ## Floats in the fog parameter buffer (matches fog.glsl).
-const FOG_FLOATS := 16 + 16 + 4 * 12 + MAX_CELLS * 4 * 2
+const FOG_FLOATS := 16 + 16 + 4 * 12 + MAX_CELLS * 4 * 2 + 4
 ## Floats in the cloud parameter buffer after the three matrices (matches clouds.glsl).
 const CLOUD_FLOATS := 4 * 12 + 8 * 4 * 2 + 4 * 4
 const SHAPE_SIZE := 128
@@ -291,6 +291,7 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 		_uniform(RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER, 2, [_fog_buf]),
 		_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 3, [_s_nearest, _hist_color[cur] if clouds_on else _blank]),
 		_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 4, [_s_nearest, _hist_depth[cur] if clouds_on else _blank]),
+		_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 5, [_s_linear_clamp, _shadow]),
 	])
 	var fpush := PackedFloat32Array([size.x, size.y, 1.0 if clouds_on else 0.0, 0.0]).to_byte_array()
 	var flist := _rd.compute_list_begin()

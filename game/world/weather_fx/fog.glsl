@@ -33,10 +33,12 @@ layout(set = 0, binding = 2, std430) restrict readonly buffer Params {
 	vec4 counts;        // x = cells, y = debug mode, z = share of haze to add to the sky
 	vec4 cells[MAX_CELLS];      // x, z, radius, peak extinction
 	vec4 cell_tops[MAX_CELLS];  // x = shaft top y (cloud base)
+	vec4 shadow_rect;           // cloud shadow map: origin x, origin z, size m, plane y (w < -1e5: none)
 } p;
 
 layout(set = 0, binding = 3) uniform sampler2D cloud_color;  // half res: light, transmittance
 layout(set = 0, binding = 4) uniform sampler2D cloud_depth;  // half res: cloud distance, scene distance
+layout(set = 0, binding = 5) uniform sampler2D cloud_shadow; // sunlight through the clouds (god rays)
 
 layout(push_constant, std430) uniform Push {
 	vec2 size;
@@ -259,6 +261,23 @@ void main() {
 	float towards = (length(dh) > 1e-4 && length(sh) > 1e-4) ? dot(normalize(dh), normalize(sh)) * 0.5 + 0.5 : 0.5;
 	vec3 haze_col = mix(p.haze_color_away.rgb, p.haze_color.rgb, towards * towards);
 
+	// God rays: how much of the air along this ray (first ~8 km) the sun
+	// actually reaches through the clouds; dims the sun-lit haze in the shadows.
+	float sunlit = 1.0;
+	if (p.shadow_rect.w > -1e5 && p.sun_dir.y > 0.03 && pc.clouds_on > 0.5) {
+		float reach = min(t, 8000.0);
+		float jit = fract(52.9829189 * fract(dot(vec2(px), vec2(0.06711056, 0.00583715))));
+		float acc = 0.0;
+		for (int k = 0; k < 12; k++) {
+			vec3 q = o + d * reach * (float(k) + jit) / 12.0;
+			if (q.y > p.shadow_rect.w) { acc += 1.0; continue; }
+			vec2 at = q.xz + p.sun_dir.xz * (p.shadow_rect.w - q.y) / p.sun_dir.y;
+			vec2 suv = (at - p.shadow_rect.xy) / p.shadow_rect.z;
+			acc += (all(greaterThan(suv, vec2(0.0))) && all(lessThan(suv, vec2(1.0)))) ? textureLod(cloud_shadow, suv, 0.0).r : 1.0;
+		}
+		sunlit = acc / 12.0;
+	}
+
 	// March the breakpoints from far to near: haze/fog/rain segment, then a curtain.
 	float far_t = t;
 	float h_far = haze_tau(o, d, far_t);
@@ -275,7 +294,7 @@ void main() {
 		float seg = th + tf + tr;
 		if (seg > 1e-5) {
 			vec3 lit = (th * haze_col + tf * fog_lit + tr * p.rain_color.rgb) / seg;
-			lit += p.sun_color.rgb * hg * (th + tf + 0.5 * tr) / seg;
+			lit += p.sun_color.rgb * hg * sunlit * (th + tf + 0.5 * tr) / seg;
 			float trans = exp(-seg);
 			col.rgb = col.rgb * trans + lit * (1.0 - trans);
 		}
