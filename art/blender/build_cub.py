@@ -82,6 +82,7 @@ def make_materials():
     M["panel"] = material("Panel_Paint", "#39423D", 0.6, 0.3)
     M["placard"] = material("Placard", "#9A968A", 0.4, 0.8)
     M["bezel"] = material("Bezel", "#1F1E1B", 0.45, 0.6)
+    M["nickel"] = material("Nickel_Aged", "#7E7B72", 0.5, 0.85)
     M["engrave"] = material("Engraving", "#0E0D0C", 0.95, double=True)  # matte paint infill
     M["tank"] = material("Fuel_Tank", "#5C5F57", 0.6, 0.5)
     M["blue"] = material("Paint_Blue", "#557A8C", 0.7)
@@ -846,7 +847,7 @@ def build_panel_controls(parent):
     out = Vector((0, -1, 0))
     # Magneto switch: brass escutcheon, stamped positions round the knob.
     mx, my = PANEL_CONTROLS["magnetos"]
-    lathe(hw, [(0, 0), (0, 0.021), (0.0012, 0.021), (0.0018, 0.0195), (0.0018, 0)], "brass", panel_point(mx, my), "y", 32, -1)
+    lathe(hw, [(0, 0), (0, 0.021), (0.0012, 0.021), (0.0018, 0.0195), (0.0018, 0)], "nickel", panel_point(mx, my), "y", 32, -1)
     for name, ang in zip(("OFF", "L", "R", "BOTH"), (-80, -40, 0, 40)):
         a = math.radians(ang)
         stamped_text(hw, name, panel_point(mx + 0.0142 * math.sin(a), my + 0.0142 * math.cos(a), 0.0026), 0.0027)
@@ -854,7 +855,7 @@ def build_panel_controls(parent):
         lathe(hw, [(0, 0), (0, 0.0018), (0.0012, 0)], "steel", panel_point(mx + sx * 0.0185, my - 0.004, 0.0018), "y", 6, -1)
     # Fuel valve plate with OFF / ON.
     fx, fy = PANEL_CONTROLS["fuel_selector"]
-    box(hw, panel_point(fx, fy, 0.0007), (0.054, 0.0014, 0.02), "brass")
+    box(hw, panel_point(fx, fy, 0.0007), (0.054, 0.0014, 0.02), "nickel")
     stamped_text(hw, "OFF", panel_point(fx - 0.019, fy, 0.0021), 0.0034)
     stamped_text(hw, "ON", panel_point(fx + 0.019, fy, 0.0021), 0.0034)
     # Placards: aluminium plates, two rivets, stamped letters in black.
@@ -876,10 +877,10 @@ def build_panel_controls(parent):
             box(m, c + out * 0.013, (0.0055, 0.006, 0.021), "engine")  # grip bar, points up
             box(m, c + out * 0.0161 + Vector((0, 0, 0.005)), (0.0014, 0.0004, 0.009), "reg")  # cream pointer line
         elif control == "fuel_selector":
-            lathe(m, [(0, 0), (0, 0.007), (0.006, 0.0065), (0.008, 0)], "brass", c, "y", 16, -1)
-            tube(m, [c + out * 0.006, c + out * 0.007 + Vector((0, 0, 0.022))], 0.0045, "brass", 10, squash=0.35,
+            lathe(m, [(0, 0), (0, 0.007), (0.006, 0.0065), (0.008, 0)], "nickel", c, "y", 16, -1)
+            tube(m, [c + out * 0.006, c + out * 0.007 + Vector((0, 0, 0.022))], 0.0045, "nickel", 10, squash=0.35,
                  flat_axis=(0, 1, 0))
-            lathe(m, [(0, 0), (0, 0.0055), (0.003, 0.0055), (0.0035, 0)], "brass", c + out * 0.0055 + Vector((0, 0, 0.022)), "y", 12, -1)
+            lathe(m, [(0, 0), (0, 0.0055), (0.003, 0.0055), (0.0035, 0)], "nickel", c + out * 0.0055 + Vector((0, 0, 0.022)), "y", 12, -1)
         elif control == "carb_heat":
             lathe(m, [(0, 0), (0, 0.0085), (0.004, 0.0085), (0.0045, 0)], "steel", c, "y", 6, -1)  # hex nut
             tube(m, [c + out * 0.004, c + out * 0.016], 0.0024, "steel", 10)
@@ -1815,7 +1816,7 @@ CABIN_SHEETS = {
 }
 CABIN_MATS = {"Frame_Tube": 10, "Seat_Leather": 11, "Floor_Wood": 12, "Pedal_Metal": 13, "Steel": 14,
               "Engine_Black": 15, "Seat_Belt": 16, "Paper_Map": 17, "Brass": 18, "Panel_Paint": 19, "Bezel": 20,
-              "Placard": 21, "Fuel_Tank": 22, "Cowl_Edge": 23, "Tyre": 24}  # lettering keeps its own black paint
+              "Placard": 21, "Fuel_Tank": 22, "Cowl_Edge": 23, "Tyre": 24, "Nickel_Aged": 26}  # lettering keeps its own black paint
 
 
 def unwrap_cabin(objs):
@@ -1954,6 +1955,16 @@ def rules_cabin(P, Nn, part):
         col[m] = c
         rough[m] = r0 + 0.3 * rust
         metal[m] = m0 * (1 - rust)
+    # Old nickel plating: dull grey, dark grime in the low spots, worn bright on the edges.
+    m = sel(26)
+    if m.any():
+        p = P[m]
+        grime = pt.smoothstep(pt.fbm(p, 90.0, 3, seed=102), 0.45, 0.75)
+        worn = pt.smoothstep(pt.fbm(p, 200.0, 2, seed=103), 0.7, 0.76)
+        c = np.tile(C("#77746B"), (m.sum(), 1)) * (1.0 - 0.45 * grime)[:, None]
+        col[m] = pt.mix(c, np.tile(C("#A9A69C"), (m.sum(), 1)), worn * 0.6)
+        rough[m] = 0.45 + 0.3 * grime
+        metal[m] = 0.85 - 0.3 * grime
     # Placards: brushed aluminium, darker at the edges, a few scratches.
     m = sel(21)
     if m.any():
