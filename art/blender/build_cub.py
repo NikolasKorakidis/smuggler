@@ -538,6 +538,15 @@ def seat(mb, y_front, y_back, z_top, back_top, width, name):
         tube(mb, [(sx * (hw + 0.01), y_back + 0.06, z_top - 0.07), (sx * (hw - 0.02), y_back + 0.10, z_top + 0.01),
                   (sx * 0.06, yc, z_top + 0.012)], 0.022, "belt", 6, squash=0.15)
     box(mb, (0, yc, z_top + 0.015), (0.07, 0.05, 0.012), "steel")
+    # Back frame: two uprights behind the cushion, a top bar, hinge brackets.
+    tb = Matrix.Rotation(math.radians(-12), 4, "X")
+    for sx in (-1, 1):
+        lo = Vector((sx * (hw - 0.01), y_back - 0.07, z_top - 0.02))
+        hi = tb @ Vector((sx * (hw - 0.01), -0.04, back_top - z_top)) + Vector((0, y_back - 0.03, z_top))
+        tube(mb, [lo, hi], 0.009, "frame", 6)
+        box(mb, lo + Vector((0, 0.01, -0.02)), (0.02, 0.03, 0.03), "steel")
+    tube(mb, [tb @ Vector((-(hw - 0.01), -0.04, back_top - z_top)) + Vector((0, y_back - 0.03, z_top)),
+              tb @ Vector((hw - 0.01, -0.04, back_top - z_top)) + Vector((0, y_back - 0.03, z_top))], 0.009, "frame", 6)
 
 
 FLOOR_Z = -1.045
@@ -583,13 +592,29 @@ def build_cabin(root):
               (FUS_SIDE - 0.01, yy, -0.99), "y", 6)
     obj("Cabin_fixed", mb, cab, smooth=45)
 
-    # Sticks (pivot at the floor; the game will tilt them with the controls).
+    # Sticks (pivot at the floor; the game will tilt them with the controls): bolted base
+    # plate, ribbed rubber boot, black tube with a slight bend, ribbed rubber grip.
     for name, y, top in (("Stick_rear", -0.12, -0.52), ("Stick_front", 0.44, -0.56)):
         piv = empty(name, (0, y, FLOOR_Z), parent=cab)
         m = MB()
-        lathe(m, [(0, 0), (0, 0.035), (0.03, 0.03), (0.06, 0.012), (0.06, 0)], "engine", (0, y, FLOOR_Z), "z", 12)
-        tube(m, [(0, y, FLOOR_Z + 0.02), (0, y + 0.01, top - 0.08), (0, y - 0.01, top)], 0.012, "engine", 8)
-        lathe(m, [(0, 0), (0, 0.017), (0.10, 0.017), (0.11, 0)], "tyre", (0, y - 0.01, top - 0.10), "z", 10)
+        base = Vector((0, y, FLOOR_Z))
+        lathe(m, [(0, 0), (0, 0.055), (0.004, 0.055), (0.006, 0)], "steel", base, "z", 20)
+        for k in range(6):
+            a = k * math.pi / 3
+            lathe(m, [(0, 0), (0, 0.005), (0.004, 0.004), (0.005, 0)], "steel",
+                  base + Vector((0.045 * math.cos(a), 0.045 * math.sin(a), 0.004)), "z", 6)
+        boot = []
+        for k in range(9):
+            h = 0.006 + k * 0.011
+            boot.append((h, (0.04 - h * 0.25) * (1.0 if k % 2 == 0 else 0.88)))
+        lathe(m, [(0.006, 0)] + boot + [(0.1, 0)], "tyre", base, "z", 16)
+        shaft = [base + Vector((0, 0, 0.09)), Vector((0, y + 0.012, top - 0.14)), Vector((0, y - 0.004, top - 0.11))]
+        tube(m, shaft, 0.011, "engine", 10)
+        grip = []
+        for k in range(12):
+            grip.append((k * 0.009, 0.0165 if k % 2 == 0 else 0.0185))
+        lathe(m, [(0, 0)] + grip + [(0.105, 0.016), (0.11, 0.009), (0.112, 0)], "tyre",
+              Vector((0, y - 0.004, top - 0.11)), "z", 14)
         obj(name + "_mesh", m, piv, smooth=45)
     # Rudder pedals with heel brakes behind them (rear set) and the front set under the panel.
     for name, y, heel in (("Pedals_rear", 0.16, True), ("Pedals_front", 0.66, False)):
@@ -609,16 +634,27 @@ def build_cabin(root):
                 box(hm, (sx * 0.16, y - 0.12, FLOOR_Z + 0.035), (0.06, 0.06, 0.008), "pedal")
                 tube(hm, [(sx * 0.16, y - 0.10, FLOOR_Z + 0.01), (sx * 0.16, y - 0.12, FLOOR_Z + 0.03)], 0.006, "pedal", 6)
                 obj(f"HeelBrake_{tag}_mesh", hm, hp, smooth=45)
-    # Throttles on the left wall, rear and front, joined by a rod.
+    # Throttles on the left wall, rear and front: slotted quadrant housing with a friction
+    # knob, flat lever arm with a black ball, joined by a push rod.
     for name, y in (("Throttle_rear", -0.32), ("Throttle_front", 0.30)):
-        base = Vector((wx + 0.015, y, -0.70))
-        box(mb2 := MB(), base, (0.03, 0.09, 0.06), "engine")
-        obj(name + "_quadrant", mb2, cab, smooth=30)
-        piv = empty(name, tuple(base), parent=cab)
+        base = Vector((wx + 0.018, y, -0.70))
+        q = MB()
+        box(q, base + Vector((-0.004, 0, -0.005)), (0.022, 0.11, 0.075), "engine")
+        box(q, base + Vector((0.008, 0, 0.012)), (0.004, 0.09, 0.012), "steel")  # slot plate
+        for sy in (-1, 1):
+            lathe(q, [(0, 0), (0, 0.004), (0.003, 0.003), (0.004, 0)], "steel",
+                  base + Vector((0.008, sy * 0.045, -0.03)), "x", 6)
+        lathe(q, [(0, 0), (0, 0.009), (0.008, 0.009), (0.01, 0.006), (0.012, 0)], "engine",
+              base + Vector((0.008, 0.035, -0.022)), "x", 12)  # friction knob
+        obj(name + "_quadrant", q, cab, smooth=30)
+        piv = empty(name, tuple(base + Vector((0.01, 0, -0.01))), parent=cab)
         m = MB()
-        tube(m, [base, base + Vector((0.02, 0.0, 0.11))], 0.007, "steel", 6)
-        lathe(m, [(0, 0), (0, 0.018), (0.02, 0.022), (0.04, 0.012), (0.045, 0)], "engine", base + Vector((0.02, 0, 0.11)), "z", 10)
-        obj(name + "_lever", m, piv, smooth=45)
+        tube(m, [base + Vector((0.012, 0, -0.01)), base + Vector((0.02, -0.01, 0.06)), base + Vector((0.024, -0.02, 0.11))],
+             0.006, "steel", 6, squash=0.4, flat_axis=(1, 0, 0))
+        knob = base + Vector((0.026, -0.022, 0.125))
+        lathe(m, [(-0.018, 0)] + [(0.018 * math.sin(t), 0.018 * math.cos(t)) for t in
+                                   [math.radians(a) for a in range(-80, 81, 20)]] + [(0.018, 0)], "engine", knob, "z", 14)
+        obj(name + "_lever", m, piv, smooth=50)
     rod = MB()
     tube(rod, [(wx + 0.02, -0.32, -0.72), (wx + 0.02, 0.30, -0.72)], 0.004, "steel", 5)
     obj("Throttle_rod", rod, cab, smooth=45)
@@ -630,6 +666,65 @@ def build_cabin(root):
     lathe(m, [(0, 0), (0, 0.012), (0.05, 0.012), (0.05, 0)], "engine", (0.08, -0.25, -0.085), "z", 8, -1)
     obj("Trim_crank_mesh", m, piv, smooth=45)
     build_panel(cab)
+    build_cabin_details(cab)
+
+
+def strip(mb, a, b, normal, width=0.018, pitch=0.032):
+    """Riveted aluminium strip lying on a wall from a to b (the fabric is laced to the tubes
+    under these), with dome rivets every `pitch`."""
+    a, b, nrm = Vector(a), Vector(b), Vector(normal).normalized()
+    d = (b - a)
+    L = d.length
+    d.normalize()
+    side = nrm.cross(d).normalized() * (width / 2)
+    t = nrm * 0.0018
+    pts = [a - side, a + side, b + side, b - side]
+    lo = [mb.vert(p) for p in pts]
+    hi = [mb.vert(p + t) for p in pts]
+    mb.face(hi, "cowl_edge")
+    for k in range(4):
+        mb.face((lo[k], lo[(k + 1) % 4], hi[(k + 1) % 4], hi[k]), "cowl_edge")
+    n = max(2, int(L / pitch))
+    for k in range(n + 1):
+        c = a + d * (L * k / n) + t
+        verts = [mb.vert(c + (side.normalized() * math.cos(q) + d * math.sin(q)) * 0.0024)
+                 for q in [i * math.pi / 3 for i in range(6)]]
+        tip = mb.vert(c + nrm * 0.0016)
+        for i in range(6):
+            mb.face((verts[i], verts[(i + 1) % 6], tip), "steel")
+
+
+def build_cabin_details(parent):
+    """Riveted strips along the frame members on the cabin walls, clamps at tube joints,
+    rivets along the floor strip."""
+    mb = MB()
+    for side in (1, -1):
+        wall = lambda y, z: Vector((side * (surface_x(y, z) - 0.0145), y, z))
+        nrm = (-side, 0, 0)
+        for y in (0.40, -0.55, -0.95):
+            strip(mb, wall(y, -1.0), wall(y, -0.535), nrm)
+        if side < 0:
+            for y in (0.37, -0.07):  # left wall posts between the windows
+                strip(mb, wall(y, -1.0), wall(y, -0.535), nrm)
+        else:
+            for y in (0.37, -0.07):  # door edges
+                strip(mb, wall(y, -1.0), wall(y, -0.535), nrm, 0.022)
+        for z in (-0.535, -0.80, -1.0):
+            strip(mb, wall(0.42, z), wall(-1.30 if z < -0.6 else -0.95, z), nrm)
+    # Clamps where the cross tubes meet the longerons inside the cabin.
+    for y in [fy for fy in FRAME_Y if -1.5 < fy < 0.9]:
+        sec = section(y, 0.028)
+        for p in (sec[2], sec[7], sec[-2], sec[-7]):
+            lathe(mb, [(-0.02, 0), (-0.02, 0.016), (0.02, 0.016), (0.02, 0)], "steel", p, "y", 10)
+            box(mb, p + Vector((0, 0, 0.018)), (0.012, 0.02, 0.006), "steel")
+    # Floor: rivets along both edges of the centre strip, nail heads on the planks.
+    for y in [0.6 - k * 0.05 for k in range(29)]:
+        for x in (-0.03, 0.03):
+            lathe(mb, [(0, 0), (0, 0.003), (0.002, 0)], "steel", (x, y, FLOOR_Z - 0.001), "z", 6)
+    for y in (0.55, 0.1, -0.35, -0.75):
+        for x in (-0.20, -0.09, 0.09, 0.20):
+            lathe(mb, [(0, 0), (0, 0.0025), (0.0015, 0)], "steel", (x, y, FLOOR_Z - 0.001), "z", 5)
+    obj("Cabin_details", mb, parent, smooth=40)
 
 
 # The instrument panel on the back of the fuel tank, 1.085 m ahead of the rear-seat eye.
@@ -1610,7 +1705,7 @@ def rules_interior(P, Nn, part):
 # The panel, the seats and the tube frame get their own sheets so the parts you look at
 # most get the most detail.
 CABIN_SHEETS = {
-    "cab": ["Cabin_fixed", "Stick_rear_mesh", "Stick_front_mesh", "Pedals_rear_mesh", "Pedals_front_mesh",
+    "cab": ["Cabin_fixed", "Cabin_details", "Stick_rear_mesh", "Stick_front_mesh", "Pedals_rear_mesh", "Pedals_front_mesh",
             "HeelBrake_L_mesh", "HeelBrake_R_mesh", "Throttle_rear_quadrant", "Throttle_front_quadrant",
             "Throttle_rear_lever", "Throttle_front_lever", "Throttle_rod", "Trim_crank_mesh", "Firewall",
             "Fuel_tank", "Window_frames", "Skylight_frame"],
@@ -1696,9 +1791,14 @@ def rules_cabin(P, Nn, part):
         rub = pt.smoothstep(pt.fbm(p, 5.0, 3, seed=43), 0.45, 0.75) * up[m]
         c = pt.mix(base, base * 1.8 + 0.02, rub * 0.6)
         c = pt.mix(c, np.tile(C("#7E6444"), (m.sum(), 1)), crack * 0.7)
+        seam = np.exp(-((np.abs(p[:, 0]) - 0.11) / 0.003) ** 2)  # two stitched channels per cushion
+        st = (np.abs(((p[:, 1] + p[:, 2]) % 0.012) - 0.006) < 0.002) & (np.abs(np.abs(p[:, 0]) - 0.104) < 0.002)
+        c = pt.mix(c, c * 0.45, seam * 0.8)
+        c = pt.mix(c, np.tile(C("#8B7A5E"), (m.sum(), 1)), st.astype(np.float32) * 0.8)
+        height[m] = -seam * 0.8
         col[m] = c
         rough[m] = 0.45 + 0.35 * crack
-        height[m] = -crack * 0.6
+        height[m] = np.minimum(height[m], -crack * 0.6)
     # Floorboards: wood grain along the planks, boot-worn, dirt stains.
     m = sel(12)
     if m.any():
@@ -1722,7 +1822,7 @@ def rules_cabin(P, Nn, part):
         base = np.tile(C("#38413C"), (m.sum(), 1)) * (0.9 + 0.2 * pt.fbm(p, 9.0, 3, seed=60))[:, None]
         rr = np.sqrt((p[:, 0] / 0.29) ** 2 + ((p[:, 2] - (EYE.z - 0.10)) / 0.105) ** 2)
         edge = pt.smoothstep(rr, 0.82, 1.0)
-        chip = pt.smoothstep(pt.fbm(p, 110.0, 3, seed=61) + edge * 0.3, 0.76, 0.78)
+        chip = pt.smoothstep(pt.fbm(p, 110.0, 3, seed=61) + edge * 0.22, 0.81, 0.83)
         scratch = pt.smoothstep(pt.fbm(p, (260.0, 4.0, 18.0), 2, seed=62), 0.78, 0.8)
         c = pt.mix(base, np.tile(C("#8E8A80"), (m.sum(), 1)), chip)
         c = pt.mix(c, c * 1.4 + 0.03, scratch * 0.5)

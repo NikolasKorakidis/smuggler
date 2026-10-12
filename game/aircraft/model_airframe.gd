@@ -73,6 +73,7 @@ func _ready() -> void:
 			var d := _link_vector(n, target)
 			_links.append({"node": n, "target": target, "rest": n.basis, "dir": d.normalized(),
 				"length": d.length(), "stretch": parts[0] == "Stretch"})
+	_no_shadows_from_glass(self)
 	_add_cockpit(def)
 
 
@@ -118,6 +119,17 @@ func _process(delta: float) -> void:
 func _link_vector(n: Node3D, target: Node3D) -> Vector3:
 	var parent := n.get_parent() as Node3D
 	return parent.global_basis.inverse() * (target.global_position - n.global_position)
+
+
+# See-through parts (windows, prop disc) must not throw solid shadows into the cabin.
+func _no_shadows_from_glass(n: Node) -> void:
+	for c in n.get_children():
+		if c is MeshInstance3D and c.mesh:
+			for i in c.mesh.get_surface_count():
+				var m := c.get_active_material(i) as BaseMaterial3D
+				if m and m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+					c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_no_shadows_from_glass(c)
 
 
 ## Bottom of each wheel in world space: [{unit, point}]. Shared with placeholder_airframe.gd.
