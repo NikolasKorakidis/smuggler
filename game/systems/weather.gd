@@ -23,40 +23,41 @@ const KOSCHMIEDER := 3.912
 ## visibility (km), cloud cover 0..1 / base / top (m above the field, base
 ## "auto" = cumulus base from the dew-point spread) / type (0 cumulus ..
 ## 1 stratus), high cirrus 0..1, steady rain (mm/h), fog deck top (m above
-## the field, 0 none) and visibility inside it (m), whether the fog burns off
+## the field, 0 none) and visibility inside it (m) (or "cloud_depth": how tall
+## cumulus grow above their base), whether the fog burns off
 ## after sunrise, thunderstorm cells: how many to start with and new ones per hour.
 const PRESETS := [
 	{"name": "Calm", "mid": 0.00, "mid_base": 4200.0, "mid_top": 4500.0, "wind_dir": 0.0, "wind_kt": 0.0, "gust_kt": 0.0, "aloft_kt": 5.0, "veer": 10.0,
 		"turbulence": 0.0, "temp_c": 15.0, "dew_c": 5.0, "qnh": 1013.0, "vis_km": 40.0,
-		"clouds": 0.1, "cloud_base": "auto", "cloud_top": 600.0, "cloud_type": 0.0, "cirrus": 0.2},
+		"clouds": 0.1, "cloud_base": "auto", "cloud_depth": 450.0, "cloud_type": 0.0, "cirrus": 0.2},
 	{"name": "Light breeze", "mid": 0.15, "mid_base": 4500.0, "mid_top": 4800.0, "wind_dir": 60.0, "wind_kt": 7.0, "gust_kt": 0.0, "aloft_kt": 15.0, "veer": 20.0,
 		"turbulence": 0.1, "temp_c": 22.0, "dew_c": 12.0, "qnh": 1016.0, "vis_km": 30.0,
-		"clouds": 0.3, "cloud_base": "auto", "cloud_top": 900.0, "cloud_type": 0.0, "cirrus": 0.3},
+		"clouds": 0.3, "cloud_base": "auto", "cloud_depth": 750.0, "cloud_type": 0.0, "cirrus": 0.3},
 	{"name": "Gusty crosswind", "mid": 0.35, "mid_base": 4000.0, "mid_top": 4400.0, "wind_dir": 150.0, "wind_kt": 14.0, "gust_kt": 10.0, "aloft_kt": 28.0, "veer": 25.0,
 		"turbulence": 0.45, "temp_c": 24.0, "dew_c": 14.0, "qnh": 1006.0, "vis_km": 25.0,
-		"clouds": 0.5, "cloud_base": "auto", "cloud_top": 1200.0, "cloud_type": 0.0, "cirrus": 0.4},
+		"clouds": 0.5, "cloud_base": "auto", "cloud_depth": 1300.0, "cloud_type": 0.0, "cirrus": 0.4},
 	{"name": "Hot afternoon", "mid": 0.10, "mid_base": 5000.0, "mid_top": 5300.0, "wind_dir": 110.0, "wind_kt": 9.0, "gust_kt": 6.0, "aloft_kt": 18.0, "veer": 15.0,
 		"turbulence": 0.35, "temp_c": 38.0, "dew_c": 14.0, "qnh": 1009.0, "vis_km": 15.0,
-		"clouds": 0.2, "cloud_base": "auto", "cloud_top": 1500.0, "cloud_type": 0.0, "cirrus": 0.1},
+		"clouds": 0.2, "cloud_base": "auto", "cloud_depth": 2000.0, "cloud_type": 0.0, "cirrus": 0.1},
 	{"name": "Low pressure, windy", "mid": 0.55, "mid_base": 3200.0, "mid_top": 3800.0, "wind_dir": 210.0, "wind_kt": 20.0, "gust_kt": 12.0, "aloft_kt": 38.0, "veer": 30.0,
 		"turbulence": 0.6, "temp_c": 12.0, "dew_c": 8.0, "qnh": 992.0, "vis_km": 20.0,
 		"clouds": 0.7, "cloud_base": 700.0, "cloud_top": 2000.0, "cloud_type": 0.4, "cirrus": 0.0, "rain": 0.0},
 	{"name": "Hazy summer", "mid": 0.25, "mid_base": 4300.0, "mid_top": 4700.0, "wind_dir": 140.0, "wind_kt": 6.0, "gust_kt": 0.0, "aloft_kt": 12.0, "veer": 15.0,
 		"turbulence": 0.2, "temp_c": 33.0, "dew_c": 21.0, "qnh": 1011.0, "vis_km": 7.0, "haze_h": 2000.0,
-		"clouds": 0.25, "cloud_base": "auto", "cloud_top": 1200.0, "cloud_type": 0.0, "cirrus": 0.5},
+		"clouds": 0.25, "cloud_base": "auto", "cloud_depth": 900.0, "cloud_type": 0.0, "cirrus": 0.5},
 	{"name": "Morning valley fog", "mid": 0.00, "mid_base": 4000.0, "mid_top": 4300.0, "wind_dir": 0.0, "wind_kt": 0.0, "gust_kt": 0.0, "aloft_kt": 6.0, "veer": 10.0,
 		"turbulence": 0.0, "temp_c": 11.0, "dew_c": 11.0, "qnh": 1021.0, "vis_km": 12.0,
 		"clouds": 0.0, "cloud_base": 1500.0, "cloud_top": 2000.0, "cloud_type": 1.0, "cirrus": 0.2,
 		"fog_top": 140.0, "fog_vis_m": 180.0, "fog_burns_off": true, "haze_h": 350.0},
 	{"name": "Low overcast, drizzle", "mid": 0.00, "mid_base": 3500.0, "mid_top": 3900.0, "wind_dir": 300.0, "wind_kt": 8.0, "gust_kt": 0.0, "aloft_kt": 18.0, "veer": 15.0,
 		"turbulence": 0.1, "temp_c": 13.0, "dew_c": 12.0, "qnh": 1008.0, "vis_km": 5.0,
-		"clouds": 1.0, "cloud_base": 230.0, "cloud_top": 1100.0, "cloud_type": 1.0, "cirrus": 0.0, "rain": 0.6},
+		"clouds": 1.0, "cloud_base": 230.0, "cloud_top": 1100.0, "cloud_type": 1.0, "cirrus": 0.0, "rain": 0.6, "haze_h": 800.0},
 	{"name": "Steady rain", "mid": 0.85, "mid_base": 3300.0, "mid_top": 4300.0, "wind_dir": 170.0, "wind_kt": 12.0, "gust_kt": 6.0, "aloft_kt": 30.0, "veer": 25.0,
 		"turbulence": 0.3, "temp_c": 16.0, "dew_c": 15.0, "qnh": 1001.0, "vis_km": 10.0,
 		"clouds": 1.0, "cloud_base": 450.0, "cloud_top": 3000.0, "cloud_type": 0.8, "cirrus": 0.0, "rain": 6.0},
 	{"name": "Afternoon thunderstorms", "mid": 0.20, "mid_base": 4800.0, "mid_top": 5200.0, "wind_dir": 120.0, "wind_kt": 8.0, "gust_kt": 5.0, "aloft_kt": 20.0, "veer": 20.0,
 		"turbulence": 0.3, "temp_c": 31.0, "dew_c": 22.0, "qnh": 1008.0, "vis_km": 35.0,
-		"clouds": 0.45, "cloud_base": "auto", "cloud_top": 2500.0, "cloud_type": 0.0, "cirrus": 0.3,
+		"clouds": 0.45, "cloud_base": "auto", "cloud_depth": 2600.0, "cloud_type": 0.0, "cirrus": 0.3,
 		"storms": 2, "storms_per_hour": 3.0},
 	{"name": "Squall line", "mid": 0.60, "mid_base": 3800.0, "mid_top": 4500.0, "wind_dir": 230.0, "wind_kt": 15.0, "gust_kt": 12.0, "aloft_kt": 35.0, "veer": 30.0,
 		"turbulence": 0.5, "temp_c": 27.0, "dew_c": 21.0, "qnh": 1003.0, "vis_km": 25.0,
@@ -143,6 +144,8 @@ func set_preset(i: int, instant := false) -> void:
 	_target = PRESETS[i].duplicate()
 	if typeof(_target.get("cloud_base")) == TYPE_STRING:  # "auto": cumulus base from the spread
 		_target.cloud_base = cumulus_base_m(_target.temp_c, _target.get("dew_c", _target.temp_c - 10.0))
+	if _target.has("cloud_depth"):  # cumulus: how tall they grow above their base
+		_target.cloud_top = _target.cloud_base + _target.cloud_depth
 	_target.cloud_top = maxf(_target.get("cloud_top", 0.0), _target.cloud_base + 300.0)
 	if instant:
 		_apply_fields(_target, 1.0)

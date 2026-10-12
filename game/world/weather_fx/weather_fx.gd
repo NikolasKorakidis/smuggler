@@ -75,6 +75,10 @@ func _set_wetness(wet: float) -> void:
 	var mat = terrain.get("material") if terrain else null
 	if mat is ShaderMaterial:
 		mat.set_shader_parameter("wetness", wet)
+		# Cloud shadows on the ground.
+		var on := atmosphere.clouds_enabled and atmosphere.weather_texture != null
+		mat.set_shader_parameter("cloud_shadow", atmosphere.shadow_texture)
+		mat.set_shader_parameter("cloud_shadow_rect", clouds.shadow_rect() if on else Vector4(0, 0, 1, -1e6))
 
 
 func _fog_params() -> PackedFloat32Array:

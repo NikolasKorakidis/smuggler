@@ -24,6 +24,10 @@ var clouds_enabled := true
 var fog_enabled := true
 ## The 2D weather map (coverage noise), set by Clouds.
 var weather_texture: Texture2D
+## Cloud shadows for the terrain: sunlight getting through, over a square
+## around the camera on the cloud-base plane (see shadow_rect).
+var shadow_texture := Texture2DRD.new()
+const SHADOW_SIZE := 512
 
 var _rd: RenderingDevice
 var _sh_noise: RID
@@ -50,6 +54,8 @@ var _mutex := Mutex.new()
 var _fog_params := PackedFloat32Array()
 var _cloud_params := PackedFloat32Array()
 var _blank: RID  # 1x1 for when clouds are off
+var _shadow: RID
+var _shadow_rect := Vector4(0, 0, 24000, 0)  # origin x, origin z, size m, unused
 
 
 func _init() -> void:
@@ -62,7 +68,7 @@ func _init() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE and _rd:
 		for rid in [_pl_noise, _pl_clouds, _pl_fog, _sh_noise, _sh_clouds, _sh_fog, _s_nearest, _s_linear_clamp,
-				_s_linear_repeat, _fog_buf, _cloud_buf, _shape, _detail, _blank] + _hist_color + _hist_depth:
+				_s_linear_repeat, _fog_buf, _cloud_buf, _shape, _detail, _blank, _shadow] + _hist_color + _hist_depth:
 			if rid.is_valid():
 				_rd.free_rid(rid)
 
@@ -73,9 +79,10 @@ func set_fog_params(values: PackedFloat32Array) -> void:
 	_mutex.unlock()
 
 
-func set_cloud_params(values: PackedFloat32Array) -> void:
+func set_cloud_params(values: PackedFloat32Array, shadow_rect: Vector4) -> void:
 	_mutex.lock()
 	_cloud_params = values
+	_shadow_rect = shadow_rect
 	_mutex.unlock()
 
 
@@ -118,6 +125,9 @@ func _init_compute() -> void:
 	_shape = _make_noise(SHAPE_SIZE, 0)
 	_detail = _make_noise(DETAIL_SIZE, 1)
 	_blank = _texture_2d(Vector2i(1, 1), RenderingDevice.DATA_FORMAT_R16G16B16A16_SFLOAT)
+	_shadow = _texture_2d(Vector2i(SHADOW_SIZE, SHADOW_SIZE), RenderingDevice.DATA_FORMAT_R16_SFLOAT)
+	_rd.texture_clear(_shadow, Color(1, 1, 1, 1), 0, 1, 0, 1)
+	shadow_texture.set_deferred("texture_rd_rid", _shadow)
 
 
 func _texture_2d(size: Vector2i, fmt_id: int) -> RID:
@@ -205,6 +215,7 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 	_mutex.lock()
 	var fog_params := _fog_params
 	var cloud_params := _cloud_params
+	var shadow_rect := _shadow_rect
 	_mutex.unlock()
 	var cam := scene.get_cam_transform()
 	var proj := scene.get_view_projection(0)
@@ -239,8 +250,18 @@ func _render_callback(type: int, render_data: RenderData) -> void:
 			_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 6, [_s_linear_repeat, _detail]),
 			_uniform(RenderingDevice.UNIFORM_TYPE_SAMPLER_WITH_TEXTURE, 7, [_s_linear_repeat, wtex]),
 			_uniform(RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER, 8, [_cloud_buf]),
+			_uniform(RenderingDevice.UNIFORM_TYPE_IMAGE, 9, [_shadow]),
 		])
-		var push := PackedFloat32Array([half.x, half.y, size.x, size.y]).to_byte_array()
+		# Cloud shadows (for the terrain, next frame), then the clouds themselves.
+		var spush := PackedFloat32Array([SHADOW_SIZE, SHADOW_SIZE, size.x, size.y,
+			shadow_rect.x, shadow_rect.y, shadow_rect.z, 1.0]).to_byte_array()
+		var slist := _rd.compute_list_begin()
+		_rd.compute_list_bind_compute_pipeline(slist, _pl_clouds)
+		_rd.compute_list_bind_uniform_set(slist, uset, 0)
+		_rd.compute_list_set_push_constant(slist, spush, spush.size())
+		_rd.compute_list_dispatch(slist, SHADOW_SIZE / 8, SHADOW_SIZE / 8, 1)
+		_rd.compute_list_end()
+		var push := PackedFloat32Array([half.x, half.y, size.x, size.y, 0.0, 0.0, 0.0, 0.0]).to_byte_array()
 		var list := _rd.compute_list_begin()
 		_rd.compute_list_bind_compute_pipeline(list, _pl_clouds)
 		_rd.compute_list_bind_uniform_set(list, uset, 0)

@@ -14,6 +14,16 @@ const VIEWS := {
 		["storm 12 km", 9, 15.0, 3.0, 120.0, 10.0, "12000,120"],
 		["rain overcast", 8, 13.0, 3.0, 60.0, 8.0, ""],
 	],
+	"close": [
+		["beside cumulus, sun behind", 3, 15.0, 1700.0, 70.0, 4.0, ""],
+		["beside cumulus, backlit", 3, 15.0, 1700.0, 250.0, 4.0, ""],
+		["towering cumulus from ground", 3, 15.0, 3.0, 70.0, 22.0, ""],
+		["above the tops", 2, 15.0, 3400.0, 70.0, -6.0, ""],
+		["inside a cloud", 8, 13.0, 900.0, 60.0, 0.0, ""],
+		["sunset at 1500 m", 1, 18.45, 1500.0, 280.0, 2.0, ""],
+		["stratus deck from above", 7, 11.0, 1600.0, 60.0, -10.0, ""],
+		["overcast underside", 8, 13.0, 3.0, 60.0, 35.0, ""],
+	],
 	"debug": [
 		["calm + storm", 0, 15.0, 3.0, 120.0, 10.0, "12000,120"],
 		["preset 9, no storm", 9, 15.0, 3.0, 120.0, 10.0, "none"],
@@ -48,7 +58,7 @@ func _ready() -> void:
 		var kv := a.trim_prefix("--").split("=")
 		args[kv[0]] = kv[1] if kv.size() > 1 else true
 	var set: String = args.get("set", "day")
-	views = VIEWS.day + VIEWS.storm if set == "all" else VIEWS[set]
+	views = VIEWS.day + VIEWS.storm + VIEWS.close if set == "all" else VIEWS[set]
 	world = load("res://world/terrain_tile/terrain_tile.tscn").instantiate()
 	add_child(world)
 	world._spawn_aircraft(1)

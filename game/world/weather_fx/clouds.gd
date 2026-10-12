@@ -191,6 +191,10 @@ func _process(delta: float) -> void:
 	var sun_up := maxf(sun.global_transform.basis.z.y, 0.0)
 	var ground := sun.light_color * sun_e * sun_up * 0.035
 	var bottom_amb := horizon * 0.12 + Vector3(ground.r, ground.g * 0.95, ground.b * 0.8)
+	# Under or inside a deck the light is grey, not sky blue.
+	var deck := smoothstep(0.5, 1.0, cover) * (0.5 + 0.5 * w.cloud_type)
+	top_amb = top_amb.lerp(Vector3.ONE * (top_amb.x + top_amb.y + top_amb.z) / 3.0, deck)
+	bottom_amb = bottom_amb.lerp(Vector3.ONE * (bottom_amb.x + bottom_amb.y + bottom_amb.z) / 3.0, deck * 0.7)
 	out.append_array([top_amb.x, top_amb.y, top_amb.z, 0.0])
 	out.append_array([bottom_amb.x, bottom_amb.y, bottom_amb.z, 0.0])
 	_step_flashes(delta)
@@ -216,7 +220,19 @@ func _process(delta: float) -> void:
 			out.append_array([f.pos.x, f.pos.y, f.pos.z, f.level])
 		else:
 			out.append_array([0.0, 0.0, 0.0, 0.0])
-	atmosphere.set_cloud_params(out)
+	atmosphere.set_cloud_params(out, shadow_rect())
+
+
+## Square of the cloud-shadow map (origin x, origin z, size m) around the
+## camera, snapped to its texels so shadows don't crawl as you move.
+func shadow_rect() -> Vector4:
+	var cam := get_viewport().get_camera_3d()
+	var c := cam.global_position if cam else Vector3.ZERO
+	var size := 24000.0
+	var texel := size / AtmosphereEffect.SHADOW_SIZE
+	var x0 := floorf((c.x - size * 0.5) / texel) * texel
+	var z0 := floorf((c.z - size * 0.5) / texel) * texel
+	return Vector4(x0, z0, size, weather.field_elevation_m + weather.cloud_base_m - 100.0)
 
 
 func _step_flashes(delta: float) -> void:

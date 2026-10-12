@@ -22,6 +22,7 @@ layout(set = 0, binding = 4) uniform sampler2D scene_depth;
 layout(set = 0, binding = 5) uniform sampler3D shape_tex;
 layout(set = 0, binding = 6) uniform sampler3D detail_tex;
 layout(set = 0, binding = 7) uniform sampler2D weather_tex;
+layout(r16f, set = 0, binding = 9) uniform restrict writeonly image2D shadow_img;  // sunlight through the clouds
 
 const int MAX_STORMS = 8;
 const int MAX_FLASHES = 4;
@@ -48,8 +49,9 @@ layout(set = 0, binding = 8, std430) restrict readonly buffer Params {
 } p;
 
 layout(push_constant, std430) uniform Push {
-	vec2 size;     // half-res output size
+	vec2 size;     // half-res output size (mode 0) or shadow map size (mode 1)
 	vec2 full;     // full-res size
+	vec4 shadow;   // shadow map: origin x, origin z, size (m), mode (0 view, 1 shadow map)
 } pc;
 
 float remap(float v, float a, float b, float c, float d) {
@@ -135,14 +137,16 @@ float density_low(vec3 q, bool detail, out float hfrac) {
 	// Layer clouds. The base undulates (more for stratus sheets).
 	vec4 bn = textureLod(shape_tex, (q + vec3(p.offs.x, 0.0, p.offs.y)) / (p.scales.x * 2.3) + 0.61, 0.0);
 	float base_y = p.low.x + (bn.g - 0.5) * mix(220.0, 70.0, p.low.w * 2.0);
-	float h = (hy - base_y) / max(p.low.y - base_y, 1.0);
+	float t_cu = p.low.w;  // 0.5 cumulus .. 0 stratus
+	// Warp the map lookup with 3D noise so cloud sides bulge instead of
+	// being the 2D map pulled straight up.
+	vec3 wn = textureLod(shape_tex, (q + vec3(p.offs.x, 0.0, p.offs.y)) / (p.scales.x * 1.7) + 0.37, 0.0).gba;
+	vec2 warp = (wn.xy - 0.5) * mix(150.0, 520.0, t_cu * 2.0);
+	vec4 wm = textureLod(weather_tex, (q.xz + warp + p.offs2.xy) / p.scales.z, 0.0);
+	// Sheet tops billow in cells (seen from above: a lumpy white surface).
+	float top_y = p.low.y + ((bn.b - 0.5) * 0.5 + (wm.r - 0.5) * 0.9) * mix(320.0, 0.0, t_cu * 2.0);
+	float h = (hy - base_y) / max(top_y - base_y, 1.0);
 	if (h > 0.0 && h < 1.0 && p.cov.x < 1.5) {
-		float t_cu = p.low.w;  // 0.5 cumulus .. 0 stratus
-		// Warp the map lookup with 3D noise so cloud sides bulge instead of
-		// being the 2D map pulled straight up.
-		vec3 wn = textureLod(shape_tex, (q + vec3(p.offs.x, 0.0, p.offs.y)) / (p.scales.x * 1.7) + 0.37, 0.0).gba;
-		vec2 warp = (wn.xy - 0.5) * mix(150.0, 520.0, t_cu * 2.0);
-		vec4 wm = textureLod(weather_tex, (q.xz + warp + p.offs2.xy) / p.scales.z, 0.0);
 		float field = mix(wm.g * 0.55 + wm.b * 0.35 + wm.a * 0.1, wm.r * 0.65 + wm.a * 0.2 + wm.g * 0.15, t_cu * 2.0);
 		// Cumulus narrow towards the top (domes) and round off at the base.
 		float shrink = t_cu * 2.0 * (0.14 * smoothstep(0.25, 1.0, h) + 0.04 * (1.0 - smoothstep(0.0, 0.12, h)));
@@ -243,9 +247,36 @@ vec3 flash_light(vec3 q) {
 	return l;
 }
 
+// Shadow map: for each point of the cloud-base plane, how much sunlight
+// gets through the clouds above it (towards the sun).
+void shadow_map(ivec2 px) {
+	vec2 xz = pc.shadow.xy + (vec2(px) + 0.5) / pc.size * pc.shadow.z;
+	vec3 s = p.sun_dir.xyz;
+	if (s.y < 0.03) {
+		imageStore(shadow_img, px, vec4(1.0));
+		return;
+	}
+	vec3 b = vec3(xz.x, p.low.x - 100.0, xz.y);
+	planet_c = vec3(b.x, -p.scales.w, b.z);  // flat here: height = y
+	float top = p.low.y;
+	for (int i = 0; i < int(p.counts.x); i++) top = max(top, p.storms[i].w);
+	float len = (top - b.y) / s.y;
+	float dt = len / 16.0;
+	float tau = 0.0;
+	for (int i = 0; i < 16; i++) {
+		float h;
+		tau += density_low(b + s * dt * (float(i) + 0.5), false, h) * dt;
+	}
+	imageStore(shadow_img, px, vec4(exp(-tau * p.low.z * 0.6)));
+}
+
 void main() {
 	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
 	if (px.x >= int(pc.size.x) || px.y >= int(pc.size.y)) return;
+	if (pc.shadow.w > 0.5) {
+		shadow_map(px);
+		return;
+	}
 	vec2 uv = (vec2(px) + 0.5) / pc.size;
 	float depth = textureLod(scene_depth, uv, 0.0).r;
 	bool sky = depth <= 0.0;
@@ -276,7 +307,9 @@ void main() {
 		int steps = int(p.counts.w);
 		float span = t1 - t0;
 		float dt = clamp(span / float(steps), 30.0, 260.0);
-		float t = t0 + dt * jitter;
+		// Steps start fine near the camera (inside a cloud light dies within
+		// tens of metres) and grow with distance.
+		float t = t0 + clamp(t0 * 0.04, 10.0, dt) * jitter;
 		int empty = 0;
 		for (int i = 0; i < 220; i++) {
 			if (t >= t1 || T < 0.01) break;
@@ -284,7 +317,7 @@ void main() {
 			float h;
 			// Cheap look first; full detail and a finer step once inside a cloud.
 			float coarse = density_low(q, false, h);
-			float step_now = dt * (coarse > 0.0 ? 0.45 : 1.0) * (1.0 + t / 30000.0);
+			float step_now = clamp(t * 0.04, 10.0, dt) * (coarse > 0.0 ? 0.5 : 1.0) * (1.0 + t / 30000.0);
 			if (coarse > 0.0) {
 				float dens = density_low(q, true, h);
 				if (dens > 0.002) {
@@ -337,7 +370,7 @@ void main() {
 	if (pc_prev.w > 0.0 && all(greaterThan(puv, vec2(0.0))) && all(lessThan(puv, vec2(1.0)))) {
 		vec4 h = textureLod(hist_color, puv, 0.0);
 		float hd = textureLod(hist_depth, puv, 0.0).r;
-		float agree = 1.0 - smoothstep(0.1, 0.3, abs(hd - cdepth) / max(cdepth, 100.0));
+		float agree = 1.0 - smoothstep(0.25, 0.8, abs(hd - cdepth) / max(cdepth, 150.0));
 		float w = mix(1.0, p.misc.z, agree);
 		outc = mix(h, cur, w);
 	}
